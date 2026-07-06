@@ -1,0 +1,739 @@
+# MackSims — FishCrew + ShutterBid + four hybrid beta apps (Codemagic)
+#
+# Store publishing (TestFlight / Google Play) is OFF by default.
+# Signed artifacts (.ipa / .aab) are uploaded as build artifacts only.
+# See docs/NATIVE_EXTERNAL_TESTING.md and docs/store-launch/ for owner steps.
+#
+# Hybrid apps (CurbCue, MotoCrew, CoachCore, Sermon Studio) load production
+# Netlify URLs via Capacitor server.url — see per-app capacitor.config.ts.
+#
+# BLOCKER: Mobile app sources are not yet vendored in this repo. Before the
+# first green build, either:
+#   1. Add sources under apps/fishcrew-static-v070 and apps/shutterbid, OR
+#   2. Set FISHCREW_GIT_URL / SHUTTERBID_GIT_URL in Codemagic environment.
+#
+# ShutterBid also has a diagnostic workflow in its own repo (shutterbid-ios).
+# Prefer this file once MackSims is the Codemagic-connected repository.
+
+workflows:
+  fishcrew-ios-signed:
+    name: FishCrew iOS (signed IPA)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    # Manual builds only — add `triggering:` when you want branch/tag automation.
+    integrations:
+      app_store_connect: $APP_STORE_CONNECT_KEY_NAME
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.chrissims.fishcrew
+      vars:
+        APP_NAME: FishCrew
+        BUNDLE_ID: com.chrissims.fishcrew
+        APP_STORE_APPLE_ID: "6783567028"
+        FISHCREW_SOURCE_DIR: apps/fishcrew-static-v070
+        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_SCHEME: App
+        CAPACITOR_WEB_DIR: dist
+      xcode: latest
+      node: latest
+      cocoapods: default
+    scripts:
+      - name: Resolve FishCrew source
+        script: |
+          set -ex
+          SRC="${FISHCREW_SOURCE_DIR:-apps/fishcrew-static-v070}"
+          if [ ! -d "$SRC" ]; then
+            if [ -n "$FISHCREW_GIT_URL" ]; then
+              git clone --depth 1 "$FISHCREW_GIT_URL" "$SRC"
+            else
+              echo "ERROR: FishCrew source missing at $SRC"
+              echo "Vendor apps/fishcrew-static-v070 or set FISHCREW_GIT_URL in Codemagic."
+              exit 1
+            fi
+          fi
+          echo "FISHCREW_ROOT=$CM_BUILD_DIR/$SRC" >> $CM_ENV
+          cd "$SRC"
+          ls -la
+
+      - name: Prepare static web bundle
+        script: |
+          set -ex
+          cd "$FISHCREW_ROOT"
+          rm -rf dist
+          mkdir -p dist
+          cp index.html manifest.webmanifest styles.css app.js config.js dist/ 2>/dev/null || true
+          for dir in public assets css js images; do
+            [ -d "$dir" ] && cp -R "$dir" dist/
+          done
+          test -f dist/index.html
+
+      - name: Add Capacitor iOS wrapper
+        script: |
+          set -ex
+          cd "$FISHCREW_ROOT"
+          npm install @capacitor/core @capacitor/cli @capacitor/ios
+          if [ ! -f capacitor.config.json ] && [ ! -f capacitor.config.ts ]; then
+            npx cap init "$APP_NAME" "$BUNDLE_ID" --web-dir="$CAPACITOR_WEB_DIR"
+          fi
+          [ -d ios ] || npx cap add ios
+          npx cap sync ios
+          cd ios/App && pod install
+
+      - name: Set up iOS code signing
+        script: xcode-project use-profiles
+
+      - name: Increment iOS build number
+        script: |
+          set -ex
+          cd "$FISHCREW_ROOT/ios/App"
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" || echo 0)
+          agvtool new-version -all $(($LATEST + 1))
+
+      - name: Build signed IPA
+        script: |
+          set -ex
+          xcode-project build-ipa \
+            --workspace "$FISHCREW_ROOT/$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+  fishcrew-android-signed:
+    name: FishCrew Android (signed AAB)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      android_signing:
+        - $FISHCREW_ANDROID_KEYSTORE_REFERENCE
+      vars:
+        APP_NAME: FishCrew
+        BUNDLE_ID: com.chrissims.fishcrew
+        PACKAGE_NAME: com.chrissims.fishcrew
+        FISHCREW_SOURCE_DIR: apps/fishcrew-static-v070
+        CAPACITOR_WEB_DIR: dist
+      node: latest
+    scripts:
+      - name: Resolve FishCrew source
+        script: |
+          set -ex
+          SRC="${FISHCREW_SOURCE_DIR:-apps/fishcrew-static-v070}"
+          if [ ! -d "$SRC" ]; then
+            if [ -n "$FISHCREW_GIT_URL" ]; then
+              git clone --depth 1 "$FISHCREW_GIT_URL" "$SRC"
+            else
+              echo "ERROR: FishCrew source missing at $SRC"
+              exit 1
+            fi
+          fi
+          echo "FISHCREW_ROOT=$CM_BUILD_DIR/$SRC" >> $CM_ENV
+          cd "$SRC"
+
+      - name: Prepare static web bundle
+        script: |
+          set -ex
+          cd "$FISHCREW_ROOT"
+          rm -rf dist
+          mkdir -p dist
+          cp index.html manifest.webmanifest styles.css app.js config.js dist/ 2>/dev/null || true
+          for dir in public assets css js images; do
+            [ -d "$dir" ] && cp -R "$dir" dist/
+          done
+          test -f dist/index.html
+
+      - name: Add Capacitor Android wrapper
+        script: |
+          set -ex
+          cd "$FISHCREW_ROOT"
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          if [ ! -f capacitor.config.json ] && [ ! -f capacitor.config.ts ]; then
+            npx cap init "$APP_NAME" "$BUNDLE_ID" --web-dir="$CAPACITOR_WEB_DIR"
+          fi
+          [ -d android ] || npx cap add android
+          npx cap sync android
+
+      - name: Build signed Android App Bundle
+        script: |
+          set -ex
+          cd "$FISHCREW_ROOT/android"
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          ./gradlew bundleRelease
+    artifacts:
+      - $FISHCREW_ROOT/android/app/build/outputs/**/*.aab
+
+  shutterbid-ios-signed:
+    name: ShutterBid iOS (signed IPA)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    integrations:
+      app_store_connect: $APP_STORE_CONNECT_KEY_NAME
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.chrissims.shutterbid
+      vars:
+        APP_NAME: ShutterBid
+        BUNDLE_ID: com.chrissims.shutterbid
+        APP_STORE_APPLE_ID: "6783551944"
+        SHUTTERBID_SOURCE_DIR: apps/shutterbid
+        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_SCHEME: App
+        CAPACITOR_WEB_DIR: dist
+      xcode: latest
+      node: latest
+      cocoapods: default
+    scripts:
+      - name: Resolve ShutterBid source
+        script: |
+          set -ex
+          SRC="${SHUTTERBID_SOURCE_DIR:-apps/shutterbid}"
+          if [ ! -d "$SRC" ]; then
+            if [ -n "$SHUTTERBID_GIT_URL" ]; then
+              git clone --depth 1 "$SHUTTERBID_GIT_URL" "$SRC"
+            else
+              echo "ERROR: ShutterBid source missing at $SRC"
+              echo "Vendor apps/shutterbid or set SHUTTERBID_GIT_URL in Codemagic."
+              exit 1
+            fi
+          fi
+          echo "SHUTTERBID_ROOT=$CM_BUILD_DIR/$SRC" >> $CM_ENV
+          cd "$SRC"
+          ls -la
+
+      - name: Install dependencies and build web app
+        script: |
+          set -ex
+          cd "$SHUTTERBID_ROOT"
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npm run build
+
+      - name: Prepare Capacitor web directory
+        script: |
+          set -ex
+          cd "$SHUTTERBID_ROOT"
+          rm -rf dist
+          mkdir -p dist
+          # Next.js build output — adjust if you add `output: 'export'` later.
+          if [ -d out ]; then
+            cp -R out/. dist/
+          elif [ -d .next/standalone ]; then
+            cp -R .next/standalone/. dist/
+          else
+            cp -R public/. dist/ 2>/dev/null || true
+            [ -f public/index.html ] && cp public/index.html dist/ || true
+          fi
+          test -f dist/index.html || echo "WARN: dist/index.html missing — verify web export strategy"
+
+      - name: Add Capacitor iOS wrapper
+        script: |
+          set -ex
+          cd "$SHUTTERBID_ROOT"
+          npm install @capacitor/core @capacitor/cli @capacitor/ios
+          if [ ! -f capacitor.config.json ] && [ ! -f capacitor.config.ts ]; then
+            npx cap init "$APP_NAME" "$BUNDLE_ID" --web-dir="$CAPACITOR_WEB_DIR"
+          fi
+          [ -d ios ] || npx cap add ios
+          npx cap sync ios
+          cd ios/App && pod install
+
+      - name: Set up iOS code signing
+        script: xcode-project use-profiles
+
+      - name: Increment iOS build number
+        script: |
+          set -ex
+          cd "$SHUTTERBID_ROOT/ios/App"
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" || echo 0)
+          agvtool new-version -all $(($LATEST + 1))
+
+      - name: Build signed IPA
+        script: |
+          set -ex
+          xcode-project build-ipa \
+            --workspace "$SHUTTERBID_ROOT/$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+  shutterbid-android-signed:
+    name: ShutterBid Android (signed AAB)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      android_signing:
+        - $SHUTTERBID_ANDROID_KEYSTORE_REFERENCE
+      vars:
+        APP_NAME: ShutterBid
+        BUNDLE_ID: com.chrissims.shutterbid
+        PACKAGE_NAME: com.chrissims.shutterbid
+        SHUTTERBID_SOURCE_DIR: apps/shutterbid
+        CAPACITOR_WEB_DIR: dist
+      node: latest
+    scripts:
+      - name: Resolve ShutterBid source
+        script: |
+          set -ex
+          SRC="${SHUTTERBID_SOURCE_DIR:-apps/shutterbid}"
+          if [ ! -d "$SRC" ]; then
+            if [ -n "$SHUTTERBID_GIT_URL" ]; then
+              git clone --depth 1 "$SHUTTERBID_GIT_URL" "$SRC"
+            else
+              echo "ERROR: ShutterBid source missing at $SRC"
+              exit 1
+            fi
+          fi
+          echo "SHUTTERBID_ROOT=$CM_BUILD_DIR/$SRC" >> $CM_ENV
+          cd "$SRC"
+
+      - name: Install dependencies and build web app
+        script: |
+          set -ex
+          cd "$SHUTTERBID_ROOT"
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npm run build
+
+      - name: Prepare Capacitor web directory
+        script: |
+          set -ex
+          cd "$SHUTTERBID_ROOT"
+          rm -rf dist
+          mkdir -p dist
+          if [ -d out ]; then
+            cp -R out/. dist/
+          elif [ -d .next/standalone ]; then
+            cp -R .next/standalone/. dist/
+          else
+            cp -R public/. dist/ 2>/dev/null || true
+          fi
+          test -f dist/index.html || echo "WARN: dist/index.html missing — verify web export strategy"
+
+      - name: Add Capacitor Android wrapper
+        script: |
+          set -ex
+          cd "$SHUTTERBID_ROOT"
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          if [ ! -f capacitor.config.json ] && [ ! -f capacitor.config.ts ]; then
+            npx cap init "$APP_NAME" "$BUNDLE_ID" --web-dir="$CAPACITOR_WEB_DIR"
+          fi
+          [ -d android ] || npx cap add android
+          npx cap sync android
+
+      - name: Build signed Android App Bundle
+        script: |
+          set -ex
+          cd "$SHUTTERBID_ROOT/android"
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          ./gradlew bundleRelease
+    artifacts:
+      - $SHUTTERBID_ROOT/android/app/build/outputs/**/*.aab
+
+  curbcue-ios-signed:
+    name: CurbCue iOS (hybrid signed IPA)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    integrations:
+      app_store_connect: $APP_STORE_CONNECT_KEY_NAME
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.macksims.curbcue
+      vars:
+        APP_NAME: CurbCue
+        BUNDLE_ID: com.macksims.curbcue
+        APP_STORE_APPLE_ID: $CURBCUE_APP_STORE_APPLE_ID
+        CURBCUE_SOURCE_DIR: apps/FairShare
+        CAPACITOR_SERVER_URL: https://fairshare-v03-20260624.netlify.app
+        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_SCHEME: App
+      xcode: latest
+      node: latest
+      cocoapods: default
+    scripts:
+      - name: Resolve CurbCue source
+        script: |
+          set -ex
+          SRC="${CURBCUE_SOURCE_DIR:-apps/FairShare}"
+          echo "CURBCUE_ROOT=$CM_BUILD_DIR/$SRC" >> $CM_ENV
+          test -d "$SRC"
+          test -f "$SRC/capacitor.config.ts"
+      - name: Prepare hybrid Capacitor iOS
+        script: |
+          set -ex
+          chmod +x scripts/codemagic-hybrid-capacitor.sh
+          ./scripts/codemagic-hybrid-capacitor.sh "$CURBCUE_ROOT" ios
+      - name: Set up iOS code signing
+        script: xcode-project use-profiles
+      - name: Increment iOS build number
+        script: |
+          set -ex
+          cd "$CURBCUE_ROOT/ios/App"
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" || echo 0)
+          agvtool new-version -all $(($LATEST + 1))
+      - name: Build signed IPA
+        script: |
+          set -ex
+          xcode-project build-ipa \
+            --workspace "$CURBCUE_ROOT/$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+  curbcue-android-signed:
+    name: CurbCue Android (hybrid signed AAB)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      android_signing:
+        - $CURBCUE_ANDROID_KEYSTORE_REFERENCE
+      vars:
+        APP_NAME: CurbCue
+        BUNDLE_ID: com.macksims.curbcue
+        PACKAGE_NAME: com.macksims.curbcue
+        CURBCUE_SOURCE_DIR: apps/FairShare
+        CAPACITOR_SERVER_URL: https://fairshare-v03-20260624.netlify.app
+      node: latest
+    scripts:
+      - name: Resolve CurbCue source
+        script: |
+          set -ex
+          SRC="${CURBCUE_SOURCE_DIR:-apps/FairShare}"
+          echo "CURBCUE_ROOT=$CM_BUILD_DIR/$SRC" >> $CM_ENV
+          test -d "$SRC"
+      - name: Prepare hybrid Capacitor Android
+        script: |
+          set -ex
+          chmod +x scripts/codemagic-hybrid-capacitor.sh
+          ./scripts/codemagic-hybrid-capacitor.sh "$CURBCUE_ROOT" android
+      - name: Build signed Android App Bundle
+        script: |
+          set -ex
+          cd "$CURBCUE_ROOT/android"
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          ./gradlew bundleRelease
+    artifacts:
+      - $CURBCUE_ROOT/android/app/build/outputs/**/*.aab
+
+  motocrew-ios-signed:
+    name: MotoCrew iOS (hybrid signed IPA)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    integrations:
+      app_store_connect: $APP_STORE_CONNECT_KEY_NAME
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.macksims.motocrew
+      vars:
+        APP_NAME: MotoCrew
+        BUNDLE_ID: com.macksims.motocrew
+        APP_STORE_APPLE_ID: $MOTOCREW_APP_STORE_APPLE_ID
+        MOTOCREW_SOURCE_DIR: apps/MotoCrew
+        CAPACITOR_SERVER_URL: https://motocrewz.netlify.app
+        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_SCHEME: App
+      xcode: latest
+      node: latest
+      cocoapods: default
+    scripts:
+      - name: Resolve MotoCrew source
+        script: |
+          set -ex
+          SRC="${MOTOCREW_SOURCE_DIR:-apps/MotoCrew}"
+          echo "MOTOCREW_ROOT=$CM_BUILD_DIR/$SRC" >> $CM_ENV
+          test -d "$SRC"
+      - name: Prepare hybrid Capacitor iOS
+        script: |
+          set -ex
+          chmod +x scripts/codemagic-hybrid-capacitor.sh
+          ./scripts/codemagic-hybrid-capacitor.sh "$MOTOCREW_ROOT" ios
+      - name: Set up iOS code signing
+        script: xcode-project use-profiles
+      - name: Increment iOS build number
+        script: |
+          set -ex
+          cd "$MOTOCREW_ROOT/ios/App"
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" || echo 0)
+          agvtool new-version -all $(($LATEST + 1))
+      - name: Build signed IPA
+        script: |
+          set -ex
+          xcode-project build-ipa \
+            --workspace "$MOTOCREW_ROOT/$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+  motocrew-android-signed:
+    name: MotoCrew Android (hybrid signed AAB)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      android_signing:
+        - $MOTOCREW_ANDROID_KEYSTORE_REFERENCE
+      vars:
+        APP_NAME: MotoCrew
+        BUNDLE_ID: com.macksims.motocrew
+        PACKAGE_NAME: com.macksims.motocrew
+        MOTOCREW_SOURCE_DIR: apps/MotoCrew
+        CAPACITOR_SERVER_URL: https://motocrewz.netlify.app
+      node: latest
+    scripts:
+      - name: Resolve MotoCrew source
+        script: |
+          set -ex
+          SRC="${MOTOCREW_SOURCE_DIR:-apps/MotoCrew}"
+          echo "MOTOCREW_ROOT=$CM_BUILD_DIR/$SRC" >> $CM_ENV
+          test -d "$SRC"
+      - name: Prepare hybrid Capacitor Android
+        script: |
+          set -ex
+          chmod +x scripts/codemagic-hybrid-capacitor.sh
+          ./scripts/codemagic-hybrid-capacitor.sh "$MOTOCREW_ROOT" android
+      - name: Build signed Android App Bundle
+        script: |
+          set -ex
+          cd "$MOTOCREW_ROOT/android"
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          ./gradlew bundleRelease
+    artifacts:
+      - $MOTOCREW_ROOT/android/app/build/outputs/**/*.aab
+
+  coachcore-ios-signed:
+    name: CoachCore iOS (hybrid signed IPA)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    integrations:
+      app_store_connect: $APP_STORE_CONNECT_KEY_NAME
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.macksims.coachcore
+      vars:
+        APP_NAME: CoachCore
+        BUNDLE_ID: com.macksims.coachcore
+        APP_STORE_APPLE_ID: $COACHCORE_APP_STORE_APPLE_ID
+        COACHCORE_SOURCE_DIR: apps/CoachCore/coachcore-static-v001
+        CAPACITOR_SERVER_URL: https://coachcore7.netlify.app/app
+        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_SCHEME: App
+      xcode: latest
+      node: latest
+      cocoapods: default
+    scripts:
+      - name: Resolve CoachCore source
+        script: |
+          set -ex
+          SRC="${COACHCORE_SOURCE_DIR:-apps/CoachCore/coachcore-static-v001}"
+          echo "COACHCORE_ROOT=$CM_BUILD_DIR/$SRC" >> $CM_ENV
+          test -d "$SRC"
+      - name: Prepare hybrid Capacitor iOS
+        script: |
+          set -ex
+          chmod +x scripts/codemagic-hybrid-capacitor.sh
+          ./scripts/codemagic-hybrid-capacitor.sh "$COACHCORE_ROOT" ios
+      - name: Set up iOS code signing
+        script: xcode-project use-profiles
+      - name: Increment iOS build number
+        script: |
+          set -ex
+          cd "$COACHCORE_ROOT/ios/App"
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" || echo 0)
+          agvtool new-version -all $(($LATEST + 1))
+      - name: Build signed IPA
+        script: |
+          set -ex
+          xcode-project build-ipa \
+            --workspace "$COACHCORE_ROOT/$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+  coachcore-android-signed:
+    name: CoachCore Android (hybrid signed AAB)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      android_signing:
+        - $COACHCORE_ANDROID_KEYSTORE_REFERENCE
+      vars:
+        APP_NAME: CoachCore
+        BUNDLE_ID: com.macksims.coachcore
+        PACKAGE_NAME: com.macksims.coachcore
+        COACHCORE_SOURCE_DIR: apps/CoachCore/coachcore-static-v001
+        CAPACITOR_SERVER_URL: https://coachcore7.netlify.app/app
+      node: latest
+    scripts:
+      - name: Resolve CoachCore source
+        script: |
+          set -ex
+          SRC="${COACHCORE_SOURCE_DIR:-apps/CoachCore/coachcore-static-v001}"
+          echo "COACHCORE_ROOT=$CM_BUILD_DIR/$SRC" >> $CM_ENV
+          test -d "$SRC"
+      - name: Prepare hybrid Capacitor Android
+        script: |
+          set -ex
+          chmod +x scripts/codemagic-hybrid-capacitor.sh
+          ./scripts/codemagic-hybrid-capacitor.sh "$COACHCORE_ROOT" android
+      - name: Build signed Android App Bundle
+        script: |
+          set -ex
+          cd "$COACHCORE_ROOT/android"
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          ./gradlew bundleRelease
+    artifacts:
+      - $COACHCORE_ROOT/android/app/build/outputs/**/*.aab
+
+  sermon-studio-ios-signed:
+    name: Sermon Studio iOS (hybrid signed IPA)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    integrations:
+      app_store_connect: $APP_STORE_CONNECT_KEY_NAME
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.macksims.sermonstudio
+      vars:
+        APP_NAME: Sermon Studio
+        BUNDLE_ID: com.macksims.sermonstudio
+        APP_STORE_APPLE_ID: $SERMON_STUDIO_APP_STORE_APPLE_ID
+        SERMON_STUDIO_SOURCE_DIR: apps/SermonStudio
+        CAPACITOR_SERVER_URL: https://sermon-studio-beta.netlify.app
+        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_SCHEME: App
+      xcode: latest
+      node: latest
+      cocoapods: default
+    scripts:
+      - name: Resolve Sermon Studio source
+        script: |
+          set -ex
+          SRC="${SERMON_STUDIO_SOURCE_DIR:-apps/SermonStudio}"
+          echo "SERMON_STUDIO_ROOT=$CM_BUILD_DIR/$SRC" >> $CM_ENV
+          test -d "$SRC"
+      - name: Prepare hybrid Capacitor iOS
+        script: |
+          set -ex
+          chmod +x scripts/codemagic-hybrid-capacitor.sh
+          ./scripts/codemagic-hybrid-capacitor.sh "$SERMON_STUDIO_ROOT" ios
+      - name: Set up iOS code signing
+        script: xcode-project use-profiles
+      - name: Increment iOS build number
+        script: |
+          set -ex
+          cd "$SERMON_STUDIO_ROOT/ios/App"
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" || echo 0)
+          agvtool new-version -all $(($LATEST + 1))
+      - name: Build signed IPA
+        script: |
+          set -ex
+          xcode-project build-ipa \
+            --workspace "$SERMON_STUDIO_ROOT/$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+  sermon-studio-android-signed:
+    name: Sermon Studio Android (hybrid signed AAB)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      android_signing:
+        - $SERMON_STUDIO_ANDROID_KEYSTORE_REFERENCE
+      vars:
+        APP_NAME: Sermon Studio
+        BUNDLE_ID: com.macksims.sermonstudio
+        PACKAGE_NAME: com.macksims.sermonstudio
+        SERMON_STUDIO_SOURCE_DIR: apps/SermonStudio
+        CAPACITOR_SERVER_URL: https://sermon-studio-beta.netlify.app
+      node: latest
+    scripts:
+      - name: Resolve Sermon Studio source
+        script: |
+          set -ex
+          SRC="${SERMON_STUDIO_SOURCE_DIR:-apps/SermonStudio}"
+          echo "SERMON_STUDIO_ROOT=$CM_BUILD_DIR/$SRC" >> $CM_ENV
+          test -d "$SRC"
+      - name: Prepare hybrid Capacitor Android
+        script: |
+          set -ex
+          chmod +x scripts/codemagic-hybrid-capacitor.sh
+          ./scripts/codemagic-hybrid-capacitor.sh "$SERMON_STUDIO_ROOT" android
+      - name: Build signed Android App Bundle
+        script: |
+          set -ex
+          cd "$SERMON_STUDIO_ROOT/android"
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          ./gradlew bundleRelease
+    artifacts:
+      - $SERMON_STUDIO_ROOT/android/app/build/outputs/**/*.aab
+
+  # ---------------------------------------------------------------------------
+  # OPTIONAL STORE PUBLISHING — disabled by default (no `publishing:` on workflows
+  # above). Uncomment ONE platform block below, set credentials in Codemagic,
+  # and run that workflow manually when you are ready to upload.
+  # ---------------------------------------------------------------------------
+  #
+  # fishcrew-ios-testflight:
+  #   name: FishCrew iOS → TestFlight (manual publish)
+  #   instance_type: mac_mini_m2
+  #   max_build_duration: 120
+  #   integrations:
+  #     app_store_connect: $APP_STORE_CONNECT_KEY_NAME
+  #   environment:
+  #     ios_signing:
+  #       distribution_type: app_store
+  #       bundle_identifier: com.chrissims.fishcrew
+  #     vars:
+  #       APP_STORE_APPLE_ID: "6783567028"
+  #       FISHCREW_SOURCE_DIR: apps/fishcrew-static-v070
+  #     xcode: latest
+  #     node: latest
+  #     cocoapods: default
+  #   scripts:
+  #     # … copy build steps from fishcrew-ios-signed …
+  #   artifacts:
+  #     - build/ios/ipa/*.ipa
+  #   publishing:
+  #     app_store_connect:
+  #       auth: integration
+  #       submit_to_testflight: true
+  #       beta_groups:
+  #         - FishCrew Testers
+  #
+  # fishcrew-android-play-internal:
+  #   name: FishCrew Android → Play internal (manual publish)
+  #   environment:
+  #     android_signing:
+  #       - $FISHCREW_ANDROID_KEYSTORE_REFERENCE
+  #     vars:
+  #       GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
+  #       PACKAGE_NAME: com.chrissims.fishcrew
+  #   scripts:
+  #     # … copy build steps from fishcrew-android-signed …
+  #   publishing:
+  #     google_play:
+  #       credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
+  #       track: internal
+  #
+  # shutterbid-ios-testflight:
+  #   name: ShutterBid iOS → TestFlight (manual publish)
+  #   publishing:
+  #     app_store_connect:
+  #       auth: integration
+  #       submit_to_testflight: true
+  #       beta_groups:
+  #         - ShutterBid Testers
+  #
+  # shutterbid-android-play-internal:
+  #   name: ShutterBid Android → Play internal (manual publish)
+  #   publishing:
+  #     google_play:
+  #       credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
+  #       track: internal
