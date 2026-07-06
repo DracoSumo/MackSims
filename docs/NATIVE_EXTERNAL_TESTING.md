@@ -323,9 +323,9 @@ No build IDs or Codemagic URLs were returned.
 
 | Repo | Remote | Action |
 |------|--------|--------|
-| FairShare | `github.com/DracoSumo/FairShare` | commit + push `capacitor.config.ts` if push succeeds |
-| MotoCrew | `github.com/DracoSumo/MotoCrew` | commit + push `capacitor.config.ts` |
-| Sermon Studio | `github.com/DracoSumo/Pastor-s-Sermon-Studio` | commit + push `capacitor.config.ts` |
-| CoachCore (`coachcore-static-v001`) | none | local commit only |
-| MackSims monorepo | none | local commit `codemagic.yaml`, `.env.signing.example`, this doc |
+| FairShare | `github.com/DracoSumo/FairShare` | pushed `a379cea` (`capacitor.config.ts`) |
+| MotoCrew | `github.com/DracoSumo/MotoCrew` | pushed `78f90fa` |
+| Sermon Studio | `github.com/DracoSumo/Pastor-s-Sermon-Studio` | pushed `1ef025a` |
+| CoachCore (`coachcore-static-v001`) | none | local commit `a612b5a` (no remote) |
+| MackSims monorepo | none | local root commit `778730c` (no remote — **required** for Codemagic hybrid workflows) |
 
