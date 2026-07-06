@@ -453,3 +453,66 @@ Cannot list applications, resolve workflow IDs, `POST /builds`, or poll build st
 2. Start `*-android-signed` workflows from the MackSims app (branch `master`).
 3. After MackSims is green, consider retiring duplicate per-repo iOS wrappers or point them at the monorepo.
 
+
+## Android unblock 2026-07-06
+
+**Run:** 2026-07-06 (follow-up to Codemagic browser trigger)  
+**Excluded:** ShutterBid, FishCrew, Aegis Intel
+
+### 1. MackSims GitHub push
+
+| Item | Result |
+|------|--------|
+| `DracoSumo/MackSims` on GitHub | **EXISTS** ? `https://github.com/DracoSumo/MackSims` |
+| Remote | `origin` ? `https://github.com/DracoSumo/MackSims.git` |
+| Branch | `master` |
+| Latest commit | `a77d500` ? hybrid Capacitor app sources + `scripts/codemagic-hybrid-capacitor.sh` |
+| `codemagic.yaml` on `master` | **YES** (tracked at repo root) |
+| `.gitignore` | Updated to exclude `node_modules/`, `.env*`, signing artifacts, `apps/FishCrew/`, `apps/ShutterBid/` |
+| `gh` CLI | Installed v2.96.0; **`gh auth login` not configured** (git credential helper used for push) |
+
+**What changed vs prior pass:** MackSims no longer tracks only `codemagic.yaml` + docs. Four hybrid app trees (`apps/FairShare`, `apps/MotoCrew`, `apps/CoachCore/coachcore-static-v001`, `apps/SermonStudio`) and the Capacitor CI script are now on `master` for Codemagic to clone.
+
+### 2. Codemagic connect `DracoSumo/MackSims`
+
+| Step | Result |
+|------|--------|
+| Codemagic login | **PASS** ? `simsc32@gmail.com` |
+| **Applications ? Add application ? GitHub** | **BLOCKED** ? repo picker shows **Click here**; redirects to GitHub **Confirm access** (sudo mode / email verification) |
+| GitHub Codemagic app install | **All repositories** already granted (installation `142204817`) |
+| **Other ? URL** (`https://github.com/DracoSumo/MackSims.git`) | **BLOCKED** ? private repo requires HTTP username + personal access token (not available in agent env) |
+| MackSims in Applications list | **NOT CONNECTED** (still absent after this pass) |
+
+**Owner unblock (one-time):** On GitHub, complete **Verify via email** sudo mode, then in Codemagic **Add application ? GitHub ? DracoSumo/MackSims ? Finish**. Codemagic should auto-detect workflows from root `codemagic.yaml`.
+
+### 3. Android signed workflow triggers
+
+| Workflow | Triggered | Build URL | Status |
+|----------|-----------|-----------|--------|
+| `curbcue-android-signed` | **NO** | ? | **BLOCKED** ? MackSims app not connected |
+| `motocrew-android-signed` | **NO** | ? | **BLOCKED** |
+| `coachcore-android-signed` | **NO** | ? | **BLOCKED** |
+| `sermon-studio-android-signed` | **NO** | ? | **BLOCKED** |
+
+No Android build IDs returned. Re-run after MackSims is connected (branch `master`).
+
+### 4. iOS wrapper build poll (prior session proxies)
+
+| App | Build ID | URL | Status (2026-07-06) | Post-processing notes |
+|-----|----------|-----|---------------------|------------------------|
+| CurbCue (`fairshare-ios`) | `6a4b5848` | https://codemagic.io/app/6a4b190a9358792adc237919/build/6a4b5848f61aebe000aa437e | **finished** | **post-processing failed** ? IPA likely built (download available on builds list); TestFlight upload step needs owner action (set `CURBCUE_APP_STORE_APPLE_ID` / ASC app record) |
+| MotoCrew (`throttlelink-ios`) | `6a4b5989` | https://codemagic.io/app/6a4b1a15c003829d1b16d83b/build/6a4b598907be97b89d8086df | **finished** | **post-processing failed** (same pattern) |
+| CoachCore (`coachcore-ios`) | `6a4b59e7` | https://codemagic.io/app/6a4b1b0eb210b64f648b384a/build/6a4b59e733b9be36e36d9398 | **finished** | **post-processing failed** |
+| Sermon Studio (`sermonstudio-ios`) | `6a4b5a28` | https://codemagic.io/app/6a4b1ba94e5092cd81da0041/build/6a4b5a28753d72a63d749a98 | **post-processing** (in progress) | Still running at poll time |
+
+**No immediate agent action required** on iOS wrappers beyond owner ASC setup. Post-processing failures are expected until App Store Connect app IDs and distribution signing are configured per app.
+
+### Owner checklist (Android unblock completion)
+
+1. Complete GitHub email verification (sudo mode) if prompted.
+2. Connect **DracoSumo/MackSims** in Codemagic Applications.
+3. Confirm workflows detected: `curbcue-android-signed`, `motocrew-android-signed`, `coachcore-android-signed`, `sermon-studio-android-signed`.
+4. Set per-app Android keystore references in Codemagic (`curbcue-upload-key`, `motocrew-upload-key`, `coachcore-upload-key`, `sermon-studio-upload-key`) if not already uploaded.
+5. Start the four `*-android-signed` workflows on branch `master`.
+6. For iOS wrappers: create ASC app records, set `*_APP_STORE_APPLE_ID`, then re-run or manually upload IPA artifacts from failed post-processing builds.
+
