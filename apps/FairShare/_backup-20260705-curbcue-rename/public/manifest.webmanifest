@@ -1,0 +1,19 @@
+{
+  "name": "CurbCue",
+  "short_name": "CurbCue",
+  "description": "Compare rides, spot surge pressure, and choose smarter pickup options before prices jump.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#006d77",
+  "background_color": "#f6f8f5",
+  "icons": [
+    {
+      "src": "/fairshare-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

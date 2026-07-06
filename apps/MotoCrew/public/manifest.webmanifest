@@ -1,0 +1,20 @@
+{
+  "name": "MotoCrew",
+  "short_name": "MotoCrew",
+  "description": "Plan the ride. Ride with the pack.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#06080d",
+  "theme_color": "#06080d",
+  "categories": ["navigation", "social", "sports"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

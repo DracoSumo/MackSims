@@ -1,0 +1,5 @@
+# Block commits if staged diff contains secret-like strings
+if git diff --cached -U0 | grep -E 'SUPABASE_SERVICE_ROLE_KEY|BEGIN PRIVATE KEY|aws_secret_access_key|NEXT_PUBLIC_SUPABASE_ANON_KEY=' > /dev/null; then
+  echo "Secret-like string found in staged changes. Remove it before committing."
+  exit 1
+fi

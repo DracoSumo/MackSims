@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+.env.local
+.DS_Store
+.vscode/
+
+# Local Netlify folder
+.netlify
+
+# Capacitor native projects (generated locally or on CI)
+ios/
+android/

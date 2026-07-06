@@ -1,0 +1,45 @@
+{
+  "name": "sermon-studio-next",
+  "version": "0.1.1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "seed": "node scripts/seed.mjs",
+    "test": "vitest run",
+    "check": "npm run test && npm run build",
+    "prepare": "husky",
+    "deploy:netlify": "netlify deploy --prod",
+    "cap:sync": "npx cap sync",
+    "cap:ios": "npx cap open ios",
+    "cap:android": "npx cap open android",
+    "build:native": "npm run check && npx cap sync"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.2",
+    "@capacitor/core": "^7.4.2",
+    "@capacitor/ios": "^7.4.2",
+    "@supabase/supabase-js": "^2.45.4",
+    "dotenv": "^16.4.5",
+    "lucide-react": "^0.468.0",
+    "next": "14.2.15",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.2",
+    "@netlify/plugin-nextjs": "^5.15.12",
+    "@types/node": "^20.14.12",
+    "@types/react": "^18.3.3",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.15",
+    "husky": "^9.1.7",
+    "postcss": "^8.4.41",
+    "tailwindcss": "^3.4.10",
+    "typescript": "^5.6.2",
+    "vitest": "^3.2.6"
+  }
+}

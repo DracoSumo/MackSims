@@ -1,0 +1,65 @@
+:root {
+  --bg: #06080d;
+  --surface: rgba(18, 24, 33, 0.86);
+  --surface-strong: #151d28;
+  --border: rgba(255, 255, 255, 0.11);
+  --text: #e8edf2;
+  --text-strong: #ffffff;
+  --muted: #9ba7b4;
+  --accent: #ff7a3d;
+  --green: #27ae7f;
+  --warning: #ffc663;
+  --danger: #ff6b6b;
+  --shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+  --sans:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  color: var(--text);
+  background: var(--bg);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.45;
+  letter-spacing: 0;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--bg);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100svh;
+  margin: 0;
+  background: var(--bg);
+}
+
+button,
+input,
+select,
+textarea {
+  letter-spacing: 0;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1,
+h2,
+h3,
+p {
+  overflow-wrap: anywhere;
+}
+
+#root {
+  min-height: 100svh;
+}
