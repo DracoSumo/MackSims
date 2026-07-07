@@ -106,7 +106,7 @@ workflows:
     max_build_duration: 120
     environment:
       android_signing:
-        - $FISHCREW_ANDROID_KEYSTORE_REFERENCE
+        - fishcrew-upload-key
       vars:
         APP_NAME: FishCrew
         BUNDLE_ID: com.chrissims.fishcrew
@@ -263,7 +263,7 @@ workflows:
     max_build_duration: 120
     environment:
       android_signing:
-        - $SHUTTERBID_ANDROID_KEYSTORE_REFERENCE
+        - shutterbid-upload-key
       vars:
         APP_NAME: ShutterBid
         BUNDLE_ID: com.chrissims.shutterbid
@@ -387,7 +387,7 @@ workflows:
     max_build_duration: 120
     environment:
       android_signing:
-        - $CURBCUE_ANDROID_KEYSTORE_REFERENCE
+        - curbcue-upload-key
       vars:
         APP_NAME: CurbCue
         BUNDLE_ID: com.macksims.curbcue
@@ -473,7 +473,7 @@ workflows:
     max_build_duration: 120
     environment:
       android_signing:
-        - $MOTOCREW_ANDROID_KEYSTORE_REFERENCE
+        - motocrew-upload-key
       vars:
         APP_NAME: MotoCrew
         BUNDLE_ID: com.macksims.motocrew
@@ -559,7 +559,7 @@ workflows:
     max_build_duration: 120
     environment:
       android_signing:
-        - $COACHCORE_ANDROID_KEYSTORE_REFERENCE
+        - coachcore-upload-key
       vars:
         APP_NAME: CoachCore
         BUNDLE_ID: com.macksims.coachcore
@@ -645,7 +645,7 @@ workflows:
     max_build_duration: 120
     environment:
       android_signing:
-        - $SERMON_STUDIO_ANDROID_KEYSTORE_REFERENCE
+        - sermon-studio-upload-key
       vars:
         APP_NAME: Sermon Studio
         BUNDLE_ID: com.macksims.sermonstudio
