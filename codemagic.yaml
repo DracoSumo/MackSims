@@ -386,6 +386,7 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 120
     environment:
+      java: 21
       android_signing:
         - curbcue-upload-key
       vars:
@@ -472,6 +473,7 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 120
     environment:
+      java: 21
       android_signing:
         - motocrew-upload-key
       vars:
@@ -558,6 +560,7 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 120
     environment:
+      java: 21
       android_signing:
         - coachcore-upload-key
       vars:
@@ -644,6 +647,7 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 120
     environment:
+      java: 21
       android_signing:
         - sermon-studio-upload-key
       vars:
