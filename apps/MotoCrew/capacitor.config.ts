@@ -6,7 +6,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * Dev placeholder below is NOT a store bundle ID.
  */
 const config: CapacitorConfig = {
-  appId: process.env.CAPACITOR_APP_ID || 'com.macksims.motocrew',
+  appId: process.env.CAPACITOR_APP_ID || 'com.chrissims.throttlelink',
   appName: 'MotoCrew',
   webDir: 'capacitor-web',
   server: {

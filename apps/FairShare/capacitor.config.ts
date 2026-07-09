@@ -6,7 +6,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * Dev placeholder below is NOT a store bundle ID — owner must set CAPACITOR_APP_ID / CURBCUE_BUNDLE_ID.
  */
 const config: CapacitorConfig = {
-  appId: process.env.CAPACITOR_APP_ID || 'com.macksims.curbcue',
+  appId: process.env.CAPACITOR_APP_ID || 'com.chrissims.fairshare',
   appName: 'CurbCue',
   webDir: 'capacitor-web',
   server: {

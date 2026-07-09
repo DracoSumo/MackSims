@@ -6,7 +6,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * Dev placeholder below is NOT a store bundle ID.
  */
 const config: CapacitorConfig = {
-  appId: process.env.CAPACITOR_APP_ID || 'com.macksims.sermonstudio',
+  appId: process.env.CAPACITOR_APP_ID || 'com.chrissims.sermonstudio',
   appName: 'Sermon Studio',
   webDir: 'capacitor-web',
   server: {

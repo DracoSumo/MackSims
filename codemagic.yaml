@@ -156,9 +156,8 @@ workflows:
       - name: Build signed Android App Bundle
         script: |
           set -ex
-          cd "$FISHCREW_ROOT/android"
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-          ./gradlew bundleRelease
+          chmod +x scripts/codemagic-android-bundle.sh
+          ./scripts/codemagic-android-bundle.sh "$FISHCREW_ROOT/android"
     artifacts:
       - $FISHCREW_ROOT/android/app/build/outputs/**/*.aab
 
@@ -323,9 +322,8 @@ workflows:
       - name: Build signed Android App Bundle
         script: |
           set -ex
-          cd "$SHUTTERBID_ROOT/android"
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-          ./gradlew bundleRelease
+          chmod +x scripts/codemagic-android-bundle.sh
+          ./scripts/codemagic-android-bundle.sh "$SHUTTERBID_ROOT/android"
     artifacts:
       - $SHUTTERBID_ROOT/android/app/build/outputs/**/*.aab
 
@@ -391,8 +389,9 @@ workflows:
         - curbcue-upload-key
       vars:
         APP_NAME: CurbCue
-        BUNDLE_ID: com.macksims.curbcue
-        PACKAGE_NAME: com.macksims.curbcue
+        BUNDLE_ID: com.chrissims.fairshare
+        PACKAGE_NAME: com.chrissims.fairshare
+        CAPACITOR_APP_ID: com.chrissims.fairshare
         CURBCUE_SOURCE_DIR: apps/FairShare
         CAPACITOR_SERVER_URL: https://fairshare-v03-20260624.netlify.app
       node: latest
@@ -411,9 +410,8 @@ workflows:
       - name: Build signed Android App Bundle
         script: |
           set -ex
-          cd "$CURBCUE_ROOT/android"
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-          ./gradlew bundleRelease
+          chmod +x scripts/codemagic-android-bundle.sh
+          ./scripts/codemagic-android-bundle.sh "$CURBCUE_ROOT/android"
     artifacts:
       - $CURBCUE_ROOT/android/app/build/outputs/**/*.aab
 
@@ -478,8 +476,9 @@ workflows:
         - motocrew-upload-key
       vars:
         APP_NAME: MotoCrew
-        BUNDLE_ID: com.macksims.motocrew
-        PACKAGE_NAME: com.macksims.motocrew
+        BUNDLE_ID: com.chrissims.throttlelink
+        PACKAGE_NAME: com.chrissims.throttlelink
+        CAPACITOR_APP_ID: com.chrissims.throttlelink
         MOTOCREW_SOURCE_DIR: apps/MotoCrew
         CAPACITOR_SERVER_URL: https://motocrewz.netlify.app
       node: latest
@@ -498,9 +497,8 @@ workflows:
       - name: Build signed Android App Bundle
         script: |
           set -ex
-          cd "$MOTOCREW_ROOT/android"
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-          ./gradlew bundleRelease
+          chmod +x scripts/codemagic-android-bundle.sh
+          ./scripts/codemagic-android-bundle.sh "$MOTOCREW_ROOT/android"
     artifacts:
       - $MOTOCREW_ROOT/android/app/build/outputs/**/*.aab
 
@@ -565,8 +563,9 @@ workflows:
         - coachcore-upload-key
       vars:
         APP_NAME: CoachCore
-        BUNDLE_ID: com.macksims.coachcore
-        PACKAGE_NAME: com.macksims.coachcore
+        BUNDLE_ID: com.chrissims.coachcore
+        PACKAGE_NAME: com.chrissims.coachcore
+        CAPACITOR_APP_ID: com.chrissims.coachcore
         COACHCORE_SOURCE_DIR: apps/CoachCore/coachcore-static-v001
         CAPACITOR_SERVER_URL: https://coachcore7.netlify.app/app
       node: latest
@@ -585,9 +584,8 @@ workflows:
       - name: Build signed Android App Bundle
         script: |
           set -ex
-          cd "$COACHCORE_ROOT/android"
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-          ./gradlew bundleRelease
+          chmod +x scripts/codemagic-android-bundle.sh
+          ./scripts/codemagic-android-bundle.sh "$COACHCORE_ROOT/android"
     artifacts:
       - $COACHCORE_ROOT/android/app/build/outputs/**/*.aab
 
@@ -652,8 +650,9 @@ workflows:
         - sermon-studio-upload-key
       vars:
         APP_NAME: Sermon Studio
-        BUNDLE_ID: com.macksims.sermonstudio
-        PACKAGE_NAME: com.macksims.sermonstudio
+        BUNDLE_ID: com.chrissims.sermonstudio
+        PACKAGE_NAME: com.chrissims.sermonstudio
+        CAPACITOR_APP_ID: com.chrissims.sermonstudio
         SERMON_STUDIO_SOURCE_DIR: apps/SermonStudio
         CAPACITOR_SERVER_URL: https://sermon-studio-beta.netlify.app
       node: latest
@@ -672,9 +671,8 @@ workflows:
       - name: Build signed Android App Bundle
         script: |
           set -ex
-          cd "$SERMON_STUDIO_ROOT/android"
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-          ./gradlew bundleRelease
+          chmod +x scripts/codemagic-android-bundle.sh
+          ./scripts/codemagic-android-bundle.sh "$SERMON_STUDIO_ROOT/android"
     artifacts:
       - $SERMON_STUDIO_ROOT/android/app/build/outputs/**/*.aab
 

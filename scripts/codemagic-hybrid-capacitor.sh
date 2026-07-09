@@ -8,6 +8,11 @@ PLATFORM="${2:-both}"
 
 cd "$APP_ROOT"
 
+# Match Play Console package names (com.chrissims.*) when set in Codemagic vars.
+if [ -n "${PACKAGE_NAME:-}" ]; then
+  export CAPACITOR_APP_ID="$PACKAGE_NAME"
+fi
+
 if [ -f package-lock.json ]; then
   npm ci
 else
