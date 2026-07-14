@@ -105,3 +105,16 @@ Re-ran smokes / Netlify API / DNS while auditing other agents.
 2. ZenBusiness: delete A `35.172.94.1` **or** change nameservers to Netlify (`dns1.p09.nsone.net` … `dns4.p09.nsone.net`).
 3. Codemagic ASC rebuilds (CurbCue / ThrottleLink / CoachCore / Sermon) — no API token in this environment to poll.
 4. Play Console Data Safety resume (other agent aborted) — needs browser session.
+
+## Netlify DNS prep for NS cutover (2026-07-14)
+
+Netlify zone now includes Google MX/SPF/Search Console TXT/DMARC + ShutterBid Vercel CNAME (in addition to existing NETLIFY site records).
+
+**Nameservers to set at ZenBusiness/Tucows registrar** (not Google Domains):
+
+- `dns1.p09.nsone.net`
+- `dns2.p09.nsone.net`
+- `dns3.p09.nsone.net`
+- `dns4.p09.nsone.net`
+
+See `docs/DNS_NETLIFY_NS_CUTOVER.md`. Live NS still `systemdns.com` until owner updates registrar.
