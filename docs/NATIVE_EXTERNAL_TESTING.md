@@ -57,7 +57,7 @@ Set in Codemagic **Environment variables** or **Code signing** UI before first s
 | `COACHCORE_PACKAGE_NAME` | **TBD owner** |
 | `COACHCORE_APP_STORE_APPLE_ID` | **TBD** |
 | `COACHCORE_ANDROID_KEYSTORE_REFERENCE` | Codemagic keystore ref |
-| `CAPACITOR_SERVER_URL` | Default `https://coachcore7.netlify.app/app` |
+| `CAPACITOR_SERVER_URL` | Default `https://coachcore7.netlify.app/app/` (trailing slash avoids 301 blank WebView) |
 
 ### Per app ? Sermon Studio
 
@@ -165,7 +165,7 @@ cd apps\FairShare\android
 | Field | Value |
 |-------|-------|
 | Source | `apps/CoachCore/coachcore-static-v001` |
-| Hybrid URL | https://coachcore7.netlify.app/app |
+| Hybrid URL | https://coachcore7.netlify.app/app/ |
 | Display name | CoachCore |
 | Bundle ID / package | **TBD** ? `docs/store-launch/apps/coachcore/` |
 | Capacitor config | `apps/CoachCore/coachcore-static-v001/capacitor.config.ts` |

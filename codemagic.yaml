@@ -517,7 +517,7 @@ workflows:
         BUNDLE_ID: com.macksims.coachcore
         APP_STORE_APPLE_ID: $COACHCORE_APP_STORE_APPLE_ID
         COACHCORE_SOURCE_DIR: apps/CoachCore/coachcore-static-v001
-        CAPACITOR_SERVER_URL: https://coachcore7.netlify.app/app
+        CAPACITOR_SERVER_URL: https://coachcore7.netlify.app/app/
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
       xcode: latest
@@ -567,7 +567,7 @@ workflows:
         PACKAGE_NAME: com.chrissims.coachcore
         CAPACITOR_APP_ID: com.chrissims.coachcore
         COACHCORE_SOURCE_DIR: apps/CoachCore/coachcore-static-v001
-        CAPACITOR_SERVER_URL: https://coachcore7.netlify.app/app
+        CAPACITOR_SERVER_URL: https://coachcore7.netlify.app/app/
       node: latest
     scripts:
       - name: Resolve CoachCore source
