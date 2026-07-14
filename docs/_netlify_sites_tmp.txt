@@ -1,0 +1,41 @@
+⠋ Loading your projects
+√ Loading your projects
+
+────────────────────────────┐
+ Current Netlify Projects │
+────────────────────────────┘
+
+Count: 8
+
+resplendent-cuchufli-02850a - c491cb3b-d96d-4228-99e6-89cc90c28f87
+  url:  https://resplendent-cuchufli-02850a.netlify.app
+  account: fishcrew
+─────────────────────────────────────────────────
+sermon-studio-beta - f695214f-1e22-429a-86ac-5adac2822414
+  url:  https://sermon-studio-beta.netlify.app
+  account: fishcrew
+─────────────────────────────────────────────────
+sprightly-lily-160925 - 31c40a08-099e-4357-87c0-03f432bdfcd7
+  url:  https://sprightly-lily-160925.netlify.app
+  account: fishcrew
+─────────────────────────────────────────────────
+macksims-public-site - ff01fe30-986a-4a21-8293-4916e07b28b6
+  url:  https://macksims.com
+  account: fishcrew
+─────────────────────────────────────────────────
+motocrewz - 94099ea3-9d62-4c02-9ab3-5162c59282a7
+  url:  https://motocrewz.netlify.app
+  account: fishcrew
+─────────────────────────────────────────────────
+fairshare-v03-20260624 - f81df982-2348-4d3c-b842-fb806b1b4b00
+  url:  https://fairshare-v03-20260624.netlify.app
+  account: fishcrew
+─────────────────────────────────────────────────
+coachcore7 - b8885541-5a95-4e01-8ba8-3ccb27e1e60f
+  url:  https://coachcore7.netlify.app
+  account: fishcrew
+─────────────────────────────────────────────────
+fishcrew - 456ad8ef-3582-4123-9031-63af8e7d68fb
+  url:  https://fishcrew.macksims.com
+  account: fishcrew
+─────────────────────────────────────────────────

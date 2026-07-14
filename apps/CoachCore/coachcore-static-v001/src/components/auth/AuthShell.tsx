@@ -29,7 +29,8 @@ export function AuthShell({
           <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.06] p-5">
             <p className="font-black text-sky-100">Demo mode only</p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
-              v0.1 does not connect real auth, team data, payments, Hudl, wearables, or external APIs.
+              Demo mode uses mock data locally. Sign in with Supabase when configured for cloud sync.
+              No payments, Hudl, wearables, or external AI APIs in v0.7.1.
             </p>
           </div>
         </section>
@@ -46,10 +47,12 @@ export function Field({
   label,
   placeholder,
   type = "text",
+  disabled = false,
 }: {
   label: string;
   placeholder: string;
   type?: string;
+  disabled?: boolean;
 }) {
   return (
     <label className="block">
@@ -57,7 +60,8 @@ export function Field({
       <input
         type={type}
         placeholder={placeholder}
-        className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-sky-300/60"
+        disabled={disabled}
+        className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-sky-300/60 disabled:cursor-not-allowed disabled:opacity-60"
       />
     </label>
   );

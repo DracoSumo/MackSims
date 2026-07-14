@@ -1,0 +1,30 @@
+{
+  "app": "motocrew",
+  "capturedAt": "2026-07-11T17:46:12.277Z",
+  "formFactors": [
+    "phone",
+    "tablet-7",
+    "tablet-10"
+  ],
+  "shots": [
+    {
+      "name": "01-home",
+      "path": "/"
+    },
+    {
+      "name": "02-rides",
+      "path": "/",
+      "click": "Rides"
+    },
+    {
+      "name": "03-map",
+      "path": "/",
+      "click": "Map"
+    },
+    {
+      "name": "04-safety",
+      "path": "/",
+      "click": "Safety"
+    }
+  ]
+}

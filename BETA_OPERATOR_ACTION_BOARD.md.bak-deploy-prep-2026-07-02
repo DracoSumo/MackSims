@@ -1,0 +1,96 @@
+# MackSims — Beta Operator Action Board
+
+All **user-owned manual actions** across the ecosystem, in priority order.
+Repo-side prep for each item is already done; these steps need YOUR logins
+(Supabase, Firebase, Netlify) or a real phone. Check items off as you go and
+report back using the mini-template at the bottom of each app's checklist doc.
+
+**Last updated:** 2026-07-01 (production deploys — all MackSims beta apps)
+
+---
+
+## Ecosystem status (quick reference)
+
+| App | Status | Live URL |
+|---|---|---|
+| FairShare | **Testing active** — deployed | https://fairshare-v03-20260624.netlify.app |
+| MotoCrew/Throttle | **Testing active** — deployed | https://motocrewz.netlify.app |
+| Sermon Studio | **Deployed** — Wave 1 ready | https://sermon-studio-beta.netlify.app |
+| CoachCore | **Deployed** — Wave 1 authorized | https://coachcore7.netlify.app |
+| ShutterBid | **Deployed** — Ready | https://shutterbid.macksims.com |
+| FishCrew | **Deployed** (was parked) | https://fishcrew.macksims.com |
+
+---
+
+## 1. Sermon Studio — Wave 1 testing active
+
+| | |
+|---|---|
+| **Status** | **Operator confirmed pass** — local/demo Wave 1 cleared |
+| **Manual action** | Track Wave 1 feedback; triage per `BETA_INVITE_PACKAGE.md` |
+| **Where** | `sermon-studio-next-patched\` · `EXTERNAL_TESTING_CHECKLIST.md` |
+| **Done** | [x] Operator smoke · [x] Wave 1 cleared |
+| **Report back** | Feedback received · outline/copy themes · Wave 2 gate |
+| **Next Codex action** | Triage feedback; backend only when requested |
+
+## 2. ShutterBid — send Wave 1 invites
+
+| | |
+|---|---|
+| **Status** | **Ready** — operator confirmed existing Firebase + smoke pass |
+| **Manual action** | Send 2–3 tester invites per existing beta docs. Track smoke feedback from real Firebase flows. |
+| **Where** | `shutterbid-starter\` · `docs/TESTER_INVITE_MESSAGE.md` · `SHUTTERBID_EXISTING_FIREBASE_RUNBOOK.md` |
+| **Done** | [x] Existing Firebase verified · [x] Smoke pass |
+| **Report back** | Testers invited · signup/job/bid flow feedback · phone pass/fail |
+| **Next Codex action** | Triage Wave 1 feedback; fix broken flows before Wave 2 |
+
+## 3. CoachCore — send Wave 1 invites (Workstream 6)
+
+| | |
+|---|---|
+| **Status** | **Wave 1 authorized** — operator confirmed UX re-review pass (accountability + connected surfaces) |
+| **Manual action** | Send 2–3 invites per `BETA_INVITE_PACKAGE.md`. Use local dev build or https://coachcore7.netlify.app. **Do not redeploy** unless instructed. |
+| **Where** | `apps\CoachCore\` · `TESTER_FEEDBACK_TEMPLATE.md` |
+| **Done** | [x] Wave 0 · [x] UX hardening · [x] Re-review pass · [ ] Wave 1 invites sent |
+| **Report back** | Testers invited · accountability feedback · connected-surfaces feedback |
+| **Next Codex action** | Triage Wave 1 feedback |
+
+## 4. FairShare — Wave 1 testing active
+
+| | |
+|---|---|
+| **Status** | **Testing active** — invites sent |
+| **Manual action** | Track feedback, triage using invite package tracking table |
+| **Where** | `MackSims\apps\FairShare\BETA_INVITE_PACKAGE.md` |
+| **Done** | [x] Wave 1 sent |
+| **Report back** | Feedback received · confusion items · Wave 2 gate |
+
+## 5. MotoCrew/Throttle — Wave 1 testing active
+
+| | |
+|---|---|
+| **Status** | **Testing active** — invites sent |
+| **Manual action** | Track feedback; treat safety-copy confusion as critical |
+| **Where** | `MackSims\apps\MotoCrew\BETA_INVITE_PACKAGE.md` |
+| **Done** | [x] Wave 1 sent |
+| **Report back** | Feedback received · safety clarity · Wave 2 gate |
+
+## 6. FishCrew — parked
+
+| | |
+|---|---|
+| **Status** | **Parked** — no action unless explicitly instructed |
+| **Manual action** | None |
+| **Done** | n/a |
+
+---
+
+## Suggested order
+
+CoachCore + ShutterBid Wave 1 invites (parallel) → triage all active Wave 1 feedback (FairShare, MotoCrew, Sermon Studio, CoachCore, ShutterBid).
+
+## Standing rules
+
+- Never paste real keys/secrets into chat, docs, or commits — report *names and yes/no results* only.
+- Deploys happen only on your explicit instruction.
+- Nothing gets marked Ready until its manual steps above are confirmed done.

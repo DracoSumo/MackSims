@@ -13,22 +13,27 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     let active = true;
 
-    exchangeAuthCallbackCode().then(async (message) => {
-      if (!active) return;
-      if (message) {
-        setError(message);
-        return;
-      }
-      const user = await getCurrentUser();
-      if (user) {
-        const syncErr = await mergeOnSignIn(user);
-        if (syncErr) {
-          setError(syncErr);
+    exchangeAuthCallbackCode()
+      .then(async (message) => {
+        if (!active) return;
+        if (message) {
+          setError(message);
           return;
         }
-      }
-      router.replace("/app");
-    });
+        const user = await getCurrentUser();
+        if (user) {
+          const syncErr = await mergeOnSignIn(user);
+          if (syncErr) {
+            setError(syncErr);
+            return;
+          }
+        }
+        router.replace("/app");
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Unable to complete OAuth sign-in.");
+      });
 
     return () => {
       active = false;

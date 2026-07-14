@@ -21,3 +21,4 @@ apps/ShutterBid/
 apps/momentpick-web/
 *.zip
 *.log
+secrets/

@@ -12,14 +12,8 @@ export default function LoginPage() {
       <div>
         <h2 className="text-3xl font-black">Sign in</h2>
         <p className="mt-2 text-sm text-slate-400">
-          Use Google or GitHub when Supabase is configured, or enter the demo dashboard below.
+          Use Google or GitHub when provider credentials are enabled in Supabase, or enter the demo dashboard below.
         </p>
-
-        <div className="mt-6 space-y-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Demo credentials (not connected)</p>
-          <Field label="Email" placeholder="coach@example.com" type="email" />
-          <Field label="Password" placeholder="••••••••" type="password" />
-        </div>
 
         <div className="mt-6 grid gap-3">
           <Link
@@ -28,8 +22,16 @@ export default function LoginPage() {
           >
             Enter Demo Dashboard
           </Link>
-
+          <p className="text-center text-xs text-amber-200/90">
+            Primary path for this build — demo mode uses mock athletes and local-only actions.
+          </p>
           <OAuthButtons className="mt-1" />
+        </div>
+
+        <div className="mt-6 space-y-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4 opacity-70">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Email/password — later auth option</p>
+          <Field label="Email" placeholder="coach@example.com" type="email" disabled />
+          <Field label="Password" placeholder="••••••••" type="password" disabled />
         </div>
 
         <p className="mt-6 text-sm text-slate-400">

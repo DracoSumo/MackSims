@@ -126,6 +126,24 @@ export default function Home() {
             CoachCore tracks in-app watch time and engagement immediately.
           </p>
         </section>
+
+        <footer className="mt-10 border-t border-white/10 pt-8 text-sm text-slate-400">
+          <p>{coachCoreConfig.privacySummary}</p>
+          <div className="mt-4 flex flex-wrap gap-4">
+            <Link href="/privacy" className="font-bold text-sky-300">
+              Privacy
+            </Link>
+            <Link href="/terms" className="font-bold text-sky-300">
+              Terms
+            </Link>
+            <Link href="/support" className="font-bold text-sky-300">
+              Support
+            </Link>
+            <Link href="/account-deletion" className="font-bold text-sky-300">
+              Account deletion
+            </Link>
+          </div>
+        </footer>
       </section>
     </main>
   );

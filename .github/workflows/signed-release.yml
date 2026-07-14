@@ -1,0 +1,220 @@
+name: Signed Release Build
+
+on:
+  push:
+    tags:
+      - 'fishcrew-v*'
+      - 'shutterbid-v*'
+      - 'release/*'
+  workflow_dispatch:
+    inputs:
+      app:
+        description: App to build
+        type: choice
+        options:
+          - both
+          - fishcrew
+          - shutterbid
+        default: both
+      platform:
+        description: Platform to build
+        type: choice
+        options:
+          - both
+          - ios
+          - android
+        default: both
+      submit_to_stores:
+        description: Upload to TestFlight / Play internal after build (requires opt-in secrets)
+        type: boolean
+        default: false
+
+concurrency:
+  group: signed-release-${{ github.ref }}-${{ github.event.inputs.app || 'tag' }}
+  cancel-in-progress: false
+
+env:
+  SUBMIT_TO_STORES: ${{ github.event.inputs.submit_to_stores == true && 'true' || 'false' }}
+  APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID || '9K4K434DW8' }}
+
+jobs:
+  resolve-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.matrix.outputs.apps }}
+      ios_enabled: ${{ steps.matrix.outputs.ios_enabled }}
+      android_enabled: ${{ steps.matrix.outputs.android_enabled }}
+    steps:
+      - id: matrix
+        run: |
+          APP_INPUT="${{ github.event.inputs.app || 'both' }}"
+          PLATFORM_INPUT="${{ github.event.inputs.platform || 'both' }}"
+
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            TAG="${{ github.ref_name }}"
+            if [[ "$TAG" == fishcrew-* ]]; then APP_INPUT="fishcrew"; fi
+            if [[ "$TAG" == shutterbid-* ]]; then APP_INPUT="shutterbid"; fi
+          fi
+
+          case "$APP_INPUT" in
+            fishcrew) APPS='["fishcrew"]' ;;
+            shutterbid) APPS='["shutterbid"]' ;;
+            *) APPS='["fishcrew","shutterbid"]' ;;
+          esac
+
+          IOS="true"
+          ANDROID="true"
+          if [[ "$PLATFORM_INPUT" == "ios" ]]; then ANDROID="false"; fi
+          if [[ "$PLATFORM_INPUT" == "android" ]]; then IOS="false"; fi
+
+          echo "apps=$APPS" >> "$GITHUB_OUTPUT"
+          echo "ios_enabled=$IOS" >> "$GITHUB_OUTPUT"
+          echo "android_enabled=$ANDROID" >> "$GITHUB_OUTPUT"
+
+  build-ios:
+    needs: resolve-matrix
+    if: needs.resolve-matrix.outputs.ios_enabled == 'true'
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJson(needs.resolve-matrix.outputs.apps) }}
+    steps:
+      - name: Checkout MackSims pipeline
+        uses: actions/checkout@v4
+
+      - name: Load app config
+        id: cfg
+        working-directory: scripts/ci
+        run: |
+          REPO=$(node -e "console.log(require('./apps.json')['${{ matrix.app }}'].repo)")
+          echo "repo=$REPO" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout app source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.cfg.outputs.repo }}
+          token: ${{ secrets.APP_REPO_TOKEN || github.token }}
+          path: app-src
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Import iOS signing assets
+        working-directory: scripts/ci
+        env:
+          PROVISIONING_PROFILE_BASE64: ${{ matrix.app == 'fishcrew' && secrets.FISHCREW_IOS_PROVISIONING_PROFILE_BASE64 || secrets.SHUTTERBID_IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: bash setup-ios-signing.sh
+
+      - name: Prepare Capacitor iOS wrapper
+        working-directory: app-src
+        env:
+          APP_SERVER_URL: ${{ matrix.app == 'shutterbid' && secrets.SHUTTERBID_SERVER_URL || '' }}
+        run: |
+          cp -R ../scripts/ci/*.sh ../scripts/ci/apps.json .
+          bash prepare-capacitor-wrapper.sh "${{ matrix.app }}" ios
+
+      - name: Build signed IPA
+        working-directory: app-src
+        env:
+          PROVISIONING_PROFILE_BASE64: ${{ matrix.app == 'fishcrew' && secrets.FISHCREW_IOS_PROVISIONING_PROFILE_BASE64 || secrets.SHUTTERBID_IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: bash build-ios-ipa.sh "${{ matrix.app }}"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-ios-ipa
+          path: app-src/build-artifacts/ios/*.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Optional TestFlight upload
+        if: env.SUBMIT_TO_STORES == 'true'
+        working-directory: app-src
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+        run: bash submit-stores.sh "${{ matrix.app }}" ios
+
+  build-android:
+    needs: resolve-matrix
+    if: needs.resolve-matrix.outputs.android_enabled == 'true'
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJson(needs.resolve-matrix.outputs.apps) }}
+    steps:
+      - name: Checkout MackSims pipeline
+        uses: actions/checkout@v4
+
+      - name: Load app config
+        id: cfg
+        working-directory: scripts/ci
+        run: |
+          REPO=$(node -e "console.log(require('./apps.json')['${{ matrix.app }}'].repo)")
+          echo "repo=$REPO" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout app source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.cfg.outputs.repo }}
+          token: ${{ secrets.APP_REPO_TOKEN || github.token }}
+          path: app-src
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Import Android keystore
+        working-directory: scripts/ci
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ matrix.app == 'fishcrew' && secrets.FISHCREW_ANDROID_KEYSTORE_BASE64 || secrets.SHUTTERBID_ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ matrix.app == 'fishcrew' && secrets.FISHCREW_ANDROID_KEYSTORE_PASSWORD || secrets.SHUTTERBID_ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ matrix.app == 'fishcrew' && secrets.FISHCREW_ANDROID_KEY_ALIAS || secrets.SHUTTERBID_ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ matrix.app == 'fishcrew' && secrets.FISHCREW_ANDROID_KEY_PASSWORD || secrets.SHUTTERBID_ANDROID_KEY_PASSWORD }}
+        run: bash setup-android-signing.sh
+
+      - name: Prepare Capacitor Android wrapper
+        working-directory: app-src
+        env:
+          APP_SERVER_URL: ${{ matrix.app == 'shutterbid' && secrets.SHUTTERBID_SERVER_URL || '' }}
+        run: |
+          cp -R ../scripts/ci/*.sh ../scripts/ci/apps.json .
+          bash prepare-capacitor-wrapper.sh "${{ matrix.app }}" android
+
+      - name: Build signed AAB
+        working-directory: app-src
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ matrix.app == 'fishcrew' && secrets.FISHCREW_ANDROID_KEYSTORE_PASSWORD || secrets.SHUTTERBID_ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ matrix.app == 'fishcrew' && secrets.FISHCREW_ANDROID_KEY_ALIAS || secrets.SHUTTERBID_ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ matrix.app == 'fishcrew' && secrets.FISHCREW_ANDROID_KEY_PASSWORD || secrets.SHUTTERBID_ANDROID_KEY_PASSWORD }}
+        run: bash build-android-aab.sh "${{ matrix.app }}"
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-android-aab
+          path: app-src/build-artifacts/android/*.aab
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Optional Play internal upload
+        if: env.SUBMIT_TO_STORES == 'true'
+        working-directory: app-src
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ matrix.app == 'fishcrew' && secrets.FISHCREW_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON || secrets.SHUTTERBID_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: bash submit-stores.sh "${{ matrix.app }}" android

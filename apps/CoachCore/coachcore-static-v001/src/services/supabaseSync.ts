@@ -121,7 +121,8 @@ export async function pushCheckIn(record: AthleteCheckIn): Promise<SyncResult> {
   if (!isSupabaseConfigured) return "skipped";
   const supabase = getSupabaseClient();
   if (!supabase) return "skipped";
-  if (!(await currentUserId())) return "skipped";
+  const userId = await currentUserId();
+  if (!userId) return "skipped";
 
   const { error } = await supabase.from("athlete_check_ins").upsert(
     {
@@ -130,6 +131,7 @@ export async function pushCheckIn(record: AthleteCheckIn): Promise<SyncResult> {
       athlete_name: record.athleteName,
       readiness: record.readiness,
       checked_in_at: record.checkedInAt,
+      owner_user_id: userId,
     },
     { onConflict: "id" }
   );
@@ -143,7 +145,8 @@ export async function pushActionLog(record: CoachActionLog): Promise<SyncResult>
   if (!isSupabaseConfigured) return "skipped";
   const supabase = getSupabaseClient();
   if (!supabase) return "skipped";
-  if (!(await currentUserId())) return "skipped";
+  const userId = await currentUserId();
+  if (!userId) return "skipped";
 
   const { error } = await supabase.from("coach_action_log").upsert(
     {
@@ -151,6 +154,7 @@ export async function pushActionLog(record: CoachActionLog): Promise<SyncResult>
       label: record.label,
       detail: record.detail,
       logged_at: record.loggedAt,
+      owner_user_id: userId,
     },
     { onConflict: "id" }
   );
@@ -164,14 +168,15 @@ export async function pushBetaRequest(payload: BetaIntakePayload): Promise<SyncR
   if (!isSupabaseConfigured) return "skipped";
   const supabase = getSupabaseClient();
   if (!supabase) return "skipped";
-  if (!(await currentUserId())) return "skipped";
 
+  const userId = await currentUserId();
   const { error } = await supabase.from("beta_requests").insert({
     name: payload.name,
     email: payload.email,
     organization: payload.organization,
     lane: payload.lane,
     message: payload.message,
+    ...(userId ? { submitted_by: userId } : {}),
   });
 
   return error ? "error" : "ok";

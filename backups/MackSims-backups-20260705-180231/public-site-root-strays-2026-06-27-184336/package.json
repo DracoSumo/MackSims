@@ -1,0 +1,10 @@
+{
+  "name": "macksims-public-site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/check-public-site.mjs",
+    "lint": "node scripts/check-public-site.mjs"
+  }
+}

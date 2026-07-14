@@ -7,7 +7,7 @@ export function getSupabaseClient(): SupabaseClient | null {
   if (!isSupabaseConfigured) return null;
   if (!client) {
     client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { flowType: "pkce", detectSessionInUrl: true },
+      auth: { flowType: "pkce", detectSessionInUrl: false },
     });
   }
   return client;

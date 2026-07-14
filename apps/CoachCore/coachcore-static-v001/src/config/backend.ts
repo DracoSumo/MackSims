@@ -12,7 +12,7 @@ export const supabaseProjectRef = SUPABASE_URL
 
 export function supabaseStatusLabel(): string {
   if (SUPABASE_URL && isValidAnonKey(SUPABASE_ANON_KEY)) {
-    return `${SUPABASE_URL} — client ready (schema/auth wiring is v0.6)`;
+    return `${SUPABASE_URL} — client ready (schema/auth wiring is v0.7.1)`;
   }
   if (SUPABASE_URL && SUPABASE_ANON_KEY) {
     return `${SUPABASE_URL} — anon key looks like a placeholder; paste the JWT from Supabase API settings`;

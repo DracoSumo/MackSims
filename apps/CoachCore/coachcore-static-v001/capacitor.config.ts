@@ -6,7 +6,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * Dev placeholder below is NOT a store bundle ID.
  */
 const config: CapacitorConfig = {
-  appId: process.env.CAPACITOR_APP_ID || 'com.chrissims.coachcore',
+  appId: process.env.CAPACITOR_APP_ID || 'com.macksims.coachcore',
   appName: 'CoachCore',
   webDir: 'capacitor-web',
   server: {
