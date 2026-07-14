@@ -10,9 +10,11 @@
   to = "/auth/callback/"
   status = 301
 
+# SAMEORIGIN (not DENY): Capacitor hybrid WebViews sometimes treat remote
+# loads like framed content; DENY has been linked to blank native shells.
 [[headers]]
   for = "/*"
   [headers.values]
-    X-Frame-Options = "DENY"
+    X-Frame-Options = "SAMEORIGIN"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"

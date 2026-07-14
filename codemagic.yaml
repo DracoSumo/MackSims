@@ -342,7 +342,7 @@ workflows:
         BUNDLE_ID: com.macksims.curbcue
         APP_STORE_APPLE_ID: $CURBCUE_APP_STORE_APPLE_ID
         CURBCUE_SOURCE_DIR: apps/FairShare
-        CAPACITOR_SERVER_URL: https://fairshare-v03-20260624.netlify.app
+        CAPACITOR_SERVER_URL: https://fairshare-v03-20260624.netlify.app/
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
       xcode: latest
@@ -393,7 +393,7 @@ workflows:
         PACKAGE_NAME: com.chrissims.fairshare
         CAPACITOR_APP_ID: com.chrissims.fairshare
         CURBCUE_SOURCE_DIR: apps/FairShare
-        CAPACITOR_SERVER_URL: https://fairshare-v03-20260624.netlify.app
+        CAPACITOR_SERVER_URL: https://fairshare-v03-20260624.netlify.app/
       node: latest
     scripts:
       - name: Resolve CurbCue source
@@ -430,7 +430,7 @@ workflows:
         BUNDLE_ID: com.macksims.motocrew
         APP_STORE_APPLE_ID: $MOTOCREW_APP_STORE_APPLE_ID
         MOTOCREW_SOURCE_DIR: apps/MotoCrew
-        CAPACITOR_SERVER_URL: https://motocrewz.netlify.app
+        CAPACITOR_SERVER_URL: https://motocrewz.netlify.app/
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
       xcode: latest
@@ -480,7 +480,7 @@ workflows:
         PACKAGE_NAME: com.chrissims.throttlelink
         CAPACITOR_APP_ID: com.chrissims.throttlelink
         MOTOCREW_SOURCE_DIR: apps/MotoCrew
-        CAPACITOR_SERVER_URL: https://motocrewz.netlify.app
+        CAPACITOR_SERVER_URL: https://motocrewz.netlify.app/
       node: latest
     scripts:
       - name: Resolve MotoCrew source
@@ -517,7 +517,7 @@ workflows:
         BUNDLE_ID: com.macksims.coachcore
         APP_STORE_APPLE_ID: $COACHCORE_APP_STORE_APPLE_ID
         COACHCORE_SOURCE_DIR: apps/CoachCore/coachcore-static-v001
-        CAPACITOR_SERVER_URL: https://coachcore7.netlify.app/app
+        CAPACITOR_SERVER_URL: https://coachcore7.netlify.app/app/
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
       xcode: latest
@@ -567,7 +567,7 @@ workflows:
         PACKAGE_NAME: com.chrissims.coachcore
         CAPACITOR_APP_ID: com.chrissims.coachcore
         COACHCORE_SOURCE_DIR: apps/CoachCore/coachcore-static-v001
-        CAPACITOR_SERVER_URL: https://coachcore7.netlify.app/app
+        CAPACITOR_SERVER_URL: https://coachcore7.netlify.app/app/
       node: latest
     scripts:
       - name: Resolve CoachCore source
@@ -604,7 +604,7 @@ workflows:
         BUNDLE_ID: com.macksims.sermonstudio
         APP_STORE_APPLE_ID: $SERMON_STUDIO_APP_STORE_APPLE_ID
         SERMON_STUDIO_SOURCE_DIR: apps/SermonStudio
-        CAPACITOR_SERVER_URL: https://sermon-studio-beta.netlify.app
+        CAPACITOR_SERVER_URL: https://sermon-studio-beta.netlify.app/
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
       xcode: latest
@@ -654,7 +654,7 @@ workflows:
         PACKAGE_NAME: com.chrissims.sermonstudio
         CAPACITOR_APP_ID: com.chrissims.sermonstudio
         SERMON_STUDIO_SOURCE_DIR: apps/SermonStudio
-        CAPACITOR_SERVER_URL: https://sermon-studio-beta.netlify.app
+        CAPACITOR_SERVER_URL: https://sermon-studio-beta.netlify.app/
       node: latest
     scripts:
       - name: Resolve Sermon Studio source
