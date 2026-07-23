@@ -208,3 +208,7 @@ Scan to join the MackSims beta → www.macksims.com/beta
 ```
 
 Use `macksims-beta-print.png` at least 1.5" wide on paper. Printable page: https://www.macksims.com/beta/flyer.html
+
+## Domain note (apex)
+Prefer **https://www.macksims.com** links and QR codes. Apex `https://macksims.com` may 404 until the ZenBusiness A record `35.172.94.1` is removed (see DOMAIN_DNS_AUDIT.md).
+
