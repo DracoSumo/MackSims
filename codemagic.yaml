@@ -35,6 +35,7 @@ workflows:
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
         CAPACITOR_WEB_DIR: dist
+        STORE_ICON_KEY: fishcrew
       xcode: latest
       node: latest
       cocoapods: default
@@ -78,6 +79,8 @@ workflows:
           fi
           [ -d ios ] || npx cap add ios
           npx cap sync ios
+          chmod +x "$CM_BUILD_DIR/scripts/codemagic-inject-app-icon.sh"
+          "$CM_BUILD_DIR/scripts/codemagic-inject-app-icon.sh" "$FISHCREW_ROOT" ios
           cd ios/App && pod install
 
       - name: Set up iOS code signing
@@ -113,6 +116,7 @@ workflows:
         PACKAGE_NAME: com.chrissims.fishcrew
         FISHCREW_SOURCE_DIR: apps/fishcrew-static-v070
         CAPACITOR_WEB_DIR: dist
+        STORE_ICON_KEY: fishcrew
       node: latest
     scripts:
       - name: Resolve FishCrew source
@@ -152,6 +156,8 @@ workflows:
           fi
           [ -d android ] || npx cap add android
           npx cap sync android
+          chmod +x "$CM_BUILD_DIR/scripts/codemagic-inject-app-icon.sh"
+          "$CM_BUILD_DIR/scripts/codemagic-inject-app-icon.sh" "$FISHCREW_ROOT" android
 
       - name: Build signed Android App Bundle
         script: |
@@ -179,6 +185,7 @@ workflows:
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
         CAPACITOR_WEB_DIR: dist
+        STORE_ICON_KEY: shutterbid
       xcode: latest
       node: latest
       cocoapods: default
@@ -234,6 +241,8 @@ workflows:
           fi
           [ -d ios ] || npx cap add ios
           npx cap sync ios
+          chmod +x "$CM_BUILD_DIR/scripts/codemagic-inject-app-icon.sh"
+          "$CM_BUILD_DIR/scripts/codemagic-inject-app-icon.sh" "$SHUTTERBID_ROOT" ios
           cd ios/App && pod install
 
       - name: Set up iOS code signing
@@ -269,6 +278,7 @@ workflows:
         PACKAGE_NAME: com.chrissims.shutterbid
         SHUTTERBID_SOURCE_DIR: apps/shutterbid
         CAPACITOR_WEB_DIR: dist
+        STORE_ICON_KEY: shutterbid
       node: latest
     scripts:
       - name: Resolve ShutterBid source
@@ -318,6 +328,8 @@ workflows:
           fi
           [ -d android ] || npx cap add android
           npx cap sync android
+          chmod +x "$CM_BUILD_DIR/scripts/codemagic-inject-app-icon.sh"
+          "$CM_BUILD_DIR/scripts/codemagic-inject-app-icon.sh" "$SHUTTERBID_ROOT" android
 
       - name: Build signed Android App Bundle
         script: |
@@ -343,6 +355,7 @@ workflows:
         APP_STORE_APPLE_ID: $CURBCUE_APP_STORE_APPLE_ID
         CURBCUE_SOURCE_DIR: apps/FairShare
         CAPACITOR_SERVER_URL: https://fairshare-v03-20260624.netlify.app
+        STORE_ICON_KEY: curbcue
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
       xcode: latest
@@ -359,7 +372,7 @@ workflows:
       - name: Prepare hybrid Capacitor iOS
         script: |
           set -ex
-          chmod +x scripts/codemagic-hybrid-capacitor.sh
+          chmod +x scripts/codemagic-hybrid-capacitor.sh scripts/codemagic-inject-app-icon.sh
           ./scripts/codemagic-hybrid-capacitor.sh "$CURBCUE_ROOT" ios
       - name: Set up iOS code signing
         script: xcode-project use-profiles
@@ -394,6 +407,7 @@ workflows:
         CAPACITOR_APP_ID: com.chrissims.fairshare
         CURBCUE_SOURCE_DIR: apps/FairShare
         CAPACITOR_SERVER_URL: https://fairshare-v03-20260624.netlify.app
+        STORE_ICON_KEY: curbcue
       node: latest
     scripts:
       - name: Resolve CurbCue source
@@ -405,7 +419,7 @@ workflows:
       - name: Prepare hybrid Capacitor Android
         script: |
           set -ex
-          chmod +x scripts/codemagic-hybrid-capacitor.sh
+          chmod +x scripts/codemagic-hybrid-capacitor.sh scripts/codemagic-inject-app-icon.sh
           ./scripts/codemagic-hybrid-capacitor.sh "$CURBCUE_ROOT" android
       - name: Build signed Android App Bundle
         script: |
@@ -431,6 +445,7 @@ workflows:
         APP_STORE_APPLE_ID: $MOTOCREW_APP_STORE_APPLE_ID
         MOTOCREW_SOURCE_DIR: apps/MotoCrew
         CAPACITOR_SERVER_URL: https://motocrewz.netlify.app
+        STORE_ICON_KEY: motocrew
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
       xcode: latest
@@ -446,7 +461,7 @@ workflows:
       - name: Prepare hybrid Capacitor iOS
         script: |
           set -ex
-          chmod +x scripts/codemagic-hybrid-capacitor.sh
+          chmod +x scripts/codemagic-hybrid-capacitor.sh scripts/codemagic-inject-app-icon.sh
           ./scripts/codemagic-hybrid-capacitor.sh "$MOTOCREW_ROOT" ios
       - name: Set up iOS code signing
         script: xcode-project use-profiles
@@ -481,6 +496,7 @@ workflows:
         CAPACITOR_APP_ID: com.chrissims.throttlelink
         MOTOCREW_SOURCE_DIR: apps/MotoCrew
         CAPACITOR_SERVER_URL: https://motocrewz.netlify.app
+        STORE_ICON_KEY: motocrew
       node: latest
     scripts:
       - name: Resolve MotoCrew source
@@ -492,7 +508,7 @@ workflows:
       - name: Prepare hybrid Capacitor Android
         script: |
           set -ex
-          chmod +x scripts/codemagic-hybrid-capacitor.sh
+          chmod +x scripts/codemagic-hybrid-capacitor.sh scripts/codemagic-inject-app-icon.sh
           ./scripts/codemagic-hybrid-capacitor.sh "$MOTOCREW_ROOT" android
       - name: Build signed Android App Bundle
         script: |
@@ -518,6 +534,7 @@ workflows:
         APP_STORE_APPLE_ID: $COACHCORE_APP_STORE_APPLE_ID
         COACHCORE_SOURCE_DIR: apps/CoachCore/coachcore-static-v001
         CAPACITOR_SERVER_URL: https://coachcore7.netlify.app/app
+        STORE_ICON_KEY: coachcore
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
       xcode: latest
@@ -533,7 +550,7 @@ workflows:
       - name: Prepare hybrid Capacitor iOS
         script: |
           set -ex
-          chmod +x scripts/codemagic-hybrid-capacitor.sh
+          chmod +x scripts/codemagic-hybrid-capacitor.sh scripts/codemagic-inject-app-icon.sh
           ./scripts/codemagic-hybrid-capacitor.sh "$COACHCORE_ROOT" ios
       - name: Set up iOS code signing
         script: xcode-project use-profiles
@@ -568,6 +585,7 @@ workflows:
         CAPACITOR_APP_ID: com.chrissims.coachcore
         COACHCORE_SOURCE_DIR: apps/CoachCore/coachcore-static-v001
         CAPACITOR_SERVER_URL: https://coachcore7.netlify.app/app
+        STORE_ICON_KEY: coachcore
       node: latest
     scripts:
       - name: Resolve CoachCore source
@@ -579,7 +597,7 @@ workflows:
       - name: Prepare hybrid Capacitor Android
         script: |
           set -ex
-          chmod +x scripts/codemagic-hybrid-capacitor.sh
+          chmod +x scripts/codemagic-hybrid-capacitor.sh scripts/codemagic-inject-app-icon.sh
           ./scripts/codemagic-hybrid-capacitor.sh "$COACHCORE_ROOT" android
       - name: Build signed Android App Bundle
         script: |
@@ -605,6 +623,7 @@ workflows:
         APP_STORE_APPLE_ID: $SERMON_STUDIO_APP_STORE_APPLE_ID
         SERMON_STUDIO_SOURCE_DIR: apps/SermonStudio
         CAPACITOR_SERVER_URL: https://sermon-studio-beta.netlify.app
+        STORE_ICON_KEY: sermonstudio
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
       xcode: latest
@@ -620,7 +639,7 @@ workflows:
       - name: Prepare hybrid Capacitor iOS
         script: |
           set -ex
-          chmod +x scripts/codemagic-hybrid-capacitor.sh
+          chmod +x scripts/codemagic-hybrid-capacitor.sh scripts/codemagic-inject-app-icon.sh
           ./scripts/codemagic-hybrid-capacitor.sh "$SERMON_STUDIO_ROOT" ios
       - name: Set up iOS code signing
         script: xcode-project use-profiles
@@ -655,6 +674,7 @@ workflows:
         CAPACITOR_APP_ID: com.chrissims.sermonstudio
         SERMON_STUDIO_SOURCE_DIR: apps/SermonStudio
         CAPACITOR_SERVER_URL: https://sermon-studio-beta.netlify.app
+        STORE_ICON_KEY: sermonstudio
       node: latest
     scripts:
       - name: Resolve Sermon Studio source
@@ -666,7 +686,7 @@ workflows:
       - name: Prepare hybrid Capacitor Android
         script: |
           set -ex
-          chmod +x scripts/codemagic-hybrid-capacitor.sh
+          chmod +x scripts/codemagic-hybrid-capacitor.sh scripts/codemagic-inject-app-icon.sh
           ./scripts/codemagic-hybrid-capacitor.sh "$SERMON_STUDIO_ROOT" android
       - name: Build signed Android App Bundle
         script: |

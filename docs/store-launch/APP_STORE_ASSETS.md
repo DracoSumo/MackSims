@@ -20,12 +20,34 @@ Generated under `docs/store-launch/app-store-assets/<app>/`:
 
 | File / folder | Size | ASC slot |
 |---------------|------|----------|
-| `icon-1024.png` | 1024×1024 | App Information → App Icon |
+| `icon-1024.png` | 1024×1024 | **Source for native builds** (Codemagic injects into IPA/AAB). Play Console Main store listing also uses a 512×512 derived from this. |
 | `iphone-6.7/*.png` | 1290×2796 | Version → Screenshots → **6.7" Display** |
 | `ipad-12.9/*.png` | 2048×2732 | Version → Screenshots → **12.9" iPad Pro** (optional) |
 
 **Re-capture:** `node scripts/capture-app-store-screens.mjs all`  
 **Open folders + ASC:** `.\scripts\open-app-store-assets.ps1`
+
+### Codemagic icon injection (all hybrid apps)
+
+Each signed iOS/Android workflow sets `STORE_ICON_KEY` and runs `scripts/codemagic-inject-app-icon.sh` after `cap sync`. That writes:
+
+- iOS `AppIcon.appiconset` (including 1024 marketing icon in the IPA)
+- Android `mipmap-*/ic_launcher*.png`
+
+Source of truth: `docs/store-launch/app-store-assets/<key>/icon-1024.png`  
+Committed copies also live at `<app>/assets/app-icon.png` for offline/wrapper builds.
+
+| App | STORE_ICON_KEY | assets/app-icon.png |
+|-----|----------------|---------------------|
+| CurbCue | `curbcue` | `apps/FairShare/assets/app-icon.png` |
+| MotoCrew | `motocrew` | `apps/MotoCrew/assets/app-icon.png` |
+| CoachCore | `coachcore` | `apps/CoachCore/coachcore-static-v001/assets/app-icon.png` |
+| Sermon Studio | `sermonstudio` | `apps/SermonStudio/assets/app-icon.png` |
+| FishCrew | `fishcrew` | `apps/FishCrew/fishcrew-ios/assets/app-icon.png` |
+| ShutterBid | `shutterbid` | `apps/ShutterBid/shutterbid-starter/assets/app-icon.png` |
+| Aegis Intel | (own repo) | `aegis-intel` → `assets/app-icon.png` via its `codemagic.yaml` |
+
+**iOS note:** App Store Connect does **not** have a separate “upload app icon” field for modern apps — the icon comes from the uploaded build.
 
 ## Upload URLs (screenshots + metadata)
 
