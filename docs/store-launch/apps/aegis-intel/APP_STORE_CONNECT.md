@@ -22,7 +22,7 @@ Entity / disclaimer source: [`aegis-intel-v9-full/docs/COMPLIANCE_PRIVACY_PACKAG
 ---
 
 **Updated:** 2026-07-14  
-**Packaging:** Web / PWA primary; native shell TBD. Forms below are paste-ready for when owner go/no-go packages for stores. Do not create an App Store Connect record until packaging is approved.
+**Packaging:** **GO** — Capacitor native shell (iOS + Android) loading live Netlify PWA. Bundle/package **`com.macksims.aegisintel`**.
 
 ## App Identity
 
@@ -30,7 +30,7 @@ Entity / disclaimer source: [`aegis-intel-v9-full/docs/COMPLIANCE_PRIVACY_PACKAG
 | --- | --- |
 | App name | **Aegis Intel** |
 | Subtitle (30 chars max) | Public-market research desk |
-| Bundle ID | `com.chrissims.aegisintel` |
+| Bundle ID | `com.macksims.aegisintel` |
 | SKU | `aegisintel-ios-001` |
 | Primary category | **Finance** |
 | Secondary category | Business |
@@ -118,7 +118,7 @@ See [REVIEW_NOTES.md](./REVIEW_NOTES.md) and [`../../DEMO_REVIEW_LOGINS.md`](../
 ## Pre-Submission Status
 
 - [x] Store copy filled (Finance / Business; 17+/18+; required disclaimers)
-- [x] Bundle ID target filled (`com.chrissims.aegisintel`)
+- [x] Bundle ID target filled (`com.macksims.aegisintel`)
 - [x] Privacy / data answers aligned to PRIVACY_DATA.md + play-data-safety
 - [x] Reviewer path documented (guest; optional demo login)
 - [ ] **Owner packaging go/no-go** (native shell / store record creation)

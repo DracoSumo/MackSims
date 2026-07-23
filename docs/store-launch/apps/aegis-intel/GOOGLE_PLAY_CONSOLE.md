@@ -22,14 +22,14 @@ Entity / disclaimer source: Aegis COMPLIANCE_PRIVACY_PACKAGE (MackSims LLC, Bran
 ---
 
 **Updated:** 2026-07-14  
-**Packaging:** Web / PWA primary; native shell TBD. Forms below are paste-ready for when owner go/no-go packages for Play. Do not create a Play Console record until packaging is approved.
+**Packaging:** **GO** — Capacitor native shell loading live Netlify PWA. Package **`com.macksims.aegisintel`**.
 
 ## App Identity
 
 | Field | Answer |
 | --- | --- |
 | App name | **Aegis Intel** |
-| Package name | `com.chrissims.aegisintel` |
+| Package name | `com.macksims.aegisintel` |
 | Category | **Finance** (secondary tag / related: Business) |
 | Short description (80 chars) | Watchlists and public-market research — not a broker. |
 | Full description | See below |
@@ -121,7 +121,7 @@ See `../../app-store-assets/aegisintel/` for icon when packaging proceeds. Scree
 
 ## Pre-Submission Status
 
-- [x] Package name filled (`com.chrissims.aegisintel`)
+- [x] Package name filled (`com.macksims.aegisintel`)
 - [x] Category Finance; short description with broker disclaimer
 - [x] Privacy / data safety matrix filled from play-data-safety
 - [x] Financial features declaration filled (informational research only)

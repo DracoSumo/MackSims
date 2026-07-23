@@ -1,7 +1,7 @@
 # Aegis Intel - Reviewer Notes
 
 **Product:** Aegis Intel  
-**Package / Bundle target:** `com.chrissims.aegisintel`  
+**Package / Bundle target:** `com.macksims.aegisintel`  
 **Category:** Finance (secondary: Business)  
 **Web / PWA:** https://sprightly-lily-160925.netlify.app/  
 **Packaging:** Web/PWA primary; native shell TBD — use these notes when a store binary is submitted.
@@ -90,7 +90,7 @@ Aligned with [PRIVACY_DATA.md](./PRIVACY_DATA.md) and [`../../play-data-safety/d
 
 ## Pre-Submission Status
 
-- [x] Identifiers filled (`com.chrissims.aegisintel`)
+- [x] Identifiers filled (`com.macksims.aegisintel`)
 - [x] Privacy matrix filled from play-data-safety / PRIVACY_DATA.md
 - [x] Required financial disclaimers in reviewer notes
 - [x] Demo path documented (guest + optional credentials)

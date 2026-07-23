@@ -26,7 +26,7 @@ See [`../../PUBLISHER_LEGAL_ENTITY.md`](../../PUBLISHER_LEGAL_ENTITY.md) and [`.
 
 | Question | Answer |
 | --- | --- |
-| Packaging | Web / PWA primary; native shell TBD |
+| Packaging | Capacitor native shell (iOS + Android) → live Netlify PWA |
 | Login | Optional (guest on-device; signed-in via Supabase) |
 | Data sales / ads / tracking | No / No / No |
 | Account deletion | https://macksims-public-site.netlify.app/account-deletion/ + support@macksims.com |
