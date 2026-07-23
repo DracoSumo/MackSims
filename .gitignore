@@ -21,3 +21,10 @@ apps/ShutterBid/
 apps/momentpick-web/
 *.zip
 *.log
+secrets/
+
+backups/
+
+
+docs/store-launch/DEMO_REVIEW_LOGINS.md
+

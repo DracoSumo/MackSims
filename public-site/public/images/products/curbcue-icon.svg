@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="CurbCue icon">
+  <rect width="512" height="512" rx="96" fill="#006d77"/>
+  <path d="M122 170h268v58H190v54h164v58H190v104h-68V170Z" fill="#ffffff"/>
+  <path d="M306 86h84v58h-84V86Z" fill="#d95d39"/>
+</svg>

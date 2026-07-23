@@ -1,0 +1,61 @@
+{
+  "pass": "010",
+  "optionA": "Skipped — no safe demo credentials in repo/docs (DO_NOT_COMMIT_PASSWORD only)",
+  "postJobResult": {
+    "attempt": "Option B — post-job scroll-to-form",
+    "scene": "client-post-job-clean",
+    "route": "/post-job",
+    "file": "READY-shutterbid-client-post-job-mobile-clean-1242x2688.png",
+    "applePath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\apple\\READY-shutterbid-client-post-job-mobile-clean-1242x2688.png",
+    "playPath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\google-play\\READY-shutterbid-client-post-job-mobile-clean-1242x2688.png",
+    "actualSize": "1242 x 2688",
+    "status": "NEEDS RETAKE",
+    "issues": [
+      "Footer Admin access visible in viewport",
+      "Guest draft banner visible in viewport"
+    ],
+    "mobileNavVisible": true,
+    "desktopNavVisible": false,
+    "footerAdminVisible": true,
+    "draftBannerVisible": true,
+    "viewport": "414 x 896 CSS @ 3x"
+  },
+  "replacementResult": {
+    "attempt": "Option C — jobs browse replacement",
+    "scene": "jobs-browse",
+    "route": "/jobs",
+    "file": "READY-shutterbid-jobs-browse-mobile-1242x2688.png",
+    "applePath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\apple\\READY-shutterbid-jobs-browse-mobile-1242x2688.png",
+    "playPath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\google-play\\READY-shutterbid-jobs-browse-mobile-1242x2688.png",
+    "actualSize": "1242 x 2688",
+    "status": "NEEDS RETAKE",
+    "issues": [
+      "Footer Admin access visible in viewport"
+    ],
+    "mobileNavVisible": true,
+    "desktopNavVisible": false,
+    "footerAdminVisible": true,
+    "draftBannerVisible": false,
+    "viewport": "414 x 896 CSS @ 3x",
+    "replacesPostJob": true
+  },
+  "chosenThirdScene": {
+    "attempt": "Option B — post-job scroll-to-form",
+    "scene": "client-post-job-clean",
+    "route": "/post-job",
+    "file": "READY-shutterbid-client-post-job-mobile-clean-1242x2688.png",
+    "applePath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\apple\\READY-shutterbid-client-post-job-mobile-clean-1242x2688.png",
+    "playPath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\google-play\\READY-shutterbid-client-post-job-mobile-clean-1242x2688.png",
+    "actualSize": "1242 x 2688",
+    "status": "NEEDS RETAKE",
+    "issues": [
+      "Footer Admin access visible in viewport",
+      "Guest draft banner visible in viewport"
+    ],
+    "mobileNavVisible": true,
+    "desktopNavVisible": false,
+    "footerAdminVisible": true,
+    "draftBannerVisible": true,
+    "viewport": "414 x 896 CSS @ 3x"
+  }
+}

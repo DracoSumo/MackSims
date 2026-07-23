@@ -118,3 +118,48 @@ Netlify zone now includes Google MX/SPF/Search Console TXT/DMARC + ShutterBid Ve
 - `dns4.p09.nsone.net`
 
 See `docs/DNS_NETLIFY_NS_CUTOVER.md`. Live NS still `systemdns.com` until owner updates registrar.
+
+---
+
+## Re-verification + shutterbid fix (2026-07-14 19:xx, execution pass)
+
+Re-ran full audit via `netlify api getEnvVars` (per-site) + local JWT `ref`-claim decode (keys never printed; masked first6...last4). All four core apps confirmed still aligned; **shutterbid `NEXT_PUBLIC_SUPABASE_URL` corrected** this pass (was custom domain, anon JWT already matched project so the conditional set was applied).
+
+### PASS / WRONG / NEED_KEYS matrix
+
+| Site | Netlify site id | Supabase ref | URL vars | Anon key | Result |
+|------|-----------------|--------------|----------|----------|--------|
+| coachcore7 | b8885541-5a95-4e01-8ba8-3ccb27e1e60f | bfqfbkldxbojrrxeidcc | NEXT_PUBLIC_SUPABASE_URL + SUPABASE_URL = MATCH | anon JWT ref MATCH (role=anon) | **PASS** |
+| fairshare-v03-20260624 | f81df982-2348-4d3c-b842-fb806b1b4b00 | dsbwqxhqktzsdleeobbi | NEXT_PUBLIC + SUPABASE + VITE URL = MATCH | anon + VITE anon JWT ref MATCH | **PASS** |
+| motocrewz | 94099ea3-9d62-4c02-9ab3-5162c59282a7 | npmiwnxnqgonnmwvblyi | NEXT_PUBLIC + SUPABASE + VITE URL = MATCH | anon + VITE anon JWT ref MATCH | **PASS** |
+| sermon-studio-beta | f695214f-1e22-429a-86ac-5adac2822414 | zipxwqkmenapnckwyzrh | NEXT_PUBLIC + SUPABASE URL = MATCH; no VITE_* (Next.js) | anon JWT ref MATCH | **PASS** |
+| sprightly-lily-160925 (Aegis) | 31c40a08-099e-4357-87c0-03f432bdfcd7 | yferqiqlpfvbvevtfbsn | NEXT_PUBLIC + SUPABASE URL = MATCH | anon ABSENT (no anon/service key on site) | **NEED_KEYS** |
+| shutterbid-web | 21cb44ef-3d91-4636-88d3-5599ca0cc9ac | ykhpqnnthhcqilzqvkvs | NEXT_PUBLIC_SUPABASE_URL **set to https://ykhpqnnthhcqilzqvkvs.supabase.co this pass** (was https://shutterbid.macksims.com) | anon JWT ref MATCH (role=anon), present | **PASS** (was WRONG url) |
+| fishcrew | 456ad8ef-3582-4123-9031-63af8e7d68fb | n/a | none | none | N/A (no SUPABASE_* vars) |
+
+### Sermon VITE cleanup
+sermon-studio-beta has **no** `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (already removed in prior pass); nothing to delete this pass.
+
+### Aegis SUPABASE env NAMES (after)
+- `SUPABASE_URL` = https://yferqiqlpfvbvevtfbsn.supabase.co
+- `NEXT_PUBLIC_SUPABASE_URL` = https://yferqiqlpfvbvevtfbsn.supabase.co
+- No `SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, or `VITE_SUPABASE_*` present.
+- **NEED_KEYS:** add correct anon (+ service role) for `yferqiqlpfvbvevtfbsn`, then redeploy. Not invented.
+
+### Team / account-level env
+`netlify api getEnvVars` with `account_id` only (no site_id) returned **0** vars -> **no team-scoped `SUPABASE_*` / `VITE_SUPABASE_*` / `NEXT_PUBLIC_SUPABASE_*` pollution**.
+
+### Notes
+- coachcore7 & sermon `SUPABASE_SERVICE_ROLE_KEY` stored value does not decode as a JWT (very short / placeholder) - flag for owner, not required for anon client auth.
+- `netlify env:set --site <uuid>` fails ("No project id found"); `NETLIFY_SITE_ID` env var works. `netlify api getEnvVars --data` requires backslash-escaped JSON quotes on this PowerShell/CLI.
+
+### Live smoke (HTTP status; env changes do NOT affect already-deployed static bundles - redeploy pending)
+
+| URL | HTTP |
+|-----|------|
+| https://fairshare-v03-20260624.netlify.app | 200 |
+| https://motocrewz.netlify.app | 200 |
+| https://coachcore7.netlify.app | 200 |
+| https://sermon-studio-beta.netlify.app | 200 |
+| https://shutterbid-web.netlify.app | 200 |
+| https://sprightly-lily-160925.netlify.app/.netlify/functions/supabase-health | 200; ping.ok=true, supabaseConfigured=false, urlPresent=true, anonKeyPresent=false, message="Supabase env vars are not configured." |

@@ -1,0 +1,48 @@
+[
+  {
+    "scene": "marketplace-home",
+    "file": "READY-shutterbid-marketplace-home-mobile-1242x2688.png",
+    "applePath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\apple\\READY-shutterbid-marketplace-home-mobile-1242x2688.png",
+    "playPath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\google-play\\READY-shutterbid-marketplace-home-mobile-1242x2688.png",
+    "actualSize": "1242 x 2688",
+    "status": "NEEDS RETAKE",
+    "issues": [
+      "Footer Admin access visible in viewport"
+    ],
+    "mobileNavVisible": true,
+    "desktopNavVisible": false,
+    "footerAdminVisible": true,
+    "viewport": "414 x 896 CSS @ 3x"
+  },
+  {
+    "scene": "job-detail-venue-content",
+    "file": "READY-shutterbid-job-detail-venue-content-mobile-1242x2688.png",
+    "applePath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\apple\\READY-shutterbid-job-detail-venue-content-mobile-1242x2688.png",
+    "playPath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\google-play\\READY-shutterbid-job-detail-venue-content-mobile-1242x2688.png",
+    "actualSize": "1242 x 2688",
+    "status": "NEEDS RETAKE",
+    "issues": [
+      "Footer Admin access visible in viewport"
+    ],
+    "mobileNavVisible": true,
+    "desktopNavVisible": false,
+    "footerAdminVisible": true,
+    "viewport": "414 x 896 CSS @ 3x"
+  },
+  {
+    "scene": "client-post-job",
+    "file": "READY-shutterbid-client-post-job-mobile-1242x2688.png",
+    "applePath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\apple\\READY-shutterbid-client-post-job-mobile-1242x2688.png",
+    "playPath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\google-play\\READY-shutterbid-client-post-job-mobile-1242x2688.png",
+    "actualSize": "1242 x 2688",
+    "status": "NEEDS RETAKE",
+    "issues": [
+      "Footer Admin access visible in viewport",
+      "Draft-account banner visible on post-job"
+    ],
+    "mobileNavVisible": true,
+    "desktopNavVisible": false,
+    "footerAdminVisible": true,
+    "viewport": "414 x 896 CSS @ 3x"
+  }
+]
