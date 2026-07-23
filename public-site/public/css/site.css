@@ -670,6 +670,74 @@ button:focus-visible {
   font-size: 0.95rem;
 }
 
+.qr-share {
+  margin: 40px 0;
+  padding: clamp(22px, 4vw, 32px);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow);
+}
+
+.qr-share-intro h2 {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+}
+
+.qr-share-intro p {
+  margin: 0 0 24px;
+  color: var(--muted);
+  max-width: 560px;
+}
+
+.qr-share-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  max-width: 560px;
+}
+
+.qr-card {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  text-align: center;
+}
+
+.qr-card-featured {
+  border-color: rgba(212, 162, 76, 0.45);
+  box-shadow: 0 0 0 1px rgba(212, 162, 76, 0.2);
+}
+
+.qr-card img {
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+  display: block;
+  margin: 0 auto 12px;
+  image-rendering: pixelated;
+}
+
+.qr-card figcaption {
+  display: grid;
+  gap: 4px;
+  color: #111;
+  font-size: 0.9rem;
+}
+
+.qr-card figcaption a {
+  color: #1a4a7a;
+  word-break: break-all;
+}
+
+.qr-share-note {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 /* ——— Content pages (legal, app detail) ——— */
 
 .page-hero {

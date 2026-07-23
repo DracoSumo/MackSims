@@ -78,12 +78,31 @@ We build focused apps (not platform fluff) for anglers, photographers, riders, d
 Research and utility tools only — not financial, legal, or medical advice.
 ```
 
+### Beta call (use with QR image)
+
+Attach `public/images/qr/macksims-beta.png` (or the print PNG). Full copy pack: `docs/BETA_TESTER_POST.md`.
+
+```
+MackSims is looking for external beta testers.
+
+We’re building focused apps for real-world communities — fishing crews, photo jobs, fare decisions, group rides, coaching, churches, and research watchlists.
+
+Join once → web demos now, plus TestFlight / Play invites:
+https://macksims.com/beta
+
+Or scan the QR in this post.
+
+Feedback: feedback@macksims.com
+Beta software is unfinished — not for emergency, legal, medical, or safety-critical use.
+```
+
 ### Follow-up posts (schedule 1 per week)
 
 1. **FishCrew** — fishing community & water tools → macksims.com/fishcrew  
 2. **ShutterBid** — photography job workflow → macksims.com/shutterbid  
 3. **MotoCrew** — group ride coordination → macksims.com/motocrew  
-4. **Beta call** — invite testers to macksims.com/beta with honest disclaimer link
+4. **Site QR share** — post `macksims-site.png` with link https://macksims.com  
+5. **Beta call** — invite testers to macksims.com/beta with honest disclaimer link
 
 ---
 
