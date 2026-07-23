@@ -8,6 +8,13 @@
 - fairshare.macksims.com
 - motocrew.macksims.com
 
+## Cutover plan (ZenBusiness → Netlify DNS)
+
+Full owner-ready plan: **[dns/ZENBUSINESS_TO_NETLIFY_DNS.md](./dns/ZENBUSINESS_TO_NETLIFY_DNS.md)**  
+(Pre-flight, exact Netlify records, nameserver swap steps, rollback, verification curls.)
+
+**Interim apex fix (do this now if not ready for NS swap):** In ZenBusiness/systemdns, **delete** bad A `@` → `35.172.94.1`. Keep A `@` → `75.2.60.5`, www CNAME, and **all** MX/SPF/DKIM/DMARC. Do not touch nameservers for the interim fix.
+
 ## Apex 404 incident (2026-07-23) — ACTION REQUIRED AT REGISTRAR
 
 **Symptom:** `https://macksims.com/*` returns nginx 404; `https://www.macksims.com/*` returns Netlify 200.

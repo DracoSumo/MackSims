@@ -32,7 +32,9 @@ Do **not** remove Google Workspace MX/TXT/SPF/DMARC while doing this.
 
 ## Alternative: switch nameservers to Netlify DNS
 
-Netlify already has a zone for this domain. At the registrar, set NS to Netlify’s (`dns1.p09.nsone.net` … `dns4.p09.nsone.net` — confirm in Netlify → Domain management). Only do this if MX/mail records are already mirrored in the Netlify zone.
+Full cutover checklist (email-safe): **[dns/ZENBUSINESS_TO_NETLIFY_DNS.md](./dns/ZENBUSINESS_TO_NETLIFY_DNS.md)**.
+
+Netlify already has a zone for this domain with Google MX/SPF/DMARC mirrored. At the registrar, set NS to Netlify’s (`dns1.p09.nsone.net` … `dns4.p09.nsone.net` — confirm in Netlify → Domain management). Only swap NS after the pre-flight in that doc.
 
 ## Working links right now (use these)
 
