@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Prepare hybrid Capacitor native projects (remote Netlify URL in capacitor.config.ts).
 # Usage: ./scripts/codemagic-hybrid-capacitor.sh <app_root> <ios|android|both>
+# Optional: STORE_ICON_KEY (e.g. curbcue) — copies store 1024 icon before inject.
 set -exuo pipefail
 
 APP_ROOT="${1:?app root required}"
 PLATFORM="${2:-both}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 cd "$APP_ROOT"
 
@@ -33,6 +35,8 @@ fi
 if [ "$PLATFORM" = "ios" ] || [ "$PLATFORM" = "both" ]; then
   [ -d ios ] || npx cap add ios
   npx cap sync ios
+  chmod +x "$SCRIPT_DIR/codemagic-inject-app-icon.sh"
+  "$SCRIPT_DIR/codemagic-inject-app-icon.sh" "$APP_ROOT" ios
   if [ -d ios/App ]; then
     (cd ios/App && pod install)
   fi
@@ -41,4 +45,6 @@ fi
 if [ "$PLATFORM" = "android" ] || [ "$PLATFORM" = "both" ]; then
   [ -d android ] || npx cap add android
   npx cap sync android
+  chmod +x "$SCRIPT_DIR/codemagic-inject-app-icon.sh"
+  "$SCRIPT_DIR/codemagic-inject-app-icon.sh" "$APP_ROOT" android
 fi

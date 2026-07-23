@@ -1,0 +1,31 @@
+{
+  "app": "coachcore",
+  "storeName": "CoachCore",
+  "capturedAt": "2026-07-11T18:37:36.314Z",
+  "formFactors": [
+    "iphone",
+    "ipad"
+  ],
+  "shots": [
+    {
+      "name": "01-landing",
+      "path": "/"
+    },
+    {
+      "name": "02-dashboard",
+      "path": "/app"
+    },
+    {
+      "name": "03-accountability",
+      "path": "/app/accountability"
+    },
+    {
+      "name": "04-training",
+      "path": "/app/training"
+    },
+    {
+      "name": "05-chat",
+      "path": "/app/chat"
+    }
+  ]
+}

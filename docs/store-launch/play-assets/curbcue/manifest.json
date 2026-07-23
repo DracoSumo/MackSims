@@ -1,0 +1,27 @@
+{
+  "app": "curbcue",
+  "capturedAt": "2026-07-11T17:45:32.771Z",
+  "formFactors": [
+    "phone",
+    "tablet-7",
+    "tablet-10"
+  ],
+  "shots": [
+    {
+      "name": "01-compare",
+      "path": "/compare"
+    },
+    {
+      "name": "02-crowd-meter",
+      "path": "/crowd-meter"
+    },
+    {
+      "name": "03-settings",
+      "path": "/settings"
+    },
+    {
+      "name": "04-saved",
+      "path": "/saved"
+    }
+  ]
+}
