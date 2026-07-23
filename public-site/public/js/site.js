@@ -37,6 +37,12 @@
       });
   }
 
+  function fieldValue(name) {
+    var el = form.elements.namedItem(name);
+    if (!el || typeof el.value !== "string") return "";
+    return el.value.trim();
+  }
+
   function buildMailto(payload) {
     var body = [
       "MackSims external beta signup",
@@ -61,13 +67,15 @@
   function encodeBody(payload) {
     var params = new URLSearchParams();
     params.set("form-name", "beta-signup");
+    params.set("bot-field", "");
+    params.set("subject", "MackSims beta signup");
     params.set("name", payload.name);
     params.set("email", payload.email);
     params.set("apps", payload.apps);
     params.set("platform", payload.platform);
     params.set("store_email", payload.store_email);
     params.set("message", payload.message);
-    params.set("source", "macksims-public-beta");
+    params.set("source", payload.source || "macksims-public-beta");
     return params.toString();
   }
 
@@ -82,16 +90,22 @@
 
     var apps = selectedApps();
     var payload = {
-      name: (form.elements.namedItem("name") && form.elements.namedItem("name").value || "").trim(),
-      email: (form.elements.namedItem("email") && form.elements.namedItem("email").value || "").trim(),
+      name: fieldValue("name"),
+      email: fieldValue("email"),
       apps: apps.join(", "),
-      platform: (form.elements.namedItem("platform") && form.elements.namedItem("platform").value || "").trim(),
-      store_email: (form.elements.namedItem("store_email") && form.elements.namedItem("store_email").value || "").trim(),
-      message: (form.elements.namedItem("message") && form.elements.namedItem("message").value || "").trim(),
+      platform: fieldValue("platform"),
+      store_email: fieldValue("store_email"),
+      message: fieldValue("message"),
+      source: fieldValue("source") || "macksims-public-beta",
     };
 
     if (!payload.name || !payload.email) {
       setStatus("Name and email are required.", "is-error");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+      setStatus("Enter a valid email address.", "is-error");
       return;
     }
 
@@ -109,6 +123,7 @@
       body: encodeBody(payload),
     })
       .then(function (response) {
+        // Netlify Forms returns 200/302 on success. 404 usually means form not registered.
         if (response.ok || response.status === 302) {
           window.location.href = thanksUrl;
           return;
@@ -120,7 +135,9 @@
           "Could not reach the signup service. Opening your email app as a backup…",
           "is-error"
         );
-        window.location.href = buildMailto(payload);
+        window.setTimeout(function () {
+          window.location.href = buildMailto(payload);
+        }, 600);
       })
       .finally(function () {
         if (submitBtn) submitBtn.disabled = false;

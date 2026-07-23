@@ -53,12 +53,14 @@
         action="/beta/thanks/"
         netlify
         data-netlify="true"
+        netlify-honeypot="bot-field"
         data-netlify-honeypot="bot-field"
         data-thanks="/beta/thanks/"
         novalidate
       >
         <input type="hidden" name="form-name" value="beta-signup" />
         <input type="hidden" name="source" value="macksims-public-beta" />
+        <input type="hidden" name="subject" value="MackSims beta signup" />
         <p class="form-honeypot" aria-hidden="true">
           <label>Leave blank <input type="text" name="bot-field" tabindex="-1" autocomplete="off" /></label>
         </p>
