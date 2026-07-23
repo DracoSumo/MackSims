@@ -20,5 +20,9 @@
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
-# Beta signup form notifications are configured in Netlify Forms UI
-# (Project → Forms → beta-signup → Form notifications → email feedback@macksims.com)
+# Beta signup (form name: beta-signup)
+# Submissions: Netlify UI → Site → Forms → beta-signup
+# Email notifications (verified 2026-07-23):
+#   - feedback@macksims.com (site-wide submission_created)
+#   - support@macksims.com (beta-signup submission_created)
+# Mailto backup in public/js/site.js if the POST fails.
