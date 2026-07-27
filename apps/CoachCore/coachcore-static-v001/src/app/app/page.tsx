@@ -2,10 +2,11 @@
 import { AppShell } from "@/components/AppShell";
 import { AthleteAccountabilityPanel } from "@/components/AthleteAccountabilityPanel";
 import { CoachOnboardingCard } from "@/components/CoachOnboardingCard";
+import { LiveTimelinePanel } from "@/components/LiveTimelinePanel";
 import { RecentActionLogPanel } from "@/components/RecentActionLogPanel";
 import { RecentCheckInsPanel } from "@/components/RecentCheckInsPanel";
 import { DashboardSyncStrip } from "@/components/DashboardSyncStrip";
-import { actionCards, activityTimeline, coachCoreStats, integrations, playbookItems } from "@/data/mock";
+import { actionCards, coachCoreStats, integrations, playbookItems } from "@/data/mock";
 import { coachCoreConfig } from "@/config/coachcore";
 import { CommandCard, CrossLinkStrip, DemoDisclaimerStrip, FoundationNote, MetricCard, StatusPill } from "@/components/ui/CoachCards";
 
@@ -160,23 +161,17 @@ export default function CoachDashboard() {
             </div>
 
             <div className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-5">
-              <h2 className="text-2xl font-black">Activity timeline</h2>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="text-2xl font-black">Activity timeline</h2>
+                <Link href="/app/timeline" className="text-sm font-bold text-sky-300 hover:underline">
+                  Full timeline →
+                </Link>
+              </div>
               <p className="mt-2 text-sm text-slate-400">
-                Static demo timeline showing what future backend events will look like.
+                Live demo events from this device + sample events.
               </p>
-
-              <div className="mt-5 space-y-3">
-                {activityTimeline.slice(0, 4).map((item) => (
-                  <div key={`${item.time}-${item.title}`} className="rounded-3xl border border-white/10 bg-slate-950/60 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-black">{item.title}</p>
-                        <p className="mt-1 text-sm text-slate-400">{item.time} • {item.type}</p>
-                      </div>
-                    </div>
-                    <p className="mt-3 text-sm leading-6 text-slate-300">{item.body}</p>
-                  </div>
-                ))}
+              <div className="mt-5">
+                <LiveTimelinePanel limit={4} />
               </div>
             </div>
 

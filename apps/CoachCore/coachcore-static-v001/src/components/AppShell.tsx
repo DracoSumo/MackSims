@@ -13,6 +13,7 @@ const navItems = [
   { label: "Nutrition", href: "/app/nutrition" },
   { label: "Video", href: "/app/video" },
   { label: "Accountability", href: "/app/accountability" },
+  { label: "Timeline", href: "/app/timeline" },
   { label: "Integrations", href: "/app/integrations" },
   { label: "Profile", href: "/app/profile" },
 ];

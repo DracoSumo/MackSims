@@ -1,6 +1,7 @@
 ﻿import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card, SectionPage } from "@/components/SectionPage";
+import { VideoMomentActions } from "@/components/VideoMomentActions";
 import { videoMoments } from "@/data/mock";
 
 export function generateStaticParams() {
@@ -41,6 +42,10 @@ export default async function VideoMomentDetailPage({
             <p className="mt-2 text-slate-400">Real uploads come in a later backend patch.</p>
           </div>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <VideoMomentActions momentId={moment.id} watched={moment.watched} />
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">

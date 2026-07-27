@@ -1,6 +1,6 @@
 ﻿import Link from "next/link";
-import { Card, SectionPage } from "@/components/SectionPage";
-import { workouts } from "@/data/mock";
+import { SectionPage } from "@/components/SectionPage";
+import { TrainingBoard } from "@/components/TrainingBoard";
 import { CrossLinkStrip, DemoDisclaimerStrip } from "@/components/ui/CoachCards";
 
 export default function TrainingPage() {
@@ -8,7 +8,7 @@ export default function TrainingPage() {
     <SectionPage
       eyebrow="Programming"
       title="Training and AI workout drafts"
-      description="Assign team workouts, position blocks, recovery sessions, strength work, and functional fitness WODs."
+      description="Assign team workouts, position blocks, recovery sessions, strength work, and functional fitness WODs. Simulate assignment status on this device."
     >
       <DemoDisclaimerStrip />
 
@@ -37,14 +37,7 @@ export default function TrainingPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {workouts.map((workout) => (
-          <Card key={workout.title} title={workout.title} subtitle={`${workout.type} • ${workout.group}`}>
-            <p>Duration: {workout.duration}</p>
-            <p>Status: {workout.status}</p>
-          </Card>
-        ))}
-      </div>
+      <TrainingBoard />
     </SectionPage>
   );
 }
