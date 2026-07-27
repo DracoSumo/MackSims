@@ -10,6 +10,14 @@ export const metadata: Metadata = {
   description: 'Draft sermons, plan series, curate worship, and stay on schedule.',
 }
 
+export const viewport = {
+  themeColor: '#1a1410',
+  colorScheme: 'dark' as const,
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover' as const,
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">

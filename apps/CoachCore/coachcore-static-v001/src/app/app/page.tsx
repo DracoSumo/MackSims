@@ -1,6 +1,7 @@
 ﻿import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { AthleteAccountabilityPanel } from "@/components/AthleteAccountabilityPanel";
+import { CoachOnboardingCard } from "@/components/CoachOnboardingCard";
 import { RecentActionLogPanel } from "@/components/RecentActionLogPanel";
 import { RecentCheckInsPanel } from "@/components/RecentCheckInsPanel";
 import { DashboardSyncStrip } from "@/components/DashboardSyncStrip";
@@ -40,6 +41,8 @@ export default function CoachDashboard() {
     <AppShell>
       <div className="px-5 py-6 lg:px-10 lg:py-10">
         <DemoDisclaimerStrip />
+
+        <CoachOnboardingCard />
 
         <DashboardSyncStrip />
 
