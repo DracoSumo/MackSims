@@ -1,51 +1,41 @@
 # MackSims hybrid apps — Next Wave
 
-**Branch:** `cursor/portfolio-continuity-wave-a666`  
-**Date:** 2026-07-27
+**Active branch:** `cursor/next-wave-product-bones-a666`  
+**Updated:** 2026-07-27
 
-## Wave 0 — Continuity + blank-screen (DONE this pass)
+## Wave 0 — Continuity + blank-screen — DONE
 
-Cross-app polish shipped:
+See prior PR lineage (`cursor/portfolio-continuity-wave-a666`): Capacitor cold-start fixes, cross-app UX continuity, swarm harness.
 
-| App | Continuity |
-|-----|------------|
-| **CoachCore** | Trailing-slash nav highlight, mobile Chat/Profile, safe-area, fail-open AuthGate, safe storage, landing/demo CTAs, Save on playbook/training new, Mark film complete (demo) |
-| **CurbCue** | OAuth callback outside BetaGate, CrowdMeter CTA, safe-area top, 44px taps, local-only auth copy, unknown-route Not Found |
-| **MotoCrew** | Safe localStorage writes, chat/focus empty states, focus hides bottom nav, screen-stack safe-area |
-| **Sermon Studio** | Safe persist writes, AuthCard dark tokens, font CSS vars, worship theme mapping, series-linked sermons |
+## Wave 1 — Closed testing + feedback gates — READY TO RUN
 
-Hybrid cold-start hardening (prior commits on this lineage): Capacitor `errorPath`, trailing-slash URLs, boot splash, `X-Frame-Options: SAMEORIGIN`.
+Ops (not code):
 
-### Swarm / dummy load
+1. Redeploy Netlify: `coachcore7`, FairShare, `motocrewz`, `sermon-studio-beta`
+2. Rebuild Capacitor IPAs/AABs (Codemagic) with new `errorPath` / server URLs
+3. Send beta invites; log blockers vs concept feedback
 
-- `apps/CoachCore/coachcore-static-v001/src/services/swarmLoad.test.ts` — 750 sequential local “users” on check-in + action log stores
-- `scripts/swarm-smoke.mjs` — 4 sites × 100 concurrent GETs (threshold 95%)
-- Last run: **400/400 HTTP 200**, CoachCore vitest **4/4 pass**
+## Wave 2 — Product bones — IN PROGRESS (this branch)
 
-## Wave 1 — Closed testing + feedback gates (NEXT)
-
-1. Redeploy Netlify (`coachcore7`, FairShare, motocrewz, sermon-studio-beta) from this branch.
-2. Rebuild Capacitor IPAs/AABs (Codemagic) with new `errorPath` / server URLs.
-3. External beta invites per app `BETA_INVITE_PACKAGE.md` — fix blockers first; log concept feedback.
-
-## Wave 2 — Product bones (in progress / next builds)
-
-| App | Next product bone |
+| App | Shipped this wave |
 |-----|-------------------|
-| **CoachCore** | Finish v0.5 static simulation (assignment status flips, richer live timeline); then v0.6 Supabase schema/RLS |
-| **MotoCrew** | Roadmap **v0.2** ride-planning bones (create/edit draft rides already local — deepen checklist + pack readiness) |
-| **CurbCue** | Keep mock adapters; gate live `FareDataAdapter` until Wave 1 feedback |
-| **Sermon Studio** | Local library/series polish done; Supabase sync remains post-beta milestone |
+| **CoachCore** | **v0.5 complete:** `assignmentStore`, film/training status flips, `LiveTimelinePanel` (mock + local actions + check-ins), Timeline in desktop nav, docs updated |
+| **MotoCrew** | **v0.2-demo:** per-ride checklist map + migration, draft delete / use-as-template, home readiness chips, Safety meter per selected ride |
+| **CurbCue** | Live fare adapter explicitly gated (`LIVE_FARE_ADAPTER_ENABLED = false`); composite tariff+demo companions remain active |
+| **Sermon Studio** | Wave 0 local polish held; Supabase sync still Wave 3 |
+
+### Verify
+
+```bash
+cd apps/CoachCore/coachcore-static-v001 && npm test && npm run build
+cd apps/MotoCrew && npm run build
+cd apps/FairShare && npm run build
+node scripts/swarm-smoke.mjs
+```
 
 ## Wave 3 — Live data (later)
 
-- Supabase auth + sync where configured
-- Real fare/GPS/messaging only behind explicit feature flags
-- Store listing hygiene (bundle IDs, keystores, ASC/Play records) in parallel — see `docs/NATIVE_EXTERNAL_TESTING.md`
-
-## How to re-run swarm
-
-```bash
-cd apps/CoachCore/coachcore-static-v001 && npm test
-node scripts/swarm-smoke.mjs
-```
+- Supabase schema/RLS (CoachCore v0.6)
+- Optional live fare adapter behind flag after Wave 1 feedback
+- GPS/map foundation (MotoCrew 0.3+)
+- Store listing hygiene — `docs/NATIVE_EXTERNAL_TESTING.md`
