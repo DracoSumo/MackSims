@@ -90,7 +90,11 @@ function useLocalStorageState<T>(key: string, initialValue: T) {
       return
     }
 
-    window.localStorage.setItem(key, JSON.stringify(storedValue))
+    try {
+      window.localStorage.setItem(key, JSON.stringify(storedValue))
+    } catch {
+      // Quota or private mode — keep in-memory state only.
+    }
   }, [key, storedValue])
 
   return [storedValue, setStoredValue] as const
@@ -309,6 +313,9 @@ function App() {
               onToggleChecklistItem={toggleChecklistItem}
             />
           )}
+          {activeScreen === 'chat' && !selectedRide && (
+            <EmptyRideState message="Join or select a ride before opening pack chat." onBrowse={() => setActiveScreen('rides')} />
+          )}
           {activeScreen === 'focus' && selectedRide && selectedRoute && (
             <FocusScreen
               ride={selectedRide}
@@ -316,6 +323,9 @@ function App() {
               readinessPercent={readinessPercent}
               onExit={() => setActiveScreen('rides')}
             />
+          )}
+          {activeScreen === 'focus' && (!selectedRide || !selectedRoute) && (
+            <EmptyRideState message="Select a ride with a route to enter focus mode." onBrowse={() => setActiveScreen('rides')} />
           )}
           {activeScreen === 'safety' && (
             <SafetyScreen contacts={emergencyContacts} onContactsChange={setEmergencyContacts} />
@@ -345,7 +355,9 @@ function App() {
           </footer>
         </div>
 
-        <BottomNav activeScreen={activeScreen} onNavigate={setActiveScreen} />
+        {activeScreen !== 'focus' && (
+          <BottomNav activeScreen={activeScreen} onNavigate={setActiveScreen} />
+        )}
       </section>
         </>
       )}

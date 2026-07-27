@@ -1,25 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { coachCoreConfig } from "@/config/coachcore";
+import { getCurrentUser } from "@/lib/auth";
+import { sessionGet, sessionSet } from "@/lib/safeStorage";
 
 const DISMISS_KEY = "coachcore.demoWalkthroughDismissed";
 
 export function DemoWalkthroughBanner() {
-  const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return sessionStorage.getItem(DISMISS_KEY) === "1";
-  });
+  // Avoid touching sessionStorage during the initial render (SSR / private WebViews).
+  const [dismissed, setDismissed] = useState(false);
+  const [hideForUser, setHideForUser] = useState(false);
 
-  if (dismissed) return null;
+  useEffect(() => {
+    setDismissed(sessionGet(DISMISS_KEY) === "1");
+    void getCurrentUser()
+      .then((user) => {
+        if (user) setHideForUser(true);
+      })
+      .catch(() => {
+        /* ignore — keep banner in demo */
+      });
+  }, []);
+
+  if (dismissed || hideForUser) return null;
 
   return (
     <div
       className="mx-5 mt-4 rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm text-amber-50 lg:mx-10"
       role="note"
     >
-      <p className="font-bold text-amber-100">Demo walkthrough — not a signed-in coach account</p>
+      <p className="font-bold text-amber-100">Demo mode — not a signed-in coach account</p>
       <p className="mt-1 leading-6 text-amber-50/90">
         {coachCoreConfig.hook} This build uses mock athletes and local-only actions. Real auth, roster data, and
         notifications are not connected.
@@ -32,7 +44,7 @@ export function DemoWalkthroughBanner() {
           type="button"
           className="font-bold text-amber-100 underline"
           onClick={() => {
-            sessionStorage.setItem(DISMISS_KEY, "1");
+            sessionSet(DISMISS_KEY, "1");
             setDismissed(true);
           }}
         >

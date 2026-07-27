@@ -10,7 +10,7 @@
   status: "Static mobile demo with mock state simulation",
   version: "v0.5",
   safetyNote:
-    "Static demo only. No real auth, payments, Hudl, wearable APIs, database writes, external credentials, or production user data are connected.",
+    "Demo-first build with mock team data. Optional Supabase auth can be enabled when configured. No payments, Hudl, wearable APIs, or production user data are connected.",
   coachingSupportDisclaimer:
     "Coaching support only — not medical advice, diagnosis, or treatment. Nutrition and readiness signals help coaches guide training; they are not clinical assessments.",
 };

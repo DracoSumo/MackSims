@@ -1,7 +1,10 @@
+import { localGet, localSet } from "@/lib/safeStorage";
 import { listActionLog } from "./actionLogStore";
 import { listCheckIns } from "./checkInStore";
 
 const BETA_KEY = "coachcore.betaRequests";
+const CHECKINS_KEY = "coachcore.athleteCheckIns";
+const ACTION_LOG_KEY = "coachcore.actionLog";
 
 export type CoachCoreLocalExport = {
   exportedAt: string;
@@ -10,19 +13,22 @@ export type CoachCoreLocalExport = {
   betaRequests: unknown[];
 };
 
-export function buildLocalExport(): CoachCoreLocalExport {
-  let betaRequests: unknown[] = [];
+function parseJsonArray(raw: string | null): unknown[] {
+  if (!raw) return [];
   try {
-    betaRequests = JSON.parse(localStorage.getItem(BETA_KEY) || "[]") as unknown[];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
-    betaRequests = [];
+    return [];
   }
+}
 
+export function buildLocalExport(): CoachCoreLocalExport {
   return {
     exportedAt: new Date().toISOString(),
     athleteCheckIns: listCheckIns(),
     actionLog: listActionLog(),
-    betaRequests,
+    betaRequests: parseJsonArray(localGet(BETA_KEY)),
   };
 }
 
@@ -42,13 +48,13 @@ export function importLocalExport(file: File): Promise<{ ok: true } | { ok: fals
     try {
       const parsed = JSON.parse(raw) as Partial<CoachCoreLocalExport>;
       if (parsed.athleteCheckIns) {
-        localStorage.setItem("coachcore.athleteCheckIns", JSON.stringify(parsed.athleteCheckIns));
+        localSet(CHECKINS_KEY, JSON.stringify(parsed.athleteCheckIns));
       }
       if (parsed.actionLog) {
-        localStorage.setItem("coachcore.actionLog", JSON.stringify(parsed.actionLog));
+        localSet(ACTION_LOG_KEY, JSON.stringify(parsed.actionLog));
       }
       if (parsed.betaRequests) {
-        localStorage.setItem(BETA_KEY, JSON.stringify(parsed.betaRequests));
+        localSet(BETA_KEY, JSON.stringify(parsed.betaRequests));
       }
       return { ok: true as const };
     } catch {

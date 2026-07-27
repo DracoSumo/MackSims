@@ -76,7 +76,11 @@ function loadDraftRides(): DraftRide[] {
 }
 
 function saveDraftRides(drafts: DraftRide[]): void {
-  localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
+  try {
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
+  } catch {
+    // best-effort
+  }
 }
 
 function loadJoinedRideIds(): string[] {
@@ -91,7 +95,11 @@ function loadJoinedRideIds(): string[] {
 }
 
 function saveJoinedRideIds(ids: string[]): void {
-  localStorage.setItem(JOINED_KEY, JSON.stringify(ids));
+  try {
+    localStorage.setItem(JOINED_KEY, JSON.stringify(ids));
+  } catch {
+    // best-effort
+  }
 }
 
 function rowToDraftRide(row: RideDraftRow): DraftRide {

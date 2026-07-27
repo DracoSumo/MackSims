@@ -1,5 +1,6 @@
 ﻿import Link from "next/link";
 import { AuthShell, Field } from "@/components/auth/AuthShell";
+import { EnterDemoButton } from "@/components/auth/EnterDemoButton";
 import { OAuthButtons } from "@/components/auth/OAuthButtons";
 
 export default function LoginPage() {
@@ -22,12 +23,7 @@ export default function LoginPage() {
         </div>
 
         <div className="mt-6 grid gap-3">
-          <Link
-            href="/app"
-            className="rounded-2xl bg-sky-400 px-5 py-3 text-center font-black text-slate-950 hover:bg-sky-300"
-          >
-            Enter Demo Dashboard
-          </Link>
+          <EnterDemoButton className="rounded-2xl bg-sky-400 px-5 py-3 text-center font-black text-slate-950 hover:bg-sky-300" />
 
           <OAuthButtons className="mt-1" />
         </div>
