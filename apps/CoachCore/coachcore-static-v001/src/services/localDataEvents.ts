@@ -1,7 +1,13 @@
 /** Same-tab broadcast when localStorage-backed data changes (storage event only fires cross-tab). */
 export const LOCAL_DATA_CHANGED = "coachcore:local-data-changed";
 
-export type LocalDataScope = "checkIns" | "actionLog" | "assignments" | "all";
+export type LocalDataScope =
+  | "checkIns"
+  | "actionLog"
+  | "assignments"
+  | "mealLogs"
+  | "coachNotes"
+  | "all";
 
 export function notifyLocalDataChanged(scope: LocalDataScope = "all"): void {
   if (typeof window === "undefined") return;

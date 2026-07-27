@@ -1,5 +1,5 @@
 export const APP_NAME = 'MotoCrew'
-export const VERSION_LABEL = 'v0.2-demo'
+export const VERSION_LABEL = 'v0.3-map'
 export const BUILD_TARGET = 'web'
 export const DEFAULT_MARKET = 'Local Pilot'
 export const APP_TAGLINE = 'Plan the ride. Ride with the pack.'

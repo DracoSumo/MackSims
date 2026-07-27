@@ -40,4 +40,17 @@ describe("assignmentStore", () => {
     expect(all["film-1"]).toBe("Complete");
     expect(all["workout-1"]).toBe("Needs nudge");
   });
+
+  it("stores assignment records with metadata", async () => {
+    const { listAssignmentRecords } = await import("./assignmentStore");
+    setAssignmentStatus("film-1", "Complete", {
+      title: "Route stem",
+      kind: "film",
+      assignee: "Skill group",
+    });
+    const records = listAssignmentRecords();
+    expect(records[0]?.title).toBe("Route stem");
+    expect(records[0]?.kind).toBe("film");
+    expect(records[0]?.status).toBe("Complete");
+  });
 });

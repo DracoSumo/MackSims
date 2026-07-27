@@ -986,6 +986,22 @@ function StatusPill({ status }: { status: RideStatus }) {
 
 function MapScreen({ ride, route }: { ride: Ride; route: RoutePreview }) {
   const preview = mapAdapter.getRoutePreview(ride.id) ?? route
+  const stops = mapAdapter.getStops(ride.id)
+  const meet = mapAdapter.getMeetSpot(ride.id)
+
+  const coords = stops.filter((stop) => typeof stop.lat === 'number' && typeof stop.lng === 'number')
+  const lats = coords.map((s) => s.lat as number)
+  const lngs = coords.map((s) => s.lng as number)
+  const minLat = Math.min(...lats, 0)
+  const maxLat = Math.max(...lats, 1)
+  const minLng = Math.min(...lngs, 0)
+  const maxLng = Math.max(...lngs, 1)
+  const pad = 0.08
+  const toX = (lng: number) => ((lng - minLng) / Math.max(maxLng - minLng, 0.0001)) * 100
+  const toY = (lat: number) => (1 - (lat - minLat) / Math.max(maxLat - minLat, 0.0001)) * 100
+  const pathPoints = coords
+    .map((stop) => `${toX(stop.lng as number) * (1 - pad) + pad * 50},${toY(stop.lat as number) * (1 - pad) + pad * 50}`)
+    .join(' ')
 
   return (
     <div className="screen-content">
@@ -1001,25 +1017,53 @@ function MapScreen({ ride, route }: { ride: Ride; route: RoutePreview }) {
           </div>
         </div>
 
-        <div className="map-placeholder" role="img" aria-label="Map placeholder">
-          <div className="map-placeholder-grid" aria-hidden="true" />
-          <div className="map-placeholder-copy">
-            <strong>
-              {mapAdapter.status === "live" ? "Live map tiles" : "Map view not configured"}
-            </strong>
-            <p>
-              {mapAdapter.isLiveTrackingAvailable
-                ? "Live GPS and map tiles are available in this build."
-                : "Live maps require a map provider and API key (Mapbox, Google Maps, or an OpenStreetMap stack). No key is bundled with this beta, so the panel below shows the mocked route outline instead."}
+        <div className="static-route-map" role="img" aria-label={`Static route map for ${ride.name}`}>
+          {coords.length >= 2 ? (
+            <svg viewBox="0 0 100 100" className="static-route-svg" aria-hidden="true">
+              <rect x="0" y="0" width="100" height="100" fill="rgba(15,23,42,0.85)" />
+              <polyline
+                points={pathPoints}
+                fill="none"
+                stroke="rgba(56,189,248,0.85)"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              {coords.map((stop, index) => (
+                <g key={`${stop.label}-${index}`}>
+                  <circle
+                    cx={toX(stop.lng as number) * (1 - pad) + pad * 50}
+                    cy={toY(stop.lat as number) * (1 - pad) + pad * 50}
+                    r={stop.kind === 'meet' || stop.kind === 'finish' ? 2.4 : 1.8}
+                    fill={stop.kind === 'meet' ? '#34d399' : stop.kind === 'finish' ? '#fbbf24' : '#38bdf8'}
+                  />
+                </g>
+              ))}
+            </svg>
+          ) : (
+            <div className="map-placeholder" role="img" aria-label="Map placeholder">
+              <div className="map-placeholder-grid" aria-hidden="true" />
+              <div className="map-placeholder-copy">
+                <strong>Route outline</strong>
+                <p>Stops without coordinates still list below. Add lat/lng on RoutePreview.stops for the static map.</p>
+              </div>
+            </div>
+          )}
+          {meet ? (
+            <p className="static-route-meet">
+              Meet: <strong>{meet.label}</strong> ({meet.kind})
             </p>
-          </div>
+          ) : null}
         </div>
 
-        <div className="mock-map" aria-label="Mock route line">
-          {preview.segments.map((segment, index) => (
-            <div key={segment} className="route-stop">
+        <div className="mock-map" aria-label="Route stops">
+          {stops.map((stop, index) => (
+            <div key={`${stop.label}-${index}`} className="route-stop">
               <span>{index + 1}</span>
-              <p>{segment}</p>
+              <p>
+                {stop.label}
+                <small className="route-stop-kind">{stop.kind}</small>
+              </p>
             </div>
           ))}
         </div>
@@ -1034,9 +1078,7 @@ function MapScreen({ ride, route }: { ride: Ride; route: RoutePreview }) {
         </div>
 
         <p className="future-note">
-          {mapAdapter.status === "mock"
-            ? "Real maps and live route sharing will come later. This panel uses mocked route data from the map adapter seam."
-            : "Route preview is served by the configured map adapter."}
+          Static route outline from the map adapter — no live tiles or GPS yet. Provider evaluation stays behind this seam.
         </p>
       </section>
 

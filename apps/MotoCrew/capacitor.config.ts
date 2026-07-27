@@ -1,13 +1,13 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 /**
- * Hybrid shell: loads production Netlify URL in the native WebView.
- * Trailing slash avoids redirect edge cases; errorPath covers cold-start network failures.
+ * Hybrid shell: production Netlify URL in the native WebView.
+ * Default appId matches Codemagic / store IDs (com.macksims.*).
  */
 const PRODUCTION_APP_URL = 'https://motocrewz.netlify.app/';
 
 const config: CapacitorConfig = {
-  appId: process.env.CAPACITOR_APP_ID || 'com.chrissims.throttlelink',
+  appId: process.env.CAPACITOR_APP_ID || 'com.macksims.motocrew',
   appName: 'MotoCrew',
   webDir: 'capacitor-web',
   server: {

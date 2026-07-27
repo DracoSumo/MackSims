@@ -125,3 +125,11 @@ Mobile demo URL:
 https://coachcore7.netlify.app
 
 This is a static mobile demo. It is not production and does not include real auth, real data, payments, Hudl integration, wearable integrations, or external credentials.
+
+## v0.6-bones (local)
+
+- Assignment records (title/kind/status/assignee) in addition to status map
+- Meal log + coach note stores feed LiveTimelinePanel
+- Schema stubs: assignments, meal_logs, coach_notes (+ commented RLS)
+- Cap appId `com.macksims.coachcore`
+

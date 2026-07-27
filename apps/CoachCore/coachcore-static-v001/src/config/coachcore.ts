@@ -8,9 +8,9 @@
     "Check assigned film, today's workout or WOD, meal log, and team messages — then update your status.",
   demoUrl: "https://coachcore7.netlify.app",
   status: "Coach workspace with local assignment simulation",
-  version: "v0.5",
+  version: "v0.6-bones",
   safetyNote:
-    "Optional Supabase auth syncs when configured. No payments, Hudl, wearable APIs, or production roster data are connected yet.",
+    "Optional Supabase auth syncs when configured. Assignments, meal logs, and coach notes save on this device. No payments, Hudl, wearable APIs, or production roster data are connected yet.",
   coachingSupportDisclaimer:
     "Coaching support only — not medical advice, diagnosis, or treatment. Nutrition and readiness signals help coaches guide training; they are not clinical assessments.",
 };

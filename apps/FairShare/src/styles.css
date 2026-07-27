@@ -1068,6 +1068,16 @@ main,
   padding: 10px 12px;
 }
 
+.table-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.table-row-actions button {
+  min-height: 36px;
+}
+
 .sequence-list {
   display: grid;
   gap: 10px;

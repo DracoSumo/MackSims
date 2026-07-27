@@ -18,7 +18,7 @@ import { fareDataAdapter } from "./adapters";
 import { addRecentSearch, loadSavedComparisons, loadUserSettings, removeSavedComparison, saveComparisonTrip, saveSavedPlace, saveUserSettings, submitCrowdPoll, loadCrowdPolls } from "./lib/storage";
 import { getCurrentUser } from "./lib/auth";
 import { checkSupabaseConnection } from "./lib/supabaseClient";
-import { getSyncDashboard, pushCrowdPoll, pushSavedComparison } from "./lib/supabaseSync";
+import { getSyncDashboard, pushCrowdPoll, pushSavedComparison, deleteSavedComparisonRemote } from "./lib/supabaseSync";
 import {
   APP_NAME,
   APP_SHORT_DESCRIPTION,
@@ -507,17 +507,29 @@ function ComparePage({ navigate }: { navigate: Navigate }) {
 
   const saveComparison = () => {
     if (!bestValue) return;
+    const provider = getProvider(bestValue.providerId);
     const next = saveComparisonTrip({
       label: `${pickup} → ${dropoff}`,
       pickup,
       dropoff,
       zoneId: selectedZoneId,
       estimateId: bestValue.id,
+      fareLow: bestValue.fareLow,
+      fareHigh: bestValue.fareHigh,
+      providerName: provider?.name,
     });
     setSavedComparisons(next);
     const record = next[0];
     setPendingCloudRecord(record);
-    setSaveMessage("Saved locally on this device.");
+    if (signedIn && isSupabaseConfigured) {
+      void pushSavedComparison(record).then((result) => {
+        if (result === "ok") setSaveMessage("Saved locally and synced to Supabase.");
+        else if (result === "error") setSaveMessage("Saved locally; cloud sync failed — check sign-in and RLS.");
+        else setSaveMessage("Saved locally on this device.");
+      });
+    } else {
+      setSaveMessage("Saved locally on this device.");
+    }
   };
 
   async function saveComparisonToCloud() {
@@ -530,6 +542,11 @@ function ComparePage({ navigate }: { navigate: Navigate }) {
     } else {
       setSaveMessage("Saved locally — sign in and configure Supabase to sync to cloud.");
     }
+  }
+
+  function removeComparison(id: string) {
+    setSavedComparisons(removeSavedComparison(id));
+    void deleteSavedComparisonRemote(id);
   }
   const saveDropoffPlace = () => {
     saveSavedPlace({ label: dropoff, address: dropoff, zoneId: selectedZoneId });
@@ -631,16 +648,36 @@ function ComparePage({ navigate }: { navigate: Navigate }) {
             {savedComparisons.map((comparison) => {
               const estimate = estimates.find((item) => item.id === comparison.estimateId);
               const provider = estimate ? getProvider(estimate.providerId) : undefined;
+              const fareLabel = estimate
+                ? formatFareRange(estimate.fareLow, estimate.fareHigh, market)
+                : comparison.fareLow != null && comparison.fareHigh != null
+                  ? formatFareRange(comparison.fareLow, comparison.fareHigh, market)
+                  : "Re-open trip to refresh fare";
               return (
                 <div className="table-row table-row--compact" key={comparison.id}>
                   <strong>{comparison.label}</strong>
                   <small>
-                    {provider?.name ?? "Saved option"} —{" "}
-                    {estimate ? formatFareRange(estimate.fareLow, estimate.fareHigh, market) : "Re-open trip to refresh fare"}
+                    {provider?.name ?? comparison.providerName ?? "Saved option"} — {fareLabel}
                   </small>
-                  <button type="button" onClick={() => setSavedComparisons(removeSavedComparison(comparison.id))}>
-                    Remove
-                  </button>
+                  <div className="table-row-actions">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(
+                          buildCompareHref({
+                            pickup: comparison.pickup,
+                            dropoff: comparison.dropoff,
+                            zoneId: comparison.zoneId,
+                          }),
+                        )
+                      }
+                    >
+                      Re-open
+                    </button>
+                    <button type="button" onClick={() => removeComparison(comparison.id)}>
+                      Remove
+                    </button>
+                  </div>
                 </div>
               );
             })}

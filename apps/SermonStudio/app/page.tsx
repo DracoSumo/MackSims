@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { useSupabase } from '@/lib/supabaseClient'
-import { getAuthedUser, getSyncMeta, mergeOnSignIn, pushSeries, pushSermon, type SermonWithSync } from '@/lib/supabaseSync'
+import { getAuthedUser, getSyncMeta, mergeOnSignIn, pushSeries, pushSermon, deleteSermonRemote, type SermonWithSync } from '@/lib/supabaseSync'
 import AuthCard from '@/components/AuthCard'
 import { FALLBACK_VERSES } from '@/lib/fallbackVerses'
 import { buildSermonNotes, openPrintableOutline } from '@/lib/sermonExport'
@@ -799,7 +799,18 @@ export default function Page() {
                       <ul className='space-y-1.5 text-sm'>
                         {linked.map((serm, idx) => (
                           <li key={serm.id ?? `${s.id}-${idx}`} className='text-[color:var(--ss-ink)]'>
-                            {serm.title || 'Untitled sermon'}
+                            <button
+                              type='button'
+                              className='text-left font-medium text-[color:var(--ss-accent)] underline-offset-2 hover:underline'
+                              onClick={() => {
+                                setSermon(normalizeSermon(serm, serm.cloudSynced === true))
+                                setActiveTab('Scripture')
+                                window.scrollTo({ top: 0, behavior: 'smooth' })
+                                notify('info', `Opened “${serm.title || 'Untitled sermon'}” from series.`)
+                              }}
+                            >
+                              {serm.title || 'Untitled sermon'}
+                            </button>
                             {serm.date ? <span className='text-[color:var(--ss-muted)]'> · {serm.date}</span> : null}
                           </li>
                         ))}
@@ -893,9 +904,15 @@ export default function Page() {
                     setLibrary(arr => [copy, ...arr])
                     notify('success', 'Duplicate saved to library (local until you save while signed in).')
                   }}>Duplicate</Button>
-                  <Button variant='destructive' onClick={()=>{
-                    setLibrary(arr => arr.filter(x=> x.id !== s.id))
-                    notify('info', s.cloudSynced ? 'Removed from library view — Supabase row not deleted in this beta.' : 'Sermon deleted from this browser.')
+                  <Button variant='destructive' onClick={async ()=>{
+                    const id = s.id
+                    setLibrary(arr => arr.filter(x=> x.id !== id))
+                    if (s.cloudSynced && id) {
+                      const { error } = await deleteSermonRemote(id)
+                      notify(error ? 'error' : 'success', error ? `Deleted locally; cloud delete failed: ${error}` : 'Sermon deleted locally and from Supabase.')
+                    } else {
+                      notify('info', 'Sermon deleted from this browser.')
+                    }
                   }}>Delete</Button>
                 </div>
               </div>

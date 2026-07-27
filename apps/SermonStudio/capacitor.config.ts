@@ -1,13 +1,13 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 /**
- * Hybrid shell: loads production Netlify URL in the native WebView.
- * Trailing slash avoids redirect edge cases; errorPath covers cold-start network failures.
+ * Hybrid shell: production Netlify URL in the native WebView.
+ * Default appId matches Codemagic / store IDs (com.macksims.*).
  */
 const PRODUCTION_APP_URL = 'https://sermon-studio-beta.netlify.app/';
 
 const config: CapacitorConfig = {
-  appId: process.env.CAPACITOR_APP_ID || 'com.chrissims.sermonstudio',
+  appId: process.env.CAPACITOR_APP_ID || 'com.macksims.sermonstudio',
   appName: 'Sermon Studio',
   webDir: 'capacitor-web',
   server: {

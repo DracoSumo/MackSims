@@ -389,9 +389,9 @@ workflows:
         - curbcue-upload-key
       vars:
         APP_NAME: CurbCue
-        BUNDLE_ID: com.chrissims.fairshare
-        PACKAGE_NAME: com.chrissims.fairshare
-        CAPACITOR_APP_ID: com.chrissims.fairshare
+        BUNDLE_ID: com.macksims.curbcue
+        PACKAGE_NAME: com.macksims.curbcue
+        CAPACITOR_APP_ID: com.macksims.curbcue
         CURBCUE_SOURCE_DIR: apps/FairShare
         CAPACITOR_SERVER_URL: https://fairshare-v03-20260624.netlify.app/
       node: latest
@@ -476,9 +476,9 @@ workflows:
         - motocrew-upload-key
       vars:
         APP_NAME: MotoCrew
-        BUNDLE_ID: com.chrissims.throttlelink
-        PACKAGE_NAME: com.chrissims.throttlelink
-        CAPACITOR_APP_ID: com.chrissims.throttlelink
+        BUNDLE_ID: com.macksims.motocrew
+        PACKAGE_NAME: com.macksims.motocrew
+        CAPACITOR_APP_ID: com.macksims.motocrew
         MOTOCREW_SOURCE_DIR: apps/MotoCrew
         CAPACITOR_SERVER_URL: https://motocrewz.netlify.app/
       node: latest
@@ -563,9 +563,9 @@ workflows:
         - coachcore-upload-key
       vars:
         APP_NAME: CoachCore
-        BUNDLE_ID: com.chrissims.coachcore
-        PACKAGE_NAME: com.chrissims.coachcore
-        CAPACITOR_APP_ID: com.chrissims.coachcore
+        BUNDLE_ID: com.macksims.coachcore
+        PACKAGE_NAME: com.macksims.coachcore
+        CAPACITOR_APP_ID: com.macksims.coachcore
         COACHCORE_SOURCE_DIR: apps/CoachCore/coachcore-static-v001
         CAPACITOR_SERVER_URL: https://coachcore7.netlify.app/app/
       node: latest
@@ -650,9 +650,9 @@ workflows:
         - sermon-studio-upload-key
       vars:
         APP_NAME: Sermon Studio
-        BUNDLE_ID: com.chrissims.sermonstudio
-        PACKAGE_NAME: com.chrissims.sermonstudio
-        CAPACITOR_APP_ID: com.chrissims.sermonstudio
+        BUNDLE_ID: com.macksims.sermonstudio
+        PACKAGE_NAME: com.macksims.sermonstudio
+        CAPACITOR_APP_ID: com.macksims.sermonstudio
         SERMON_STUDIO_SOURCE_DIR: apps/SermonStudio
         CAPACITOR_SERVER_URL: https://sermon-studio-beta.netlify.app/
       node: latest

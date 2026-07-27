@@ -51,14 +51,26 @@ export function VideoMomentsBoard() {
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => setAssignmentStatus(moment.id, "In progress")}
+                onClick={() =>
+                  setAssignmentStatus(moment.id, "In progress", {
+                    title: moment.title,
+                    kind: "film",
+                    assignee: moment.assigned,
+                  })
+                }
                 className="rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-white hover:bg-white/10"
               >
                 Mark in progress
               </button>
               <button
                 type="button"
-                onClick={() => setAssignmentStatus(moment.id, "Complete")}
+                onClick={() =>
+                  setAssignmentStatus(moment.id, "Complete", {
+                    title: moment.title,
+                    kind: "film",
+                    assignee: moment.assigned,
+                  })
+                }
                 className="rounded-xl bg-sky-400 px-3 py-2 text-xs font-black text-slate-950"
               >
                 Mark complete

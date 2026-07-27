@@ -12,10 +12,10 @@ Capacitor cold-start fixes, cross-app UX continuity, swarm harness (prior lineag
 Ops (not code):
 
 1. Redeploy Netlify: `coachcore7`, FairShare (`fairshare-v03-20260624`), `motocrewz`, `sermon-studio-beta`
-2. Rebuild Capacitor IPAs/AABs (Codemagic)
+2. Rebuild Capacitor IPAs/AABs (Codemagic) with `com.macksims.*` Cap / package IDs
 3. Send beta invites; log blockers vs concept feedback
 
-## Wave 2 — Product bones — DONE (merged into this branch)
+## Wave 2 — Product bones — DONE
 
 | App | Shipped |
 |-----|---------|
@@ -24,13 +24,24 @@ Ops (not code):
 | **CurbCue** | Live fare adapter gated off |
 | **Sermon Studio** | Local library polish held |
 
-## Wave 2.5 — Catalog audit + no filler after login — THIS BRANCH
+## Wave 2.5 — Catalog audit + no filler after login — DONE
 
-See `docs/CATALOG_AUDIT.md`. Signed-in / workspace sessions no longer show tourist demo chrome.
+See `docs/CATALOG_AUDIT.md`.
 
-## Wave 3 — Live data (later)
+## Wave 3 — Build-up (in progress on this branch)
 
-- Supabase schema/RLS (CoachCore v0.6)
-- Optional live fare adapter after Wave 1 feedback
-- GPS/map foundation (MotoCrew 0.3+)
+Local-first product depth + Cap ID alignment (no live provider keys required):
+
+| App | This pass |
+|-----|-----------|
+| **CoachCore** | **v0.6-bones:** assignment records, meal/note stores, timeline feeds them, schema stubs for `assignments` / `meal_logs` / `coach_notes` |
+| **CurbCue** | Re-open saved trips, fare snapshot on save, auto-push + remote delete when signed in |
+| **MotoCrew** | **v0.3-map:** typed route stops + SVG static route map behind `mapAdapter` |
+| **Sermon Studio** | Series upsert, series→editor deep link, remote sermon delete, push local series on merge |
+| **All hybrids** | Capacitor `appId` + Codemagic Android `PACKAGE_NAME` → `com.macksims.*` |
+
+## Still later
+
+- Apply Supabase schema/RLS in live projects
+- Live fare / GPS tiles behind flags after Wave 1 feedback
 - Store listing hygiene — `docs/NATIVE_EXTERNAL_TESTING.md`

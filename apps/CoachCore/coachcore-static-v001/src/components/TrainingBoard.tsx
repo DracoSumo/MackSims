@@ -56,7 +56,13 @@ export function TrainingBoard() {
             </p>
             <button
               type="button"
-              onClick={() => setAssignmentStatus(id, upcoming)}
+              onClick={() =>
+                setAssignmentStatus(id, upcoming, {
+                  title: workout.title,
+                  kind: "training",
+                  assignee: workout.group,
+                })
+              }
               className="mt-4 rounded-xl border border-white/10 px-4 py-2 text-xs font-bold text-white hover:bg-white/10"
             >
               Mark {upcoming}

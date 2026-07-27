@@ -47,7 +47,7 @@ No real GPS, maps, messaging, calling, Bluetooth, payments, or auth yet.
 
 ## Phase 0.2: Ride Planning Bones
 
-Status: In progress / partial.
+Status: Done (checklist / drafts / readiness).
 
 Goal: make MotoCrew useful before live road features.
 
@@ -82,6 +82,8 @@ Technical:
 - Avoid router dependency unless navigation complexity requires it.
 
 ## Phase 0.3: Real Map Foundation
+
+Status: In progress / partial — static SVG route + typed stops behind mapAdapter (no provider keys).
 
 Goal: introduce real map rendering without live tracking.
 

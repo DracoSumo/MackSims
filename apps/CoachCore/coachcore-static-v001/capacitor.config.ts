@@ -1,14 +1,14 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 /**
- * Hybrid shell: loads production Netlify URL in the native WebView.
- * Use trailing slash on /app/ — Next export uses trailingSlash and a 301 from /app
- * has caused blank WebViews on cold launch.
+ * Hybrid shell: production Netlify URL in the native WebView.
+ * Default appId matches Codemagic / store IDs (com.macksims.*).
+ * Use trailing slash on /app/ — Next export uses trailingSlash.
  */
 const PRODUCTION_APP_URL = 'https://coachcore7.netlify.app/app/';
 
 const config: CapacitorConfig = {
-  appId: process.env.CAPACITOR_APP_ID || 'com.chrissims.coachcore',
+  appId: process.env.CAPACITOR_APP_ID || 'com.macksims.coachcore',
   appName: 'CoachCore',
   webDir: 'capacitor-web',
   server: {
