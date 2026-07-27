@@ -9,7 +9,7 @@ export default function NewTrainingPage() {
   const [saved, setSaved] = useState(false);
 
   function handleSave() {
-    logCoachAction("Save workout", "Mock training assignment saved in demo mode");
+    logCoachAction("Save workout", "Workout assignment saved");
     setSaved(true);
   }
 
@@ -17,7 +17,7 @@ export default function NewTrainingPage() {
     <SectionPage
       eyebrow="Create workout"
       title="Build a training assignment"
-      description="Mock form for team workouts, individual blocks, recovery sessions, and functional fitness WODs."
+      description="Form for team workouts, individual blocks, recovery sessions, and functional fitness WODs."
     >
       <div className="mb-6">
         <Link href="/app/training" className="text-sm font-bold text-sky-300">
@@ -41,11 +41,11 @@ export default function NewTrainingPage() {
           onClick={handleSave}
           className="rounded-2xl bg-sky-400 px-5 py-3 font-black text-slate-950 hover:bg-sky-300"
         >
-          Save Mock Workout
+          Save workout
         </button>
         {saved ? (
           <p className="text-sm font-bold text-emerald-300" role="status">
-            Saved in demo mode
+            Saved on this device
           </p>
         ) : null}
       </div>

@@ -6,10 +6,10 @@ export default function AssignWorkoutPage() {
     <MockActionPage
       eyebrow="Training"
       title="Assign workout"
-      description="Mock flow for team workouts, WODs, strength blocks, recovery work, and position-specific training."
+      description="Assign team workouts, WODs, strength blocks, recovery work, and position-specific training."
       resultTitle="Workout assignment staged"
       resultBody="CoachCore would push the workout to the group, track completions, and flag missed work."
-      buttonLabel="Assign Mock Workout"
+      buttonLabel="Assign workout"
       successTitle="Workout assignment simulated"
       successBody="The selected group now has a fake training assignment staged for completion tracking."
       timelineItems={[

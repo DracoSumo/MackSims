@@ -6,16 +6,16 @@ export default function SaveNotePage() {
     <MockActionPage
       eyebrow="Coach notes"
       title="Save private coach note"
-      description="Mock private note flow for athlete check-ins, team observations, and staff planning."
+      description="Private note flow for athlete check-ins, team observations, and staff planning."
       resultTitle="Coach note staged"
-      resultBody="CoachCore would save the note privately and connect it to the athlete, group, or staff timeline."
-      buttonLabel="Save Mock Note"
-      successTitle="Coach note saved in demo mode"
-      successBody="A fake private note was added to the local coach timeline. No real data was stored."
+      resultBody="CoachCore saves the note privately and connects it to the athlete, group, or staff timeline."
+      buttonLabel="Save note"
+      successTitle="Coach note saved"
+      successBody="Private note added to your coach timeline on this device."
       timelineItems={[
-        "Private coach note staged.",
+        "Private coach note saved.",
         "Attached to selected athlete or group.",
-        "Staff timeline simulated locally.",
+        "Staff timeline updated.",
       ]}
     >
       <MockSelect label="Attach note to" options={[...athletes.map((athlete) => athlete.name), ...mockGroups]} />

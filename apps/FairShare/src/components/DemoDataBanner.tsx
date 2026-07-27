@@ -1,13 +1,25 @@
+import { useEffect, useState } from "react";
 import { APP_FEEDBACK_SUBJECT, FEEDBACK_EMAIL } from "../config";
 import { fareDataAdapter } from "../adapters";
+import { getCurrentUser } from "../lib/auth";
 
 /**
- * Persistent strip under the top bar reminding testers that everything is
- * simulated, with a direct feedback link. Reads the active adapter so the
- * banner disappears automatically if a live adapter is ever swapped in.
+ * Pre-auth reminder that estimates are simulated.
+ * Hidden after sign-in — signed-in riders get the product, not tourist chrome.
  */
 export function DemoDataBanner() {
-  if (!fareDataAdapter.isSimulated) {
+  const [signedIn, setSignedIn] = useState(false);
+
+  useEffect(() => {
+    getCurrentUser().then((user) => setSignedIn(Boolean(user)));
+    const onAuth = () => {
+      getCurrentUser().then((user) => setSignedIn(Boolean(user)));
+    };
+    window.addEventListener("fairshare:auth-changed", onAuth);
+    return () => window.removeEventListener("fairshare:auth-changed", onAuth);
+  }, []);
+
+  if (!fareDataAdapter.isSimulated || signedIn) {
     return null;
   }
 

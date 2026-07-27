@@ -46,9 +46,9 @@ export function MockActionPage({
             actionLabel={actionLabel ?? title}
             timelineItems={
               timelineItems ?? [
-                "Mock action staged in CoachCore.",
-                "Demo timeline updated locally.",
-                "No backend, database, notification, or external API was used.",
+                "Action saved in CoachCore.",
+                "Activity timeline updated on this device.",
+                "Appears on the accountability board when athletes check in.",
               ]
             }
           />
@@ -56,14 +56,14 @@ export function MockActionPage({
 
         <div className="rounded-[2rem] border border-emerald-300/20 bg-emerald-300/10 p-6">
           <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-200">
-            Mock result
+            Expected result
           </p>
           <h2 className="mt-3 text-3xl font-black">{resultTitle}</h2>
           <p className="mt-3 text-sm leading-6 text-emerald-50/85">{resultBody}</p>
 
           <div className="mt-6 rounded-3xl border border-white/10 bg-slate-950/50 p-4 text-sm leading-6 text-slate-300">
-            In a backend version, this would create a real action record, update assignment status,
-            notify athletes, and appear in the accountability timeline.
+            This action updates your local coach log and assignment status. When cloud sync is on,
+            it will also notify athletes and appear in the shared accountability timeline.
           </div>
         </div>
       </div>

@@ -70,7 +70,7 @@ export function ProfileAuthPanel() {
   if (!configured) {
     return (
       <p className="text-sm text-slate-400">
-        Supabase auth not configured — profile stays in demo mode.
+        Supabase auth not configured — local profile and check-ins stay on this device.
       </p>
     );
   }

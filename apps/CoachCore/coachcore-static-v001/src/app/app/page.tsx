@@ -8,7 +8,7 @@ import { RecentCheckInsPanel } from "@/components/RecentCheckInsPanel";
 import { DashboardSyncStrip } from "@/components/DashboardSyncStrip";
 import { actionCards, coachCoreStats, integrations, playbookItems } from "@/data/mock";
 import { coachCoreConfig } from "@/config/coachcore";
-import { CommandCard, CrossLinkStrip, DemoDisclaimerStrip, FoundationNote, MetricCard, StatusPill } from "@/components/ui/CoachCards";
+import { CommandCard, CrossLinkStrip, MetricCard, StatusPill } from "@/components/ui/CoachCards";
 
 const commandModules = [
   {
@@ -41,8 +41,6 @@ export default function CoachDashboard() {
   return (
     <AppShell>
       <div className="px-5 py-6 lg:px-10 lg:py-10">
-        <DemoDisclaimerStrip />
-
         <CoachOnboardingCard />
 
         <DashboardSyncStrip />
@@ -100,7 +98,7 @@ export default function CoachDashboard() {
         <section className="mt-8">
           <h2 className="text-2xl font-black">Quick coach actions</h2>
           <p className="mt-2 text-sm text-slate-400">
-            Mock flows only — connect film, training, fueling, and nudges without leaving the demo.
+            Assign film, workouts, fueling checks, and nudges from one place.
           </p>
           <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {actionCards.map((card) => (
@@ -156,7 +154,7 @@ export default function CoachDashboard() {
               </div>
 
               <p className="mt-5 text-sm leading-6 text-slate-400">
-                Plugin-ready placeholders only. No real external APIs, credentials, or deployments connected.
+                Connect Hudl, wearables, and calendar when your org is ready — see Integrations.
               </p>
             </div>
 
@@ -168,14 +166,12 @@ export default function CoachDashboard() {
                 </Link>
               </div>
               <p className="mt-2 text-sm text-slate-400">
-                Live demo events from this device + sample events.
+                Local coach actions and check-ins from this device.
               </p>
               <div className="mt-5">
                 <LiveTimelinePanel limit={4} />
               </div>
             </div>
-
-            <FoundationNote />
           </div>
         </section>
       </div>

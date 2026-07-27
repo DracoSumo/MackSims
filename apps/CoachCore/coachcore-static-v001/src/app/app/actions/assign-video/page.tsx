@@ -6,10 +6,10 @@ export default function AssignVideoPage() {
     <MockActionPage
       eyebrow="Film room"
       title="Assign video moment"
-      description="Mock flow for assigning a clip, drill example, technique correction, or movement standard."
+      description="Assign a clip, drill example, technique correction, or movement standard."
       resultTitle="Video assignment staged"
       resultBody="CoachCore would assign the clip, track open rate, track watch percentage, and show completion in the accountability dashboard."
-      buttonLabel="Assign Mock Video"
+      buttonLabel="Assign video"
       successTitle="Video assignment simulated"
       successBody="The selected group now has a fake film assignment with watch tracking staged in the demo."
       timelineItems={[

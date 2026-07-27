@@ -1,8 +1,7 @@
 "use client";
 
+import { DEMO_CONTINUE_KEY } from "@/hooks/useWorkspaceSession";
 import { localSet } from "@/lib/safeStorage";
-
-const DEMO_KEY = "coachcore.continueDemoMode";
 
 export function EnterDemoButton({ className }: { className?: string }) {
   return (
@@ -10,11 +9,11 @@ export function EnterDemoButton({ className }: { className?: string }) {
       type="button"
       className={className}
       onClick={() => {
-        localSet(DEMO_KEY, "1");
+        localSet(DEMO_CONTINUE_KEY, "1");
         window.location.href = "/app/";
       }}
     >
-      Enter Demo Dashboard
+      Enter coach workspace
     </button>
   );
 }

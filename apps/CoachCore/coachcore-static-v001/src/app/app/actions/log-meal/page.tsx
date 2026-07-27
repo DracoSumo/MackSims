@@ -5,16 +5,16 @@ export default function LogMealPage() {
     <MockActionPage
       eyebrow="Fueling"
       title="Log meal"
-      description="Mock athlete fueling log for meals, hydration, recovery, and performance habits."
+      description="Athlete fueling log for meals, hydration, recovery, and performance habits."
       resultTitle="Meal log prepared"
-      resultBody="CoachCore would update the athlete fueling timeline and help coaches spot missing hydration or recovery habits."
-      buttonLabel="Submit Mock Meal Log"
-      successTitle="Meal log submitted in demo mode"
-      successBody="A fake fueling record was added to the local timeline. Nothing was saved to a backend."
+      resultBody="CoachCore updates the athlete fueling timeline so coaches can spot missing hydration or recovery habits."
+      buttonLabel="Submit meal log"
+      successTitle="Meal log submitted"
+      successBody="Fueling check is on the athlete timeline for this device."
       timelineItems={[
         "Fueling log submitted.",
-        "Hydration check simulated.",
-        "Coach visibility event added locally.",
+        "Hydration check recorded.",
+        "Coach visibility event added.",
       ]}
     >
       <MockSelect label="Meal type" options={["Breakfast", "Lunch", "Dinner", "Snack", "Pre-training", "Post-training"]} />

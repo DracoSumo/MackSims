@@ -94,7 +94,7 @@ export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Pr
   if (!supabase) {
     return (
       <div className={`text-xs text-[color:var(--ss-muted)] ${className}`}>
-        Supabase not configured — local demo mode (browser storage only).
+        Local library on this device — cloud sync turns on when Supabase env is set.
       </div>
     )
   }

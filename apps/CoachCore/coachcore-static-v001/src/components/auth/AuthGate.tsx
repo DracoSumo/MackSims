@@ -7,8 +7,8 @@ import { isSupabaseConfigured } from "@/config/backend";
 import { getCurrentUser } from "@/lib/auth";
 import { localGet, localSet } from "@/lib/safeStorage";
 import { OAuthButtons } from "@/components/auth/OAuthButtons";
+import { DEMO_CONTINUE_KEY } from "@/hooks/useWorkspaceSession";
 
-const DEMO_KEY = "coachcore.continueDemoMode";
 const SESSION_CHECK_MS = 2500;
 
 function isNativeShell(): boolean {
@@ -38,8 +38,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Native hybrid builds and returning demo users skip the hard gate.
-    if (localGet(DEMO_KEY) === "1" || isNativeShell()) {
+    // Native hybrid builds and returning workspace users skip the hard gate.
+    if (localGet(DEMO_CONTINUE_KEY) === "1" || isNativeShell()) {
       setDemoMode(true);
       setReady(true);
       return;
@@ -78,7 +78,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }, []);
 
   function continueDemo() {
-    localSet(DEMO_KEY, "1");
+    localSet(DEMO_CONTINUE_KEY, "1");
     setDemoMode(true);
   }
 
@@ -93,8 +93,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
         <p className="text-sm font-bold uppercase tracking-[0.3em] text-sky-300">Coach sign-in</p>
         <h1 className="mt-3 text-3xl font-black">Sign in to open the coach workspace</h1>
         <p className="mt-3 text-sm leading-6 text-slate-400">
-          Supabase auth is configured for this build. Sign in with Google or GitHub, or continue in
-          demo mode.
+          Supabase auth is configured for this build. Sign in with Google or GitHub, or continue into
+          the coach workspace on this device.
         </p>
         <div className="mt-6">
           <OAuthButtons />
@@ -104,7 +104,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           onClick={continueDemo}
           className="mt-4 w-full rounded-2xl border border-amber-300/30 bg-amber-300/10 px-5 py-3 font-black text-amber-100 hover:bg-amber-300/20"
         >
-          Continue in demo mode
+          Continue into workspace
         </button>
         <p className="mt-6 text-sm text-slate-500">
           Need an account?{" "}

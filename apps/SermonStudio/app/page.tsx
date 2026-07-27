@@ -427,21 +427,24 @@ export default function Page() {
 
   return (
     <div className='ss-page p-4 sm:p-6 max-w-7xl mx-auto space-y-6'>
-      <div className='no-print rounded-2xl border border-[rgba(126,184,218,0.22)] bg-[rgba(21,28,36,0.72)] px-4 py-3 text-sm text-[color:var(--ss-muted)] backdrop-blur-sm' role='note'>
-        <strong className='text-[color:var(--ss-ink)]'>External beta{supabase ? (authed ? ' — signed in + Supabase' : ' — Supabase connected') : ' — local demo mode'}.</strong>{' '}
-        {supabase
-          ? authed
-            ? ' Sermons and series sync when you save; unsaved drafts still work offline in this browser.'
-            : ' Sign in with Google or GitHub to sync when tables are ready; unsaved drafts still work offline in this browser.'
-          : ' Your data stays in this browser only — clearing browser data clears your library.'}
-        {' '}Idea suggestions are simple local templates, <strong className='text-[color:var(--ss-ink)]'>not live AI</strong>.
-        Please send feedback to feedback@macksims.com.
-      </div>
+      {!authed ? (
+        <div className='no-print rounded-2xl border border-[rgba(126,184,218,0.22)] bg-[rgba(21,28,36,0.72)] px-4 py-3 text-sm text-[color:var(--ss-muted)] backdrop-blur-sm' role='note'>
+          <strong className='text-[color:var(--ss-ink)]'>
+            {supabase ? 'Sign in to sync sermons' : 'Working on this device'}
+          </strong>
+          {' '}
+          {supabase
+            ? 'Use Google or GitHub below. Drafts still work offline in this browser until you save.'
+            : 'Your library stays in this browser — clearing browser data clears sermons. Feedback: feedback@macksims.com.'}
+        </div>
+      ) : null}
 
-      <div className='no-print rounded-[12px] border border-[rgba(126,184,218,0.18)] bg-[rgba(126,184,218,0.08)] px-4 py-3 text-sm text-[color:var(--ss-muted)]' role='note'>
-        <strong className='text-[color:var(--ss-ink)]'>Start here:</strong> edit the demo sermon below → add key points → open <strong>Scripture</strong> →
-        use <strong>Copy Sermon Notes</strong> → <strong>Save Draft</strong>.
-      </div>
+      {!authed ? (
+        <div className='no-print rounded-[12px] border border-[rgba(126,184,218,0.18)] bg-[rgba(126,184,218,0.08)] px-4 py-3 text-sm text-[color:var(--ss-muted)]' role='note'>
+          <strong className='text-[color:var(--ss-ink)]'>Start here:</strong> edit the sermon below → add key points → open <strong>Scripture</strong> →
+          use <strong>Copy Sermon Notes</strong> → <strong>Save Draft</strong>.
+        </div>
+      ) : null}
 
       <header className='no-print flex flex-wrap items-center justify-between gap-4'>
         <div>

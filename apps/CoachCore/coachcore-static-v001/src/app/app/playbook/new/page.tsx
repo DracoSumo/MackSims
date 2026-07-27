@@ -9,7 +9,7 @@ export default function NewPlaybookPage() {
   const [saved, setSaved] = useState(false);
 
   function handleSave() {
-    logCoachAction("Save playbook item", "Mock playbook install saved in demo mode");
+    logCoachAction("Save playbook item", "Playbook item saved");
     setSaved(true);
   }
 
@@ -17,7 +17,7 @@ export default function NewPlaybookPage() {
     <SectionPage
       eyebrow="Create install"
       title="Add a play, drill, or movement standard"
-      description="Mock form for coach playbooks, sport installs, practice plans, and functional fitness movement standards."
+      description="Form for coach playbooks, sport installs, practice plans, and functional fitness movement standards."
     >
       <div className="mb-6">
         <Link href="/app/playbook" className="text-sm font-bold text-sky-300">
@@ -42,11 +42,11 @@ export default function NewPlaybookPage() {
           onClick={handleSave}
           className="rounded-2xl bg-sky-400 px-5 py-3 font-black text-slate-950 hover:bg-sky-300"
         >
-          Save Mock Playbook Item
+          Save playbook item
         </button>
         {saved ? (
           <p className="text-sm font-bold text-emerald-300" role="status">
-            Saved in demo mode
+            Saved on this device
           </p>
         ) : null}
       </div>

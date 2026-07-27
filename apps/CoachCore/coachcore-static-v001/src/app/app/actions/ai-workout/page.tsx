@@ -5,15 +5,15 @@ export default function AiWorkoutPage() {
     <MockActionPage
       eyebrow="AI planner mock"
       title="Generate workout draft"
-      description="Mock AI-assisted programming. Coach review is always required before assigning."
+      description="AI-assisted programming. Coach review is always required before assigning."
       resultTitle="4-week plan generated"
       resultBody="Week 1 builds mechanics, Week 2 adds volume, Week 3 increases intensity, and Week 4 tapers into performance testing. This is mock output only."
-      buttonLabel="Generate Mock Plan"
+      buttonLabel="Generate plan"
       successTitle="AI workout draft generated"
       successBody="CoachCore simulated a 4-week plan draft. Coach review remains required before assignment."
       timelineItems={[
         "Coach prompt received.",
-        "Mock training plan generated.",
+        "Training plan generated.",
         "Draft marked as coach-review required.",
       ]}
     >

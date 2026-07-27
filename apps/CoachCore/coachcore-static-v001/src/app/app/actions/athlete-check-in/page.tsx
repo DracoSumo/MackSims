@@ -39,13 +39,13 @@ export default function AthleteCheckInPage() {
         ? "Saved locally; cloud sync failed — sign in on Profile and check RLS."
         : isSupabaseConfigured
           ? "Saved on this device — sign in on Profile to sync."
-          : "Saved on this device (demo mode).";
+          : "Saved on this device.";
 
   return (
     <SectionPage
       eyebrow="Athlete action"
       title="Session check-in"
-      description="Records check-ins in this browser. Mock athlete names — not real roster data."
+      description="Records check-ins in this browser for the selected athlete."
     >
       <div className="mb-6">
         <Link href="/app" className="text-sm font-bold text-sky-300">

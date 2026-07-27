@@ -3,40 +3,38 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { coachCoreConfig } from "@/config/coachcore";
-import { getCurrentUser } from "@/lib/auth";
+import { useWorkspaceSession } from "@/hooks/useWorkspaceSession";
 import { sessionGet, sessionSet } from "@/lib/safeStorage";
 
 const DISMISS_KEY = "coachcore.demoWalkthroughDismissed";
 
+/**
+ * Tourist banner for visitors who land on /app without a workspace session.
+ * Hidden after sign-in or Enter Demo Dashboard — no filler after login.
+ */
 export function DemoWalkthroughBanner() {
-  // Avoid touching sessionStorage during the initial render (SSR / private WebViews).
+  const { ready, inWorkspace } = useWorkspaceSession();
   const [dismissed, setDismissed] = useState(false);
-  const [hideForUser, setHideForUser] = useState(false);
 
   useEffect(() => {
     setDismissed(sessionGet(DISMISS_KEY) === "1");
-    void getCurrentUser()
-      .then((user) => {
-        if (user) setHideForUser(true);
-      })
-      .catch(() => {
-        /* ignore — keep banner in demo */
-      });
   }, []);
 
-  if (dismissed || hideForUser) return null;
+  if (!ready || inWorkspace || dismissed) return null;
 
   return (
     <div
       className="mx-5 mt-4 rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm text-amber-50 lg:mx-10"
       role="note"
     >
-      <p className="font-bold text-amber-100">Demo mode — not a signed-in coach account</p>
+      <p className="font-bold text-amber-100">Coach workspace preview</p>
       <p className="mt-1 leading-6 text-amber-50/90">
-        {coachCoreConfig.hook} This build uses mock athletes and local-only actions. Real auth, roster data, and
-        notifications are not connected.
+        {coachCoreConfig.hook} Sign in or continue from the login screen to work without this banner.
       </p>
       <div className="mt-3 flex flex-wrap gap-3 text-xs">
+        <Link href="/login" className="font-bold text-sky-200 underline">
+          Sign in
+        </Link>
         <Link href="/beta" className="font-bold text-sky-200 underline">
           Request beta access
         </Link>

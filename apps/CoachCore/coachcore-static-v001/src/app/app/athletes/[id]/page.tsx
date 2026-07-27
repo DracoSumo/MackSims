@@ -57,7 +57,7 @@ export default async function AthleteDetailPage({
           {athlete.note}
         </Card>
 
-        <Card title="Next action" subtitle="Mock recommendation">
+        <Card title="Next action" subtitle="Recommended next step">
           {athlete.status === "Locked in"
             ? "Keep current plan. Assign advanced film and preserve recovery window."
             : "Send a coach nudge, assign missed film, and check hydration/fueling before next session."}

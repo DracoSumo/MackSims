@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Card, SectionPage } from "@/components/SectionPage";
 import { athletes, mockNudgeTargets } from "@/data/mock";
 import { coachCoreConfig } from "@/config/coachcore";
-import { CrossLinkStrip, DemoDisclaimerStrip } from "@/components/ui/CoachCards";
+import { CrossLinkStrip } from "@/components/ui/CoachCards";
 import { logCoachAction } from "@/services/actionLogStore";
 
 type AthleteRow = (typeof athletes)[number] & { filmCompleteDemo?: boolean };
@@ -14,7 +14,7 @@ export default function AccountabilityPage() {
   const [rows, setRows] = useState<AthleteRow[]>(() => athletes.map((a) => ({ ...a })));
 
   function markFilmComplete(athleteId: string, athleteName: string) {
-    logCoachAction("Mark film complete", `${athleteName} film marked complete (demo)`);
+    logCoachAction("Mark film complete", `${athleteName} film marked complete`);
     setRows((prev) =>
       prev.map((athlete) =>
         athlete.id === athleteId
@@ -23,7 +23,7 @@ export default function AccountabilityPage() {
               film: "100%",
               filmCompleteDemo: true,
               status: athlete.status === "At risk" ? "Needs nudge" : athlete.status,
-              lastActive: "Just now (demo)",
+              lastActive: "Just now",
             }
           : athlete,
       ),
@@ -36,8 +36,6 @@ export default function AccountabilityPage() {
       title="Who is locked in?"
       description={coachCoreConfig.accountabilityDefinition}
     >
-      <DemoDisclaimerStrip />
-
       <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-5">
         <p className="text-sm font-bold uppercase tracking-[0.25em] text-sky-300">Status legend</p>
         <div className="mt-3 grid gap-2 text-sm text-slate-300 sm:grid-cols-3">
@@ -68,7 +66,7 @@ export default function AccountabilityPage() {
             <div className="mt-4">
               {athlete.filmCompleteDemo ? (
                 <p className="text-sm font-bold text-emerald-300" role="status">
-                  Film marked complete (demo)
+                  Film marked complete
                 </p>
               ) : (
                 <button
@@ -76,7 +74,7 @@ export default function AccountabilityPage() {
                   onClick={() => markFilmComplete(athlete.id, athlete.name)}
                   className="rounded-2xl border border-sky-300/40 bg-sky-400/15 px-4 py-2 text-sm font-bold text-sky-100 hover:bg-sky-400/25"
                 >
-                  Mark film complete (demo)
+                  Mark film complete
                 </button>
               )}
             </div>
@@ -85,7 +83,7 @@ export default function AccountabilityPage() {
       </div>
 
       <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.04] p-5">
-        <h3 className="text-xl font-black">Suggested nudges (demo)</h3>
+        <h3 className="text-xl font-black">Suggested nudges</h3>
         <ul className="mt-3 space-y-2 text-sm text-slate-300">
           {mockNudgeTargets.map((target) => (
             <li key={target}>• {target}</li>

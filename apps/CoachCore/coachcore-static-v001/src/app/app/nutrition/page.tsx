@@ -2,7 +2,7 @@
 import { Card, SectionPage } from "@/components/SectionPage";
 import { meals } from "@/data/mock";
 import { coachCoreConfig } from "@/config/coachcore";
-import { CrossLinkStrip, DemoDisclaimerStrip } from "@/components/ui/CoachCards";
+import { CrossLinkStrip } from "@/components/ui/CoachCards";
 
 export default function NutritionPage() {
   return (
@@ -11,7 +11,6 @@ export default function NutritionPage() {
       title="Meal tracking"
       description="Track fueling, hydration, and recovery habits — coaching support for training, not medical advice."
     >
-      <DemoDisclaimerStrip />
       <p className="mt-4 text-sm leading-6 text-slate-400">{coachCoreConfig.coachingSupportDisclaimer}</p>
 
       <div className="mt-4 flex flex-wrap gap-3">

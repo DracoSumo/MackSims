@@ -6,7 +6,7 @@ export default function TimelinePage() {
     <SectionPage
       eyebrow="Activity"
       title="CoachCore timeline"
-      description="Live demo events from this device + sample events. Future backend events will look like this for logins, film, workouts, fueling, notes, and alerts."
+      description="Events from this device plus sample seed activity — film, workouts, fueling, notes, and alerts."
     >
       <LiveTimelinePanel limit={20} />
     </SectionPage>

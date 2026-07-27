@@ -7,10 +7,10 @@
   athleteTodayPrompt:
     "Check assigned film, today's workout or WOD, meal log, and team messages — then update your status.",
   demoUrl: "https://coachcore7.netlify.app",
-  status: "Static mobile demo with mock state simulation",
+  status: "Coach workspace with local assignment simulation",
   version: "v0.5",
   safetyNote:
-    "Demo-first build with mock team data. Optional Supabase auth can be enabled when configured. No payments, Hudl, wearable APIs, or production user data are connected.",
+    "Optional Supabase auth syncs when configured. No payments, Hudl, wearable APIs, or production roster data are connected yet.",
   coachingSupportDisclaimer:
     "Coaching support only — not medical advice, diagnosis, or treatment. Nutrition and readiness signals help coaches guide training; they are not clinical assessments.",
 };

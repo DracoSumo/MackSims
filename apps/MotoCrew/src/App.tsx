@@ -28,6 +28,7 @@ import { supabaseStatusLabel } from './config/backend'
 import { checkSupabaseConnection } from './services/supabaseClient'
 import { deleteRideDraft, getSyncMeta, pushJoinedRide, pushRideDraft } from './services/supabaseSync'
 import { AuthCallbackHandler, OAuthSignIn } from './components/OAuthSignIn'
+import { getCurrentUser } from './services/auth'
 import {
   commsModules,
   permissionModules,
@@ -126,6 +127,13 @@ function App() {
   const [authCallback, setAuthCallback] = useState(
     () => typeof window !== 'undefined' && window.location.pathname === '/auth/callback',
   )
+  const [signedIn, setSignedIn] = useState(false)
+
+  useEffect(() => {
+    void getCurrentUser().then((user) => setSignedIn(Boolean(user)))
+  }, [authCallback])
+
+  const inSession = safetyAcknowledged || signedIn
 
   const selectedRide = getRideById(selectedRideId) ?? rides[0]
   const selectedRoute = selectedRide ? getRouteForRide(selectedRide) : undefined
@@ -284,7 +292,6 @@ function App() {
             <p className="eyebrow">Before you tap anything</p>
             <h2>Do not use {APP_NAME} while riding.</h2>
             <p>{SAFETY_NOTICE}</p>
-            <p className="subtle-copy">{DEMO_NOTICE}</p>
             <button
               type="button"
               className="primary-action"
@@ -338,7 +345,7 @@ function App() {
             />
           )}
           {activeScreen === 'rides' && !selectedRide && (
-            <EmptyRideState message="No rides loaded in this demo shell." onBrowse={() => setActiveScreen('create')} />
+            <EmptyRideState message="No rides loaded yet. Create a draft to get started." onBrowse={() => setActiveScreen('create')} />
           )}
           {activeScreen === 'map' && selectedRide && selectedRoute && (
             <MapScreen ride={selectedRide} route={selectedRoute} />
@@ -401,7 +408,7 @@ function App() {
           )}
           <footer className="app-footer">
             <p className="safety-footer-line">{SAFETY_NOTICE}</p>
-            <p>{DEMO_NOTICE}</p>
+            {!inSession ? <p>{DEMO_NOTICE}</p> : null}
             <p>
               Beta tester? <a href={feedbackMailto}>Email feedback to {FEEDBACK_EMAIL}</a>
             </p>
@@ -584,10 +591,9 @@ function RidePhaseCard() {
     <section className="phase-card">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Ride status — demo data</p>
+          <p className="eyebrow">Ride status</p>
           <h2>{currentPhase.label}</h2>
         </div>
-        <span className="offline-pill">Not live</span>
       </div>
       <p className="subtle-copy">{currentPhase.detail}</p>
       <div className="phase-rail" aria-label="Ride phases">
@@ -600,8 +606,7 @@ function RidePhaseCard() {
         ))}
       </div>
       <p className="future-note">
-        Statuses and ETAs above are mocked. Live pack status requires GPS, a backend, and a ride
-        session service that are not connected in this beta.
+        Phase timeline is planned locally for this ride. Live pack GPS status ships when the session service is connected.
       </p>
     </section>
   )
@@ -1120,7 +1125,7 @@ function ReadinessPanel({
       <button type="button" className="secondary-action wide-action" onClick={onStartFocus}>
         Open low-distraction view
       </button>
-      <p className="subtle-copy">For staging only — do not use while riding. Map is simulated demo data.</p>
+      <p className="subtle-copy">Do not use while riding. Route outline uses the map adapter until a live provider key is configured.</p>
     </section>
   )
 }
@@ -1178,13 +1183,12 @@ function ChatScreen({
         <section className="chat-panel">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Pack chat mock</p>
+              <p className="eyebrow">Pack checklist</p>
               <h2>{ride.name}</h2>
             </div>
-            <span className="offline-pill">Not live</span>
           </div>
           <p className="subtle-copy">
-            No mock chat thread is loaded for this ride yet. Messaging is simulated only — not connected to a backend.
+            No checklist thread is loaded for this ride yet. Create or join a ride with checklist items to track readiness here.
           </p>
         </section>
       </div>
@@ -1196,10 +1200,9 @@ function ChatScreen({
       <section className="chat-panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Pack chat mock</p>
+            <p className="eyebrow">Pack checklist</p>
             <h2>{ride.name}</h2>
           </div>
-          <span className="offline-pill">Not live</span>
         </div>
 
         <div className="announcement">
@@ -1237,7 +1240,7 @@ function ChatScreen({
         </div>
 
         <div className="mock-input">
-          <input type="text" placeholder="Real-time messaging is not connected in this shell" disabled />
+          <input type="text" placeholder="Messaging comes later — use the checklist above for now" disabled />
           <button type="button" disabled>
             Send
           </button>
@@ -1255,24 +1258,22 @@ function CommsPanel() {
       <div className="section-heading">
         <div>
           <p className="eyebrow">Comms / Intercom</p>
-          <h2>Planned ride audio modules</h2>
+          <h2>Ride audio (coming soon)</h2>
         </div>
-        <span className="offline-pill">Not live</span>
       </div>
-      <div className="comms-mock-controls" aria-label="Intercom placeholder controls">
+      <div className="comms-mock-controls" aria-label="Intercom controls — not connected yet">
         <button type="button" disabled>
-          Join Voice Room (demo)
+          Join Voice Room
         </button>
         <button type="button" disabled>
-          Push-to-Talk (demo)
+          Push-to-Talk
         </button>
         <button type="button" disabled>
-          Call Ride Lead (demo)
+          Call Ride Lead
         </button>
       </div>
       <p className="future-note">
-        These controls are placeholders only. No voice, intercom, or calling is connected in this
-        beta build.
+        Voice, intercom, and calling are not connected yet. Checklist and ride planning work on this device today.
       </p>
       <div className="module-list">
         {commsModules.map((module) => (
