@@ -1,9 +1,9 @@
 (() => {
   'use strict';
 
-  // FishCrew app shell v0.7.3 — UGC moderation + server-side media visibility RLS
+  // FishCrew app shell v0.7.4 — UGC moderation + refresh/load hardening
   const CONFIG = window.FISHCREW_CONFIG || {};
-  const VERSION = CONFIG.VERSION || '0.7.2';
+  const VERSION = CONFIG.VERSION || '0.7.4';
   const STORE = `fishcrew:${VERSION}:state`;
   const LEGACY_PREFIX = 'fishcrew:';
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -109,6 +109,8 @@
   let realtimeChannel = null;
   let realtimePullTimer = null;
   let notificationsRefreshTimer = null;
+  let pullInFlight = null;
+  let pullGeneration = 0;
   let toastTimer = null;
   let modalMode = null;
   let authTab = 'signin';
@@ -260,6 +262,7 @@
       activeTripId: seed.trips[0]?.id || null,
       tripFilter: 'All',
       feedFilter: 'All',
+      feedRefreshing: false,
       crewPanel: 'upcoming',
       toolsPanel: 'tools',
       demoContentLoaded: demoMode,
@@ -1291,10 +1294,16 @@
     const posts = visibleFeedPosts()
       .filter((p) => state.feedFilter === 'All' || p.type === state.feedFilter)
       .slice(0, FEED_RENDER_LIMIT);
+    const refreshing = Boolean(state.feedRefreshing);
     $('#screen-feed').innerHTML = `
-      <section class="section feed-room" aria-labelledby="feedTitle">
-        <span class="eyebrow">Feed</span>
-        <h1 class="page-title" id="feedTitle">The bite board.</h1>
+      <section class="section feed-room" aria-labelledby="feedTitle" data-feed-refreshing="${refreshing ? 'true' : 'false'}">
+        <div class="section-head compact-head">
+          <div>
+            <span class="eyebrow">Feed</span>
+            <h1 class="page-title" id="feedTitle">The bite board.</h1>
+          </div>
+          <button class="btn soft small" type="button" data-action="refresh-feed" ${refreshing ? 'disabled' : ''} aria-busy="${refreshing ? 'true' : 'false'}">${refreshing ? 'Refreshing...' : 'Refresh'}</button>
+        </div>
         <p class="lead">Clean community posts only: successful trips, catch reports, shop notes, charter openings, and area updates. Exact spots stay private.</p>
         <div class="feed-composer-lite panel">
           <div><h3>Share something useful.</h3><p class="muted">Post a catch, report a bite, or help the next crew plan smarter.</p></div>
@@ -1549,6 +1558,7 @@
   function render() {
     hydrateHeader();
     const screen = state.activeScreen || 'home';
+    // Only rebuild the active screen — inactive screens keep prior DOM (social-app sticky feel).
     const renderers = {
       home: renderHome,
       explore: renderExplore,
@@ -1561,6 +1571,25 @@
     activeRenderer();
     $$('.screen').forEach((s) => s.classList.toggle('active', s.id === `screen-${screen}`));
     $$('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.screen === screen));
+  }
+
+  async function refreshFeed(options = {}) {
+    if (state.feedRefreshing && !options.force) return;
+    state.feedRefreshing = true;
+    if (state.activeScreen === 'feed') renderFeed();
+    try {
+      if (liveReady()) {
+        await pullSupabase({ silent: true, reason: 'feed-refresh' });
+      } else if (!options.silent) {
+        toast('Browsing local feed. Connect shared data to pull live posts.');
+      }
+      if (!options.silent) toast('Feed updated.');
+    } catch (error) {
+      if (!options.silent) toast(`Feed refresh failed: ${error.message}`, 'danger');
+    } finally {
+      state.feedRefreshing = false;
+      if (state.activeScreen === 'feed') renderFeed();
+    }
   }
 
   function modal(html) {
@@ -2315,7 +2344,13 @@
     state.reports.filter((r) => r.target === asset.sourceId && r.status === 'Open').forEach((r) => { r.status = 'Resolved'; });
     if (asset.sourceType === 'feed') {
       const post = (state.feed || []).find((p) => p.id === asset.sourceId);
-      if (post && (post.status === 'Pending review' || post.status === 'Review')) post.status = 'Live';
+      if (post) {
+        if (post.status === 'Pending review' || post.status === 'Review') post.status = 'Live';
+        if (asset.publicUrl) {
+          post.media = asset.publicUrl;
+          post.mediaType = asset.mediaType || post.mediaType;
+        }
+      }
     }
     if (asset.sourceType === 'trip') {
       const trip = (state.trips || []).find((t) => t.id === asset.sourceId);
@@ -2336,7 +2371,9 @@
     await afterLocalWrite('Approve media', async () => {
       await liveUpdate('media_assets', { status: 'Approved', moderation_status: 'Approved' }, 'id', asset.id, 'media approval');
       if (asset.sourceType === 'feed') {
-        await liveUpdate('feed_posts', { status: 'Live' }, 'id', asset.sourceId, 'feed approval').catch(() => false);
+        const feedPatch = { status: 'Live' };
+        if (asset.publicUrl) feedPatch.media_url = asset.publicUrl;
+        await liveUpdate('feed_posts', feedPatch, 'id', asset.sourceId, 'feed approval').catch(() => false);
       }
       if (asset.sourceType === 'trip' && asset.publicUrl) {
         await liveUpdate('trip_posts', { media_url: asset.publicUrl, media_moderation_status: 'Approved' }, 'id', asset.sourceId, 'trip media approval').catch(() => false);
@@ -3805,6 +3842,10 @@
     const post = state.feed.find((p) => p.id === feedId);
     if (!post) return;
     post.reactions = Number(post.reactions || 0) + 1;
+    // Optimistic UI: paint like count immediately, sync in background.
+    save();
+    if (state.activeScreen === 'feed') renderFeed();
+    else if (state.activeScreen === 'home') render();
     await afterLocalWrite('Reaction', async () => liveUpdate('feed_posts', { reactions: Number(post.reactions || 0) }, 'id', post.id, 'feed reaction'));
     toast('Reaction added.');
   }
@@ -4104,116 +4145,153 @@ ${url}`).catch(() => {});
   }
 
 
-  async function pullSupabase() {
+  async function pullSupabase(options = {}) {
     if (!supabaseClient) await checkBackend();
     if (!supabaseClient) return;
-    try {
-      const [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes] = await Promise.all([
-        supabaseClient.from('profiles').select('id, username, full_name, role, home_area, avatar_url, bio, fishing_styles, profile_theme, created_at').limit(LIVE_QUERY_LIMIT),
-        supabaseClient.from('trip_posts').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
-        supabaseClient.from('trip_private_details').select('*').limit(LIVE_QUERY_LIMIT),
-        supabaseClient.from('trip_members').select('*').limit(LIVE_QUERY_LIMIT * 2),
-        supabaseClient.from('join_requests').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
-        supabaseClient.from('trip_messages').select('*').order('created_at', { ascending: true }).limit(LIVE_QUERY_LIMIT * 2),
-        supabaseClient.from('feed_posts').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
-        supabaseClient.from('media_assets').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
-        supabaseClient.from('moderation_items').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
-        supabaseClient.from('businesses').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
-        supabaseClient.from('bookings').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT)
-      ]);
-      const errors = [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes].map((r) => r.error).filter(Boolean);
-      if (errors.length) throw errors[0];
-      if (profilesRes.data?.length) {
-        const sessionUser = currentUser();
-        // Privacy: profile rows no longer include email. Keep any email we already
-        // know locally (e.g. the signed-in user's auth email) keyed by user id.
-        const knownEmailById = new Map(state.users.filter((u) => u.id && u.email).map((u) => [u.id, u.email]));
-        const merged = profilesRes.data.map((u) => ({ id: u.id, email: knownEmailById.get(u.id) || '', username: u.username || normalizeUsername(u.full_name || 'fishcrew_user'), name: u.full_name || 'FishCrew User', role: u.role || 'Angler', area: u.home_area || 'Tampa Bay', avatar: u.avatar_url || '', bio: u.bio || 'Here to fish more with a better crew.', fishingStyles: u.fishing_styles || 'Inshore, pier, weekend trips', profileTheme: u.profile_theme || 'Harbor Blue', password: '', createdAt: u.created_at || now() }));
-        const localDemo = state.users.filter((u) => u.demo === true || String(u.email || '').endsWith('@fishcrew.local'));
-        state.users = [...localDemo, ...merged.filter((u) => !localDemo.some((d) => d.id === u.id))];
-        if (sessionUser && !state.users.some((u) => u.id === sessionUser.id)) state.users.push(sessionUser);
-      }
-      if (tripsRes.data?.length) {
-        const privateByTrip = Object.fromEntries((privateDetailsRes.data || []).map((d) => [d.trip_id, d.private_location]));
-        state.trips = tripsRes.data.map((t) => ({
-          id: t.id,
-          title: t.title,
-          type: t.trip_type || 'Boat',
-          area: t.area || 'Tampa Bay',
-          publicLocation: t.public_location || t.area || 'General area',
-          privateLocation: privateByTrip[t.id] || 'Private details after approval',
-          hostId: t.host_id,
-          hostName: state.users.find((u) => u.id === t.host_id)?.name || 'FishCrew host',
-          time: t.start_label || 'Upcoming',
-          species: t.target_species || 'Mixed species',
-          spots: Number(t.open_spots || 0),
-          cost: t.cost_note || 'TBD',
-          status: t.status || 'Open',
-          score: t.condition_score || 'Good',
-          wind: t.wind_label || 'Check conditions',
-          waves: t.waves_label || 'Check water',
-          tide: t.tide_label || 'Moving tide',
-          water: 'Live',
-          media: t.media_url || '',
-          mediaModerationStatus: t.media_moderation_status || (t.media_url ? 'Approved' : 'Approved'),
-          members: [],
-          createdAt: t.created_at || now()
-        }));
-      }
-      if (membersRes.data?.length) {
-        const memberMap = {};
-        membersRes.data.forEach((m) => {
-          if (!memberMap[m.trip_id]) memberMap[m.trip_id] = [];
-          memberMap[m.trip_id].push(m.user_id);
-        });
-        state.trips.forEach((t) => { t.members = memberMap[t.id] || (t.hostId ? [t.hostId] : []); });
-      }
-      if (requestsRes.data?.length) {
-        state.requests = requestsRes.data.map((r) => ({ id: r.id, tripId: r.trip_id, userId: r.requester_id, userName: r.requester_name || state.users.find((u) => u.id === r.requester_id)?.name || 'FishCrew user', message: r.message || '', status: r.status || 'Pending', createdAt: r.created_at || now() }));
-      }
-      if (messagesRes.data?.length) {
-        state.messages = {};
-        messagesRes.data.forEach((m) => {
-          if (!state.messages[m.trip_id]) state.messages[m.trip_id] = [];
-          state.messages[m.trip_id].push({ id: m.id, senderId: m.sender_id, senderName: m.sender_name || 'FishCrew user', body: m.body || '', createdAt: m.created_at || now() });
-        });
-      }
-      if (feedRes.data?.length) {
-        state.feed = feedRes.data.map((p) => ({ id: p.id, type: p.post_type || 'Catch Log', title: p.title, area: p.area || 'Local water', authorId: p.author_id, authorName: p.author_name || state.users.find((u) => u.id === p.author_id)?.name || 'FishCrew user', body: p.body || '', media: p.media_url || '', mediaType: p.media_type || 'emoji', artKind: p.media_url ? '' : 'catch', reactions: Number(p.reactions || 0), status: p.status || 'Live', createdAt: p.created_at || now() }));
-      }
-      if (mediaRes.data?.length) {
-        state.mediaAssets = mediaRes.data.map((a) => ({ id: a.id, ownerId: a.owner_id || '', sourceId: a.source_id || '', sourceType: a.source_type || 'feed', mediaType: a.media_type || 'file', storagePath: a.storage_path || '', publicUrl: a.public_url || '', status: a.moderation_status || a.status || 'Review', visibility: a.visibility || 'public', createdAt: a.created_at || now() }));
-        // Hydrate owner/admin trip media from assets when public trip row intentionally omits pending URLs.
-        (state.trips || []).forEach((trip) => {
-          const asset = mediaAssetForItem(trip, 'trip');
-          if (!asset) return;
-          trip.mediaModerationStatus = asset.status || trip.mediaModerationStatus || 'Review';
-          if (!trip.media && asset.publicUrl && (isAdmin() || isApprovedMediaStatus(asset.status) || (currentUser() && trip.hostId === currentUser().id))) {
-            trip.media = asset.publicUrl;
-          }
-        });
-      }
-      if (reportsRes.data?.length) {
-        state.reports = reportsRes.data.map((r) => ({ id: r.id, type: r.item_type || 'Review', target: r.feed_post_id || r.id, status: r.status || 'Open', severity: r.severity || 'Low', note: r.title || 'Moderation item', reporterId: r.reporter_id || '', createdAt: r.created_at || now() }));
-      }
-      if (businessesRes.data?.length) {
-        state.businesses = businessesRes.data.map((b) => ({ id: b.id, ownerId: b.owner_id || '', name: b.name, kind: b.business_type || 'Business', area: b.area || 'Local', status: b.status || 'Lead', leads: Number(b.lead_count || 0), revenue: Math.round(Number(b.revenue_cents || 0) / 100), campaign: b.campaign || 'Local placement' }));
-      }
-      if (bookingsRes.data?.length) {
-        state.bookings = bookingsRes.data.map((b) => ({ id: b.id, businessId: b.business_id, customerId: b.customer_id || null, customerName: b.customer_name, kind: b.booking_type || 'Inquiry', status: b.status || 'New', date: b.date_label || 'TBD', value: Math.round(Number(b.value_cents || 0) / 100), notes: b.notes || '' }));
-      }
-      await fetchNotifications();
-      state.opsLog.unshift('Pulled shared data into FishCrew.');
-      save(); render(); toast('Live data pulled.');
-      startRealtime();
-    } catch (error) {
-      toast(`Live pull failed: ${error.message}`, 'danger');
+
+    // Cancel stale overlapping pulls — keep latest generation only.
+    const generation = ++pullGeneration;
+    if (pullInFlight) {
+      try { await pullInFlight; } catch (_) { /* prior pull error already toasted */ }
+      if (generation !== pullGeneration) return;
     }
+
+    const run = (async () => {
+      try {
+        const [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes] = await Promise.all([
+          supabaseClient.from('profiles').select('id, username, full_name, role, home_area, avatar_url, bio, fishing_styles, profile_theme, created_at').limit(LIVE_QUERY_LIMIT),
+          supabaseClient.from('trip_posts').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
+          supabaseClient.from('trip_private_details').select('*').limit(LIVE_QUERY_LIMIT),
+          supabaseClient.from('trip_members').select('*').limit(LIVE_QUERY_LIMIT * 2),
+          supabaseClient.from('join_requests').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
+          supabaseClient.from('trip_messages').select('*').order('created_at', { ascending: true }).limit(LIVE_QUERY_LIMIT * 2),
+          supabaseClient.from('feed_posts').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
+          supabaseClient.from('media_assets').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
+          supabaseClient.from('moderation_items').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
+          supabaseClient.from('businesses').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
+          supabaseClient.from('bookings').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT)
+        ]);
+        if (generation !== pullGeneration) return;
+        const errors = [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes].map((r) => r.error).filter(Boolean);
+        if (errors.length) throw errors[0];
+        if (profilesRes.data?.length) {
+          const sessionUser = currentUser();
+          // Privacy: profile rows no longer include email. Keep any email we already
+          // know locally (e.g. the signed-in user's auth email) keyed by user id.
+          const knownEmailById = new Map(state.users.filter((u) => u.id && u.email).map((u) => [u.id, u.email]));
+          const merged = profilesRes.data.map((u) => ({ id: u.id, email: knownEmailById.get(u.id) || '', username: u.username || normalizeUsername(u.full_name || 'fishcrew_user'), name: u.full_name || 'FishCrew User', role: u.role || 'Angler', area: u.home_area || 'Tampa Bay', avatar: u.avatar_url || '', bio: u.bio || 'Here to fish more with a better crew.', fishingStyles: u.fishing_styles || 'Inshore, pier, weekend trips', profileTheme: u.profile_theme || 'Harbor Blue', password: '', createdAt: u.created_at || now() }));
+          const localDemo = state.users.filter((u) => u.demo === true || String(u.email || '').endsWith('@fishcrew.local'));
+          state.users = [...localDemo, ...merged.filter((u) => !localDemo.some((d) => d.id === u.id))];
+          if (sessionUser && !state.users.some((u) => u.id === sessionUser.id)) state.users.push(sessionUser);
+        }
+        if (tripsRes.data?.length) {
+          const privateByTrip = Object.fromEntries((privateDetailsRes.data || []).map((d) => [d.trip_id, d.private_location]));
+          state.trips = tripsRes.data.map((t) => ({
+            id: t.id,
+            title: t.title,
+            type: t.trip_type || 'Boat',
+            area: t.area || 'Tampa Bay',
+            publicLocation: t.public_location || t.area || 'General area',
+            privateLocation: privateByTrip[t.id] || 'Private details after approval',
+            hostId: t.host_id,
+            hostName: state.users.find((u) => u.id === t.host_id)?.name || 'FishCrew host',
+            time: t.start_label || 'Upcoming',
+            species: t.target_species || 'Mixed species',
+            spots: Number(t.open_spots || 0),
+            cost: t.cost_note || 'TBD',
+            status: t.status || 'Open',
+            score: t.condition_score || 'Good',
+            wind: t.wind_label || 'Check conditions',
+            waves: t.waves_label || 'Check water',
+            tide: t.tide_label || 'Moving tide',
+            water: 'Live',
+            media: t.media_url || '',
+            mediaModerationStatus: t.media_moderation_status || (t.media_url ? 'Approved' : 'Approved'),
+            members: [],
+            createdAt: t.created_at || now()
+          }));
+        }
+        if (membersRes.data?.length) {
+          const memberMap = {};
+          membersRes.data.forEach((m) => {
+            if (!memberMap[m.trip_id]) memberMap[m.trip_id] = [];
+            memberMap[m.trip_id].push(m.user_id);
+          });
+          state.trips.forEach((t) => { t.members = memberMap[t.id] || (t.hostId ? [t.hostId] : []); });
+        }
+        if (requestsRes.data?.length) {
+          state.requests = requestsRes.data.map((r) => ({ id: r.id, tripId: r.trip_id, userId: r.requester_id, userName: r.requester_name || state.users.find((u) => u.id === r.requester_id)?.name || 'FishCrew user', message: r.message || '', status: r.status || 'Pending', createdAt: r.created_at || now() }));
+        }
+        if (messagesRes.data?.length) {
+          state.messages = {};
+          messagesRes.data.forEach((m) => {
+            if (!state.messages[m.trip_id]) state.messages[m.trip_id] = [];
+            state.messages[m.trip_id].push({ id: m.id, senderId: m.sender_id, senderName: m.sender_name || 'FishCrew user', body: m.body || '', createdAt: m.created_at || now() });
+          });
+        }
+        if (Array.isArray(feedRes.data) && feedRes.data.length) {
+          state.feed = feedRes.data.map((p) => ({ id: p.id, type: p.post_type || 'Catch Log', title: p.title, area: p.area || 'Local water', authorId: p.author_id, authorName: p.author_name || state.users.find((u) => u.id === p.author_id)?.name || 'FishCrew user', body: p.body || '', media: p.media_url || '', mediaType: p.media_type || 'emoji', artKind: p.media_url ? '' : 'catch', reactions: Number(p.reactions || 0), status: p.status || 'Live', createdAt: p.created_at || now() }));
+        }
+        if (Array.isArray(mediaRes.data)) {
+          state.mediaAssets = mediaRes.data.map((a) => ({ id: a.id, ownerId: a.owner_id || '', sourceId: a.source_id || '', sourceType: a.source_type || 'feed', mediaType: a.media_type || 'file', storagePath: a.storage_path || '', publicUrl: a.public_url || '', status: a.moderation_status || a.status || 'Review', visibility: a.visibility || 'public', createdAt: a.created_at || now() }));
+          // Hydrate owner/admin trip + feed + profile media from assets when public rows omit pending URLs.
+          (state.trips || []).forEach((trip) => {
+            const asset = mediaAssetForItem(trip, 'trip');
+            if (!asset) return;
+            trip.mediaModerationStatus = asset.status || trip.mediaModerationStatus || 'Review';
+            if (!trip.media && asset.publicUrl && (isAdmin() || isApprovedMediaStatus(asset.status) || (currentUser() && trip.hostId === currentUser().id))) {
+              trip.media = asset.publicUrl;
+            }
+          });
+          (state.feed || []).forEach((post) => {
+            const asset = mediaAssetForItem(post, 'feed');
+            if (!asset) return;
+            if (!post.media && asset.publicUrl && (isAdmin() || isApprovedMediaStatus(asset.status) || (currentUser() && post.authorId === currentUser().id))) {
+              post.media = asset.publicUrl;
+              post.mediaType = asset.mediaType || post.mediaType;
+            }
+          });
+          (state.users || []).forEach((user) => {
+            const asset = (state.mediaAssets || []).find((a) => a.sourceType === 'profile' && (a.sourceId === user.id || a.ownerId === user.id));
+            if (!asset?.publicUrl) return;
+            if (!user.avatar && (isAdmin() || isApprovedMediaStatus(asset.status) || (currentUser() && currentUser().id === user.id))) {
+              user.avatar = asset.publicUrl;
+              user.avatarModerationStatus = asset.status || user.avatarModerationStatus;
+            }
+          });
+        }
+        if (reportsRes.data?.length) {
+          state.reports = reportsRes.data.map((r) => ({ id: r.id, type: r.item_type || 'Review', target: r.feed_post_id || r.id, status: r.status || 'Open', severity: r.severity || 'Low', note: r.title || 'Moderation item', reporterId: r.reporter_id || '', createdAt: r.created_at || now() }));
+        }
+        if (businessesRes.data?.length) {
+          state.businesses = businessesRes.data.map((b) => ({ id: b.id, ownerId: b.owner_id || '', name: b.name, kind: b.business_type || 'Business', area: b.area || 'Local', status: b.status || 'Lead', leads: Number(b.lead_count || 0), revenue: Math.round(Number(b.revenue_cents || 0) / 100), campaign: b.campaign || 'Local placement' }));
+        }
+        if (bookingsRes.data?.length) {
+          state.bookings = bookingsRes.data.map((b) => ({ id: b.id, businessId: b.business_id, customerId: b.customer_id || null, customerName: b.customer_name, kind: b.booking_type || 'Inquiry', status: b.status || 'New', date: b.date_label || 'TBD', value: Math.round(Number(b.value_cents || 0) / 100), notes: b.notes || '' }));
+        }
+        await fetchNotifications();
+        if (generation !== pullGeneration) return;
+        state.opsLog.unshift(options.reason ? `Pulled shared data (${options.reason}).` : 'Pulled shared data into FishCrew.');
+        save();
+        render();
+        if (!options.silent) toast('Live data pulled.');
+        startRealtime();
+      } catch (error) {
+        if (generation !== pullGeneration) return;
+        toast(`Live pull failed: ${error.message}`, 'danger');
+        throw error;
+      }
+    })();
+
+    pullInFlight = run.finally(() => {
+      if (pullInFlight === run) pullInFlight = null;
+    });
+    return pullInFlight;
   }
 
   function scheduleLivePull() {
     clearTimeout(realtimePullTimer);
-    realtimePullTimer = setTimeout(() => pullSupabase(), 750);
+    realtimePullTimer = setTimeout(() => pullSupabase({ silent: true, reason: 'realtime' }), 750);
   }
 
   function stopRealtime() {
@@ -4616,7 +4694,8 @@ ${url}`).catch(() => {});
     'approve-request': (el) => approveRequest(el.dataset.requestId),
     'decline-request': (el) => declineRequest(el.dataset.requestId),
     'trip-filter': (el) => { state.tripFilter = el.dataset.filter || 'All'; save(); render(); },
-    'feed-filter': (el) => { state.feedFilter = el.dataset.filter || 'All'; save(); render(); },
+    'feed-filter': (el) => { state.feedFilter = el.dataset.filter || 'All'; save(); if (state.activeScreen === 'feed') renderFeed(); else render(); },
+    'refresh-feed': () => refreshFeed(),
     'crew-panel': (el) => { state.crewPanel = el.dataset.panel || 'upcoming'; save(); render(); },
     'tools-panel': (el) => { state.toolsPanel = el.dataset.panel || 'tools'; save(); render(); },
     'open-map': (el) => openMap(el.dataset.area),
