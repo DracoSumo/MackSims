@@ -101,7 +101,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-bottom: 84px;
+  padding-bottom: calc(84px + env(safe-area-inset-bottom));
 }
 
 .screen-content {
