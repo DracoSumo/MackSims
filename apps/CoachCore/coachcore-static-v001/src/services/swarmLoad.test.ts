@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { listCheckIns, mergeCheckIns, saveCheckIn } from "./checkInStore";
 import { listActionLog, logCoachAction, mergeActionLog } from "./actionLogStore";
 
@@ -16,8 +16,14 @@ function mockLocalStorage() {
       for (const key of Object.keys(store)) delete store[key];
     },
   };
+  // safeStorage reads window.localStorage
   vi.stubGlobal("localStorage", localStorageMock);
-  vi.stubGlobal("window", { localStorage: localStorageMock });
+  vi.stubGlobal("window", {
+    localStorage: localStorageMock,
+    dispatchEvent: () => true,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  });
   let n = 0;
   vi.stubGlobal("crypto", {
     randomUUID: () => `uuid-${++n}`,
@@ -28,8 +34,10 @@ function mockLocalStorage() {
 describe("swarm load — check-ins and action logs", () => {
   beforeEach(() => {
     mockLocalStorage();
-    // Avoid real dynamic imports side effects during load simulation
-    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("handles 500–1000 sequential users without throwing and caps list lengths", () => {
@@ -65,6 +73,9 @@ describe("swarm load — check-ins and action logs", () => {
       logCoachAction(`local-action-${i}`, "local");
     }
 
+    const localCiId = listCheckIns()[0].id;
+    const localAlId = listActionLog()[0].id;
+
     const remoteCheckIns = Array.from({ length: 40 }, (_, i) => ({
       id: `remote-ci-${i}`,
       athleteId: `remote-${i}`,
@@ -83,12 +94,12 @@ describe("swarm load — check-ins and action logs", () => {
     // Overlapping ids — local wins
     remoteCheckIns[0] = {
       ...remoteCheckIns[0],
-      id: listCheckIns()[0].id,
+      id: localCiId,
       athleteName: "SHOULD_NOT_OVERRIDE",
     };
     remoteActions[0] = {
       ...remoteActions[0],
-      id: listActionLog()[0].id,
+      id: localAlId,
       label: "SHOULD_NOT_OVERRIDE",
     };
 
@@ -106,10 +117,10 @@ describe("swarm load — check-ins and action logs", () => {
     expect(listCheckIns()).toHaveLength(30);
     expect(listActionLog()).toHaveLength(40);
 
-    const localWinnerCi = listCheckIns().find((r) => r.id === remoteCheckIns[0].id);
+    const localWinnerCi = listCheckIns().find((r) => r.id === localCiId);
     expect(localWinnerCi?.athleteName).not.toBe("SHOULD_NOT_OVERRIDE");
 
-    const localWinnerAl = listActionLog().find((r) => r.id === remoteActions[0].id);
+    const localWinnerAl = listActionLog().find((r) => r.id === localAlId);
     expect(localWinnerAl?.label).not.toBe("SHOULD_NOT_OVERRIDE");
   });
 });

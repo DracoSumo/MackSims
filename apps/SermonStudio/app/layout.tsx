@@ -20,8 +20,8 @@ export const viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className={`${sourceSerif.className} ${inter.className}`}>{children}</body>
+    <html lang="en" className={`${sourceSerif.variable} ${inter.variable}`}>
+      <body className="font-sans">{children}</body>
     </html>
   )
 }
