@@ -863,6 +863,10 @@ export default function Page() {
 
       <footer className='pb-4 text-center text-xs text-[color:var(--ss-muted)]'>
         Pastor&apos;s Sermon Studio — external beta. Works fully offline in this browser; connect Supabase to sync across devices.
+        {" · "}
+        <a href='/privacy' className='underline-offset-2 hover:underline'>Privacy</a>
+        {" · "}
+        <a href='/terms' className='underline-offset-2 hover:underline'>Terms</a>
       </footer>
     </div>
   )

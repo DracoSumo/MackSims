@@ -29,6 +29,7 @@ import {
   DEFAULT_CURRENCY,
   DEFAULT_LOCALE,
   DEFAULT_MARKET,
+  FEEDBACK_EMAIL,
   SUPABASE_URL,
   VERSION_LABEL,
   WEB_CANONICAL_URL,
@@ -1438,6 +1439,25 @@ function SettingsPage({ onNavigate }: { onNavigate: (href: string) => void }) {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="section-heading">
+          <p className="eyebrow">Legal</p>
+          <h2>Privacy &amp; terms</h2>
+          <p className="subtle-copy">MackSims beta policies for CurbCue riders and venue partners.</p>
+        </div>
+        <div className="settings-list">
+          <a className="text-button" href="/legal/privacy.html">
+            Privacy Policy
+          </a>
+          <a className="text-button" href="/legal/terms.html">
+            Terms of Use
+          </a>
+          <a className="text-button" href={`mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent("CurbCue venue partner")}`}>
+            Venue / partner email — {FEEDBACK_EMAIL}
+          </a>
         </div>
       </section>
 

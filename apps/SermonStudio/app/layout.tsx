@@ -7,7 +7,17 @@ const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-san
 
 export const metadata: Metadata = {
   title: "Pastor's Sermon Studio",
-  description: 'Draft sermons, plan series, curate worship, and stay on schedule.',
+  description: 'Draft sermons, plan series, curate worship, and stay on schedule. A MackSims beta.',
+  openGraph: {
+    title: "Pastor's Sermon Studio",
+    description: 'Draft sermons, plan series, curate worship, and stay on schedule.',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: "Pastor's Sermon Studio",
+    description: 'Draft sermons, plan series, curate worship, and stay on schedule.',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
