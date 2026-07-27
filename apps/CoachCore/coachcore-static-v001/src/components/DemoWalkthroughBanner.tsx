@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { coachCoreConfig } from "@/config/coachcore";
+import { getCurrentUser } from "@/lib/auth";
 import { sessionGet, sessionSet } from "@/lib/safeStorage";
 
 const DISMISS_KEY = "coachcore.demoWalkthroughDismissed";
@@ -10,12 +11,20 @@ const DISMISS_KEY = "coachcore.demoWalkthroughDismissed";
 export function DemoWalkthroughBanner() {
   // Avoid touching sessionStorage during the initial render (SSR / private WebViews).
   const [dismissed, setDismissed] = useState(false);
+  const [hideForUser, setHideForUser] = useState(false);
 
   useEffect(() => {
     setDismissed(sessionGet(DISMISS_KEY) === "1");
+    void getCurrentUser()
+      .then((user) => {
+        if (user) setHideForUser(true);
+      })
+      .catch(() => {
+        /* ignore — keep banner in demo */
+      });
   }, []);
 
-  if (dismissed) return null;
+  if (dismissed || hideForUser) return null;
 
   return (
     <div

@@ -1,10 +1,35 @@
-﻿import Link from "next/link";
+﻿"use client";
+
+import Link from "next/link";
+import { useState } from "react";
 import { Card, SectionPage } from "@/components/SectionPage";
 import { athletes, mockNudgeTargets } from "@/data/mock";
 import { coachCoreConfig } from "@/config/coachcore";
 import { CrossLinkStrip, DemoDisclaimerStrip } from "@/components/ui/CoachCards";
+import { logCoachAction } from "@/services/actionLogStore";
+
+type AthleteRow = (typeof athletes)[number] & { filmCompleteDemo?: boolean };
 
 export default function AccountabilityPage() {
+  const [rows, setRows] = useState<AthleteRow[]>(() => athletes.map((a) => ({ ...a })));
+
+  function markFilmComplete(athleteId: string, athleteName: string) {
+    logCoachAction("Mark film complete", `${athleteName} film marked complete (demo)`);
+    setRows((prev) =>
+      prev.map((athlete) =>
+        athlete.id === athleteId
+          ? {
+              ...athlete,
+              film: "100%",
+              filmCompleteDemo: true,
+              status: athlete.status === "At risk" ? "Needs nudge" : athlete.status,
+              lastActive: "Just now (demo)",
+            }
+          : athlete,
+      ),
+    );
+  }
+
   return (
     <SectionPage
       eyebrow="Accountability"
@@ -28,7 +53,7 @@ export default function AccountabilityPage() {
       </div>
 
       <div className="mt-6 grid gap-4">
-        {athletes.map((athlete) => (
+        {rows.map((athlete) => (
           <Card key={athlete.id} title={athlete.name} subtitle={athlete.status}>
             <p className="text-sm text-slate-400">{athlete.role} • Last active: {athlete.lastActive}</p>
             <div className="mt-3 grid gap-2 sm:grid-cols-5">
@@ -39,6 +64,21 @@ export default function AccountabilityPage() {
               <Link href={`/app/athletes/${athlete.id}`} className="font-bold text-sky-300 hover:text-sky-200">
                 View profile →
               </Link>
+            </div>
+            <div className="mt-4">
+              {athlete.filmCompleteDemo ? (
+                <p className="text-sm font-bold text-emerald-300" role="status">
+                  Film marked complete (demo)
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => markFilmComplete(athlete.id, athlete.name)}
+                  className="rounded-2xl border border-sky-300/40 bg-sky-400/15 px-4 py-2 text-sm font-bold text-sky-100 hover:bg-sky-400/25"
+                >
+                  Mark film complete (demo)
+                </button>
+              )}
             </div>
           </Card>
         ))}

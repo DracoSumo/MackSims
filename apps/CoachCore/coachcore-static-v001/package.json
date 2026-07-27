@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:swarm": "vitest run src/services/swarmLoad.test.ts",
     "check": "npm run test && npm run build",
     "deploy:netlify": "netlify deploy --prod",
     "cap:sync": "npx cap sync",

@@ -50,9 +50,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
     const timeout = window.setTimeout(() => {
       if (cancelled) return;
-      // Timed out — open demo rather than leaving a blank dark screen.
+      // Timed out — fail-open for this session only (do not sticky-write DEMO_KEY).
       setDemoMode(true);
-      localSet(DEMO_KEY, "1");
       setChecking(false);
       setReady(true);
     }, SESSION_CHECK_MS);
