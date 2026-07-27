@@ -24,7 +24,7 @@ MackSims partner outreach uses **publicly published business contact emails** on
 4. Include a one-click way to decline (`Reply STOP` is fine for small volume).
 5. Cap: **3 touches / 21 days**, then archive unless they engaged.
 6. Keep a send log in the CSV (`last_contacted`, `status`, `notes`).
-7. Prefer Bermuda / regions where you have a real product story (CurbCue taxi pilot, etc.).
+7. Prefer **Tampa / Tampa Bay** first — CurbCue is based in Tampa. Treat other markets (including Bermuda demo content in-app) as secondary unless you have a live product story there.
 
 ## Data handling
 

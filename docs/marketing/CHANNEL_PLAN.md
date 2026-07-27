@@ -17,7 +17,7 @@
 |-----|--------|
 | 1 | Create Meta campaign: Conversions → beta signup; two ad sets (FishCrew, ShutterBid) |
 | 1 | Upload 15s + 30s cutdowns; 3 primary texts each from `AD_COPY.md` |
-| 2 | Launch $ low daily test budget; geo Bermuda + interested lookalikes |
+| 2 | Launch $ low daily test budget; geo Tampa Bay + interested lookalikes |
 | 3 | YouTube TrueView or Demand Gen with same creatives |
 | 5 | Kill losers (CTR / thruplay); duplicate winners |
 | 7 | Review cost/signup; expand geos if CPA acceptable |
@@ -61,4 +61,4 @@ Fill as videos go live:
 
 - Ads / brand: csims@macksims.com
 - Product feedback: feedback@macksims.com
-- Partner outreach lists: `docs/outreach/leads/`
+- Partner outreach lists: `docs/outreach/leads/` (Tampa Bay seed)

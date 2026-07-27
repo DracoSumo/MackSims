@@ -28,7 +28,7 @@ Secondary: partner reply rate (venues / photographers / charters), demo video co
 | Coaches / gym owners | CoachCore | No visibility on who is locked in | Accountability without the spreadsheet |
 | Pastors / ministry staff | Sermon Studio | Prep scattered across docs & notes | Draft → series → worship → export |
 
-Geography priority for Wave 1 ads + outreach: **Bermuda** (pilot density) → East Coast US tourism corridors → broader English-speaking markets.
+Geography priority for Wave 1 ads + outreach: **Tampa / Tampa Bay** (CurbCue home market) → Florida Gulf Coast → broader US English-speaking markets. (Bermuda appears in some app demos as example data only.)
 
 ---
 
@@ -64,7 +64,7 @@ Record on device against live Netlify betas; burn in product URL at the end.
 | Channel | Role | Budget bias |
 |---------|------|-------------|
 | **Meta** (IG/FB Reels + Feed) | Demo video distribution | Highest — FishCrew + ShutterBid |
-| **Google Search / YouTube** | Intent capture (“Bermuda fishing charter app”, “photographer booking”) | Medium |
+| **Google Search / YouTube** | Intent capture (“Tampa fishing charter app”, “Tampa photographer booking”) | Medium |
 | **TikTok / Shorts** | Organic + boosted cutdowns | Low–medium test |
 | **LinkedIn** | CoachCore + venue GM / hotel ops | Low, high-touch |
 | **Email** | Partner outreach sequences | Ops cost, not ad spend |

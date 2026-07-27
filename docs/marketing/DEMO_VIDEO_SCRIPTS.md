@@ -71,13 +71,13 @@ Record on a phone or tablet against the live Netlify / product URLs. Prefer scre
 > MackSims beta.
 
 **30s beats:**
-1. Search a Hamilton / nightlife destination (4s)
+1. Search a Tampa / nightlife destination (4s)
 2. Compare cards sort Best / Cheap / Fast (10s)
 3. CrowdMeter or pickup tip (6s)
 4. End card (3s)
 
 **Partner cut (venues):** Same footage + VO swap:  
-> Your guests leave through chaos. Partner with CurbCue so they leave with a plan.
+> Your guests leave through chaos. Partner with CurbCue so Tampa nights end with a plan.
 
 **Do not film:** admin / government shells.
 

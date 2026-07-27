@@ -41,7 +41,7 @@ A MackSims app is professional-ready when:
 | Workstream | Deliverable | Status |
 |------------|-------------|--------|
 | Advertising campaign | `docs/marketing/*` — brief, demo video scripts, ad copy, channels | ✅ Started |
-| B2B lead outreach | `docs/outreach/*` + seeded Bermuda lead CSVs + mail-merge scripts | ✅ Started |
+| B2B lead outreach | `docs/outreach/*` + seeded **Tampa Bay** lead CSVs + mail-merge scripts | ✅ Started |
 | Legal pack | Shared `legal/` + wired into four hybrids | ✅ Started |
 
 ### B. Per-app product bones (parallel / next commits)
@@ -102,7 +102,7 @@ Week-of ops (no calendar estimate — sequenced work):
 | Metric | Target signal |
 |--------|---------------|
 | Demo video completion | 6 app cutdowns + 1 MackSims brand reel published |
-| Outreach | ≥50 verified public business emails researched; first 25 contacted |
+| Outreach | ≥50 verified public business emails researched (start Tampa); first 25 contacted |
 | Ads | CTR + cost-per-beta-signup tracked weekly |
 | Product | Signed-in users never see “placeholder / not live” as primary chrome |
 | Legal | Privacy + Terms linked on all four hybrids |

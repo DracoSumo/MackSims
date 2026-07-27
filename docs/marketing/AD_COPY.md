@@ -55,7 +55,7 @@ Use with UTMs from `CAMPAIGN_BRIEF.md`. Swap `[Join the beta]` CTA to your platf
 > Before you book, compare. CurbCue shows ride options and pickup pressure so you leave with a plan — not a guess. MackSims beta.
 
 **Venue partner (CurbCue)**
-> Closing time curb chaos hurts guests and staff. Partner with CurbCue so riders get a clearer exit plan. Reply to talk Bermuda pilot partnership.
+> Closing time curb chaos hurts guests and staff. Partner with CurbCue so riders get a clearer exit plan. Reply to talk Tampa partnership.
 
 **MotoCrew**
 > Hosting a pack ride? MotoCrew helps you plan meetup, roster, and safety brief before wheels roll. Join the beta.
@@ -87,7 +87,7 @@ Use with UTMs from `CAMPAIGN_BRIEF.md`. Swap `[Join the beta]` CTA to your platf
 ## Email subject lines (paid-retargeting + outreach)
 
 - Quick question for [Business Name]
-- Bermuda pilot invite — [FishCrew / ShutterBid / CurbCue]
+- Tampa partner invite — [FishCrew / ShutterBid / CurbCue]
 - Your guests’ exit plan (venue)
 - Photographer beta seats this week
 - Charter captains: 10-minute FishCrew walkthrough

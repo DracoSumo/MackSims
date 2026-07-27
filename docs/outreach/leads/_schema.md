@@ -11,7 +11,7 @@ Required columns (exact headers):
 | `email` | Public business email |
 | `phone` | Optional public phone |
 | `city` | City / parish |
-| `region` | e.g. Bermuda |
+| `region` | e.g. Florida |
 | `website` | Canonical site |
 | `source_url` | Page where email was found |
 | `verification` | See COMPLIANCE.md |

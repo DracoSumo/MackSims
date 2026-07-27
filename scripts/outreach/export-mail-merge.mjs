@@ -21,12 +21,12 @@ const args = Object.fromEntries(
 );
 
 const verticalFile = {
-  venues: "venues-bermuda.csv",
-  photographers: "photographers-bermuda.csv",
-  charters: "charters-bermuda.csv",
-  venue: "venues-bermuda.csv",
-  photographer: "photographers-bermuda.csv",
-  charter: "charters-bermuda.csv"
+  venues: "venues-tampa.csv",
+  photographers: "photographers-tampa.csv",
+  charters: "charters-tampa.csv",
+  venue: "venues-tampa.csv",
+  photographer: "photographers-tampa.csv",
+  charter: "charters-tampa.csv"
 };
 
 const vertical = args.vertical;
@@ -40,12 +40,12 @@ const statusFilter = args.status || "researched";
 
 const subjects = {
   venue: {
-    1: (b) => `Guest exits at ${b} — quick Bermuda pilot note`,
+    1: (b) => `Guest exits at ${b} — quick Tampa note from CurbCue`,
     2: (b) => `Re: Guest exits at ${b}`,
     3: (b) => `Closing the loop — ${b}`
   },
   photographer: {
-    1: () => `Photographer beta seats — ShutterBid`,
+    1: () => `Photographer beta seats — ShutterBid (Tampa Bay)`,
     2: () => `Re: ShutterBid beta`,
     3: () => `Last note on ShutterBid`
   },
