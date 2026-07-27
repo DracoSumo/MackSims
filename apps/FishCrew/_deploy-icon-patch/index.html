@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#061826" />
+  <meta name="description" content="FishCrew connects local anglers, charters, tackle shops, guides, and cruises." />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="FishCrew" />
+  <title>FishCrew</title>
+  <link rel="canonical" href="https://fishcrew.macksims.com/" />
+  <meta property="og:title" content="FishCrew" />
+  <meta property="og:description" content="Find your fishing crew, post trips, share catches, and run local fishing operations." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://fishcrew.macksims.com/" />
+  <meta property="og:image" content="https://fishcrew.macksims.com/icon-512.png" />
+  <meta name="twitter:card" content="summary" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png" />
+  <link rel="icon" href="favicon-16.png" sizes="16x16" type="image/png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="bootScreen" class="boot-screen" role="status" aria-live="polite">
+    <div class="boot-card">
+      <img src="icon-192.png" width="72" height="72" alt="" aria-hidden="true" />
+      <div>
+        <span class="eyebrow">FishCrew</span>
+        <h1>Opening the dock.</h1>
+        <p id="bootStatus">Loading trips, tools, and water windows...</p>
+      </div>
+      <div class="boot-bar" aria-hidden="true"><span></span></div>
+    </div>
+  </div>
+  <div id="appShell" class="app-shell">
+    <header class="app-header" aria-label="FishCrew header">
+      <button class="brand" type="button" data-action="go" data-screen="home" aria-label="Go to home">
+        <span class="brand-mark fishcrew-logo" aria-hidden="true"><span class="logo-sun"></span><span class="logo-boat"></span><span class="logo-angler"></span><span class="logo-wave one"></span><span class="logo-wave two"></span></span>
+        <span class="brand-copy"><strong>FishCrew</strong></span>
+      </button>
+      <div class="header-actions">
+        <button id="accountButton" class="header-account" type="button" data-action="open-auth">Sign in</button>
+        <button id="settingsButton" class="header-gear" type="button" data-action="open-user-settings" aria-label="Open FishCrew settings menu" title="Settings"><span aria-hidden="true"></span></button>
+      </div>
+    </header>
+
+    <div id="betaBanner" class="beta-banner hidden" role="note" aria-label="Beta notice" hidden>
+      <span class="beta-badge" aria-hidden="true">BETA</span>
+      <p>You are testing an early FishCrew build. Some features are still in progress — if something breaks, <a href="/support">tell us</a>.</p>
+      <button class="beta-dismiss" type="button" data-action="dismiss-beta-banner" aria-label="Dismiss beta notice">&times;</button>
+    </div>
+
+    <main id="main" class="app-main" aria-live="polite">
+      <section id="screen-home" class="screen active" aria-labelledby="homeTitle"></section>
+      <section id="screen-explore" class="screen" aria-labelledby="exploreTitle"></section>
+      <section id="screen-crew" class="screen" aria-labelledby="crewTitle"></section>
+      <section id="screen-feed" class="screen" aria-labelledby="feedTitle"></section>
+      <section id="screen-tools" class="screen" aria-labelledby="toolsTitle"></section>
+      <section id="screen-profile" class="screen" aria-labelledby="profileTitle"></section>
+    </main>
+  </div>
+
+  <button id="fab" class="fab" type="button" data-action="open-create" aria-label="Create post">+</button>
+
+  <nav class="bottom-nav" aria-label="Main navigation">
+    <button class="nav-btn active" type="button" data-action="go" data-screen="home"><span class="nav-icon nav-home" aria-hidden="true"></span><b>Home</b></button>
+    <button class="nav-btn" type="button" data-action="go" data-screen="explore"><span class="nav-icon nav-explore" aria-hidden="true"></span><b>Explore</b></button>
+    <button class="nav-btn" type="button" data-action="go" data-screen="crew"><span class="nav-icon nav-crew" aria-hidden="true"></span><b>Crew</b></button>
+    <button class="nav-btn" type="button" data-action="go" data-screen="feed"><span class="nav-icon nav-feed" aria-hidden="true"></span><b>Feed</b></button>
+    <button class="nav-btn" type="button" data-action="go" data-screen="tools"><span class="nav-icon nav-tools" aria-hidden="true"></span><b>Tools</b></button>
+    <button class="nav-btn" type="button" data-action="go" data-screen="profile"><span class="nav-icon nav-profile" aria-hidden="true"></span><b>Profile</b></button>
+  </nav>
+
+  <div id="modalRoot" class="modal-root hidden" aria-hidden="true"></div>
+  <div id="toast" class="toast hidden" role="status"></div>
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+
+
