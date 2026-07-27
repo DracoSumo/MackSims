@@ -1,20 +1,14 @@
-﻿import { Card, SectionPage } from "@/components/SectionPage";
-import { activityTimeline } from "@/data/mock";
+﻿import { SectionPage } from "@/components/SectionPage";
+import { LiveTimelinePanel } from "@/components/LiveTimelinePanel";
 
 export default function TimelinePage() {
   return (
     <SectionPage
       eyebrow="Activity"
       title="CoachCore timeline"
-      description="Static demo timeline showing future backend events for logins, film, workouts, fueling, notes, and alerts."
+      description="Live demo events from this device + sample events. Future backend events will look like this for logins, film, workouts, fueling, notes, and alerts."
     >
-      <div className="grid gap-4">
-        {activityTimeline.map((item) => (
-          <Card key={`${item.time}-${item.title}`} title={item.title} subtitle={`${item.time} • ${item.type}`}>
-            {item.body}
-          </Card>
-        ))}
-      </div>
+      <LiveTimelinePanel limit={20} />
     </SectionPage>
   );
 }

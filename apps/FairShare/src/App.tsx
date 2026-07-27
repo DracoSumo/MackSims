@@ -213,17 +213,19 @@ export function App() {
         return <CanyonPage />;
       case "/settings":
         return <SettingsPage onNavigate={navigate} />;
-      case "/auth/callback":
-        return <AuthCallbackScreen onDone={navigate} />;
       case "/":
         return <HomePage navigate={navigate} />;
       default:
         if (HOME_ROUTE_ALIASES.has(rawPath)) {
           return <HomePage navigate={navigate} />;
         }
-        return <HomePage navigate={navigate} />;
+        return <NotFoundPage navigate={navigate} />;
     }
   }, [currentPath, rawPath, locationKey]);
+
+  if (rawPath === "/auth/callback") {
+    return <AuthCallbackScreen onDone={navigate} />;
+  }
 
   return (
     <BetaGate>
@@ -231,6 +233,23 @@ export function App() {
         {page}
       </AppShell>
     </BetaGate>
+  );
+}
+
+function NotFoundPage({ navigate }: { navigate: Navigate }) {
+  return (
+    <div className="page-stack">
+      <section className="page-header">
+        <div>
+          <p className="eyebrow">404</p>
+          <h1>Page not found</h1>
+          <p>That route is not part of this beta build.</p>
+          <button type="button" className="primary-action" onClick={() => navigate("/")}>
+            Home
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -308,7 +327,11 @@ function HomePage({ navigate }: { navigate: Navigate }) {
             </div>
           </div>
         </div>
-        <CrowdMeterCard signal={spotlightSignal} title="CrowdMeter preview" />
+        <CrowdMeterCard
+          signal={spotlightSignal}
+          title="CrowdMeter preview"
+          onOpen={() => navigate("/crowd-meter")}
+        />
       </section>
 
       <section className="panel">
@@ -631,7 +654,13 @@ function ComparePage({ navigate }: { navigate: Navigate }) {
       </section>
 
       <section className="split-layout">
-        {signal && <CrowdMeterCard signal={signal} title="CrowdMeter attached to trip" />}
+        {signal && (
+          <CrowdMeterCard
+            signal={signal}
+            title="CrowdMeter attached to trip"
+            onOpen={() => navigate("/crowd-meter")}
+          />
+        )}
         {currentZone && <PickupSuggestionCard currentZone={currentZone} suggestedZone={suggestedZone} signal={signal} />}
       </section>
 
@@ -833,7 +862,7 @@ function CrowdMeterPage() {
     <div className="page-stack">
       <section className="page-header">
         <div>
-          <p className="eyebrow">CrowdSense layer</p>
+          <p className="eyebrow">CrowdMeter layer</p>
           <h1>CrowdMeter</h1>
           <p>
             Destination-aware crowd, surge, pickup pressure, and demand intelligence for airports, bars, beaches,
@@ -1303,6 +1332,7 @@ function SettingsPage({ onNavigate }: { onNavigate: (href: string) => void }) {
   const [supabasePing, setSupabasePing] = useState("Checking Supabase…");
   const [syncInfo, setSyncInfo] = useState("");
   const [syncTick, setSyncTick] = useState(0);
+  const oauthReady = isSupabaseConfigured;
 
   useEffect(() => {
     checkSupabaseConnection().then((result) => {
@@ -1343,7 +1373,11 @@ function SettingsPage({ onNavigate }: { onNavigate: (href: string) => void }) {
         <div>
           <p className="eyebrow">Account &amp; preferences</p>
           <h1>Settings</h1>
-          <p>Sign in to sync saved trips. Profile fields below save on this device and sync when signed in.</p>
+          <p>
+            {oauthReady
+              ? "Sign in to sync saved trips. Profile fields below save on this device and sync when signed in."
+              : "This beta build runs local-only. Preferences and saved trips stay on this device until Supabase is configured."}
+          </p>
         </div>
       </section>
 
@@ -1351,8 +1385,13 @@ function SettingsPage({ onNavigate }: { onNavigate: (href: string) => void }) {
         <div className="panel">
           <div className="section-heading">
             <p className="eyebrow">Account</p>
-            <h2>Sign in</h2>
+            <h2>{oauthReady ? "Sign in" : "Local-only mode"}</h2>
           </div>
+          {!oauthReady && (
+            <p className="muted">
+              OAuth sign-in is unavailable in this build. Use the profile fields below — everything saves on this device.
+            </p>
+          )}
           <OAuthSignIn />
           <div className="section-heading" style={{ marginTop: "1.5rem" }}>
             <p className="eyebrow">Local profile</p>

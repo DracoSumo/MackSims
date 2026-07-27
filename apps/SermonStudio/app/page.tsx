@@ -29,13 +29,33 @@ const LICENSED_TRANSLATION_NOTICE =
 const THEMES = ['faith','love','grace','hope','holiness','discipleship','mission','transformation','trust','praise']
 
 const FALLBACK_SONGS: Song[] = [
-  { id: 1, title: 'How Great Is Our God', artist: 'Chris Tomlin', themes: ['greatness','praise'], tempo: 'mid' },
-  { id: 2, title: 'Oceans (Where Feet May Fail)', artist: 'Hillsong UNITED', themes: ['faith','trust'], tempo: 'slow' },
-  { id: 3, title: 'Reckless Love', artist: 'Cory Asbury', themes: ['love','grace'], tempo: 'mid' },
-  { id: 4, title: 'Build My Life', artist: 'Pat Barrett', themes: ['holiness','surrender'], tempo: 'mid' },
-  { id: 5, title: 'Graves Into Gardens', artist: 'Elevation Worship', themes: ['transformation','victory'], tempo: 'up' },
-  { id: 6, title: 'The Blessing', artist: 'Kari Jobe & Elevation', themes: ['blessing','benediction'], tempo: 'slow' },
+  { id: 1, title: 'How Great Is Our God', artist: 'Chris Tomlin', themes: ['greatness','praise','faith'], tempo: 'mid' },
+  { id: 2, title: 'Oceans (Where Feet May Fail)', artist: 'Hillsong UNITED', themes: ['faith','trust','hope'], tempo: 'slow' },
+  { id: 3, title: 'Reckless Love', artist: 'Cory Asbury', themes: ['love','grace','praise'], tempo: 'mid' },
+  { id: 4, title: 'Build My Life', artist: 'Pat Barrett', themes: ['holiness','surrender','discipleship'], tempo: 'mid' },
+  { id: 5, title: 'Graves Into Gardens', artist: 'Elevation Worship', themes: ['transformation','victory','hope'], tempo: 'up' },
+  { id: 6, title: 'The Blessing', artist: 'Kari Jobe & Elevation', themes: ['blessing','benediction','mission'], tempo: 'slow' },
 ]
+
+/** Map sermon themes → song tags so "Match Current Sermon Theme" finds songs for common themes. */
+const THEME_TO_SONG_TAGS: Record<string, string[]> = {
+  faith: ['faith', 'trust', 'praise'],
+  love: ['love', 'grace', 'praise'],
+  grace: ['grace', 'love', 'praise'],
+  hope: ['hope', 'surrender', 'trust', 'praise'],
+  holiness: ['holiness', 'surrender'],
+  discipleship: ['discipleship', 'faith', 'surrender', 'trust'],
+  mission: ['mission', 'praise', 'victory', 'faith'],
+  transformation: ['transformation', 'victory'],
+  trust: ['trust', 'faith'],
+  praise: ['praise', 'greatness'],
+}
+
+function songMatchesTheme(song: Song, themeFilter: string): boolean {
+  if (!themeFilter) return true
+  const tags = THEME_TO_SONG_TAGS[themeFilter] ?? [themeFilter]
+  return tags.some((t) => song.themes.includes(t))
+}
 
 const TABS = ['Scripture','Ideas','Worship','Series','Library'] as const
 type TabId = typeof TABS[number]
@@ -152,7 +172,7 @@ function StringListEditor({ label, placeholder, items, onChange, ordered=false }
         : (
           <ul className='mt-2 space-y-1'>
             {items.map((item, idx) => (
-              <li key={`${item}-${idx}`} className='flex items-start justify-between gap-2 rounded-xl border border-gray-200 px-3 py-1.5 text-sm'>
+              <li key={`${item}-${idx}`} className='flex items-start justify-between gap-2 rounded-xl border border-[color:var(--ss-line)] px-3 py-1.5 text-sm'>
                 <span className='min-w-0 break-words'>{ordered ? `${idx+1}. ${item}` : item}</span>
                 <button className='text-[color:var(--ss-muted)] hover:text-red-600 shrink-0' aria-label={`Remove ${item}`}
                   onClick={()=>onChange(items.filter((_,i)=>i!==idx))}>×</button>
@@ -261,15 +281,18 @@ export default function Page() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[ready, supabase])
 
-  // Always persist local fallback
+  // Always persist local fallback (quota / private mode can throw)
   useEffect(()=>{
-    if (hydrated.current) localStorage.setItem(LS_LIB, JSON.stringify(library))
+    if (!hydrated.current) return
+    try { localStorage.setItem(LS_LIB, JSON.stringify(library)) } catch { /* ignore */ }
   },[library])
   useEffect(()=>{
-    if (hydrated.current) localStorage.setItem(LS_SERIES, JSON.stringify(series))
+    if (!hydrated.current) return
+    try { localStorage.setItem(LS_SERIES, JSON.stringify(series)) } catch { /* ignore */ }
   },[series])
   useEffect(()=>{
-    if (hydrated.current) localStorage.setItem(LS_DRAFT, JSON.stringify(sermon))
+    if (!hydrated.current) return
+    try { localStorage.setItem(LS_DRAFT, JSON.stringify(sermon)) } catch { /* ignore */ }
   },[sermon])
 
   const selectedPassages = useMemo(()=> sermon.passages.map(ref=>verses.find(v=>v.ref===ref)).filter(Boolean) as Verse[], [sermon.passages, verses])
@@ -281,7 +304,7 @@ export default function Page() {
   },[search, verses])
   const songResults = useMemo(()=>{
     return songs.filter(s=>{
-      const tm = theme ? s.themes.includes(theme) : true
+      const tm = songMatchesTheme(s, theme)
       const pm = tempo ? s.tempo===tempo : true
       return tm && pm
     })
@@ -755,7 +778,11 @@ export default function Page() {
 
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
               {series.length===0 && <p className='text-sm text-[color:var(--ss-muted)]'>No series yet. Create one above to group sermons.</p>}
-              {series.map(s => (
+              {series.map(s => {
+                const linked = library.filter(
+                  (serm) => serm.isSeriesItem && serm.seriesId && (serm.seriesId === s.id || serm.seriesId === s.name)
+                )
+                return (
                 <Card key={s.id} className='border' style={{ borderColor: s.color }}>
                   <CardHeader className='pb-2 flex flex-row justify-between items-center gap-2'>
                     <CardTitle className='text-base flex flex-wrap items-center gap-2'>
@@ -764,11 +791,25 @@ export default function Page() {
                     </CardTitle>
                     <div className='w-3 h-3 rounded-full shrink-0' style={{ background: s.color }} />
                   </CardHeader>
-                  <CardContent>
-                    <p className='text-sm text-[color:var(--ss-muted)]'>Attach saved sermons to this series from the library section.</p>
+                  <CardContent className='space-y-2'>
+                    {linked.length > 0 ? (
+                      <ul className='space-y-1.5 text-sm'>
+                        {linked.map((serm, idx) => (
+                          <li key={serm.id ?? `${s.id}-${idx}`} className='text-[color:var(--ss-ink)]'>
+                            {serm.title || 'Untitled sermon'}
+                            {serm.date ? <span className='text-[color:var(--ss-muted)]'> · {serm.date}</span> : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className='text-sm text-[color:var(--ss-muted)]'>
+                        No sermons linked yet — create one in Library and set series.
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
-              ))}
+                )
+              })}
             </div>
           </CardContent>
         </Card>

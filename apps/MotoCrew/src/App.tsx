@@ -10,12 +10,15 @@ import {
   VERSION_LABEL,
 } from './config'
 import {
+  checklistReadiness,
   getChatForRide,
   getRideById,
   getRouteForRide,
   listPackMembersForRide,
   listRides,
+  loadCompletedChecklistByRide,
   localStorageKeys,
+  readinessLabel,
 } from './services/dataService'
 import { mapAdapter } from './services/mapAdapter'
 import { downloadMotoCrewLocalData } from './services/localDataExport'
@@ -23,7 +26,7 @@ import { loadRiderProfile, saveRiderProfile, type RiderProfileLocal } from './se
 import { pushRiderProfile } from './services/supabaseSync'
 import { supabaseStatusLabel } from './config/backend'
 import { checkSupabaseConnection } from './services/supabaseClient'
-import { getSyncMeta, pushJoinedRide, pushRideDraft } from './services/supabaseSync'
+import { deleteRideDraft, getSyncMeta, pushJoinedRide, pushRideDraft } from './services/supabaseSync'
 import { AuthCallbackHandler, OAuthSignIn } from './components/OAuthSignIn'
 import {
   commsModules,
@@ -90,7 +93,11 @@ function useLocalStorageState<T>(key: string, initialValue: T) {
       return
     }
 
-    window.localStorage.setItem(key, JSON.stringify(storedValue))
+    try {
+      window.localStorage.setItem(key, JSON.stringify(storedValue))
+    } catch {
+      // Quota or private mode — keep in-memory state only.
+    }
   }, [key, storedValue])
 
   return [storedValue, setStoredValue] as const
@@ -110,10 +117,10 @@ function App() {
     localStorageKeys.safetyAcknowledged,
     false,
   )
-  const [completedChecklistIds, setCompletedChecklistIds] = useLocalStorageState<string[]>(
-    localStorageKeys.completedChecklistIds,
-    [],
-  )
+  const [completedChecklistByRide, setCompletedChecklistByRide] = useLocalStorageState<
+    Record<string, string[]>
+  >(localStorageKeys.completedChecklistByRide, loadCompletedChecklistByRide(rides[0]?.id ?? ''))
+  const [draftTemplate, setDraftTemplate] = useState<DraftRide | null>(null)
   const [rideFilter, setRideFilter] = useState<RideFilter>({ status: 'All', pace: 'All', difficulty: 'All' })
   const [saveMessage, setSaveMessage] = useState('')
   const [authCallback, setAuthCallback] = useState(
@@ -127,16 +134,50 @@ function App() {
   const isJoined = selectedRide ? joinedRideIds.includes(selectedRide.id) : false
 
   const checklistItems = selectedChat?.checklist ?? []
+  const completedForSelectedRide = selectedRide
+    ? (completedChecklistByRide[selectedRide.id] ?? [])
+    : []
   const checklistComplete = checklistItems.filter(
-    (item) => item.complete || completedChecklistIds.includes(item.id),
+    (item) => item.complete || completedForSelectedRide.includes(item.id),
   ).length
   const readinessPercent =
     checklistItems.length === 0 ? 0 : Math.round((checklistComplete / checklistItems.length) * 100)
 
   function toggleChecklistItem(itemId: string) {
-    setCompletedChecklistIds((current) =>
-      current.includes(itemId) ? current.filter((id) => id !== itemId) : [...current, itemId],
-    )
+    if (!selectedRide) return
+    const rideId = selectedRide.id
+    setCompletedChecklistByRide((current) => {
+      const rideCompleted = current[rideId] ?? []
+      const nextForRide = rideCompleted.includes(itemId)
+        ? rideCompleted.filter((id) => id !== itemId)
+        : [...rideCompleted, itemId]
+      return { ...current, [rideId]: nextForRide }
+    })
+  }
+
+  function handleDeleteDraft(draftId: string) {
+    if (!window.confirm('Delete this ride draft? This cannot be undone on this device.')) {
+      return
+    }
+    setDraftRides((current) => current.filter((draft) => draft.id !== draftId))
+    if (draftTemplate?.id === draftId) {
+      setDraftTemplate(null)
+    }
+    void deleteRideDraft(draftId).then((result) => {
+      if (result === 'ok') {
+        setSaveMessage('Draft deleted locally and removed from Supabase.')
+      } else if (result === 'error') {
+        setSaveMessage('Draft deleted locally; cloud delete failed — check sign-in and RLS.')
+      } else {
+        setSaveMessage('Draft deleted on this device.')
+      }
+    })
+  }
+
+  function handleUseDraftAsTemplate(draft: DraftRide) {
+    setDraftTemplate(draft)
+    setActiveScreen('create')
+    setSaveMessage(`Editing from template: ${draft.title}`)
   }
 
   const rideGroups = useMemo(
@@ -203,6 +244,7 @@ function App() {
     }
 
     setDraftRides((current) => [draft, ...current].slice(0, 8))
+    setDraftTemplate(null)
     void pushRideDraft(draft).then((result) => {
       if (result === 'ok') {
         setSaveMessage(`${title} saved locally and synced to Supabase.`)
@@ -269,8 +311,11 @@ function App() {
             <HomeScreen
               draftRides={draftRides}
               rideGroups={rideGroups}
+              completedChecklistByRide={completedChecklistByRide}
               onNavigate={setActiveScreen}
               onSelectRide={selectRide}
+              onDeleteDraft={handleDeleteDraft}
+              onUseDraftAsTemplate={handleUseDraftAsTemplate}
             />
           )}
           {activeScreen === 'rides' && selectedRide && (
@@ -305,9 +350,12 @@ function App() {
             <ChatScreen
               ride={selectedRide}
               chat={selectedChat}
-              completedChecklistIds={completedChecklistIds}
+              completedChecklistIds={completedForSelectedRide}
               onToggleChecklistItem={toggleChecklistItem}
             />
+          )}
+          {activeScreen === 'chat' && !selectedRide && (
+            <EmptyRideState message="Join or select a ride before opening pack chat." onBrowse={() => setActiveScreen('rides')} />
           )}
           {activeScreen === 'focus' && selectedRide && selectedRoute && (
             <FocusScreen
@@ -317,8 +365,17 @@ function App() {
               onExit={() => setActiveScreen('rides')}
             />
           )}
+          {activeScreen === 'focus' && (!selectedRide || !selectedRoute) && (
+            <EmptyRideState message="Select a ride with a route to enter focus mode." onBrowse={() => setActiveScreen('rides')} />
+          )}
           {activeScreen === 'safety' && (
-            <SafetyScreen contacts={emergencyContacts} onContactsChange={setEmergencyContacts} />
+            <SafetyScreen
+              contacts={emergencyContacts}
+              onContactsChange={setEmergencyContacts}
+              selectedRide={selectedRide}
+              readinessPercent={readinessPercent}
+              onOpenChat={() => setActiveScreen('chat')}
+            />
           )}
           {activeScreen === 'profile' && (
             <ProfileScreen
@@ -331,9 +388,15 @@ function App() {
           {activeScreen === 'create' && (
             <CreateRideScreen
               draftRides={draftRides}
+              draftTemplate={draftTemplate}
               saveMessage={saveMessage}
               onSubmit={handleCreateRide}
-              onBack={() => setActiveScreen('rides')}
+              onBack={() => {
+                setDraftTemplate(null)
+                setActiveScreen('rides')
+              }}
+              onDeleteDraft={handleDeleteDraft}
+              onUseDraftAsTemplate={handleUseDraftAsTemplate}
             />
           )}
           <footer className="app-footer">
@@ -345,7 +408,9 @@ function App() {
           </footer>
         </div>
 
-        <BottomNav activeScreen={activeScreen} onNavigate={setActiveScreen} />
+        {activeScreen !== 'focus' && (
+          <BottomNav activeScreen={activeScreen} onNavigate={setActiveScreen} />
+        )}
       </section>
         </>
       )}
@@ -388,8 +453,11 @@ function DesktopRail({
 function HomeScreen({
   draftRides,
   rideGroups,
+  completedChecklistByRide,
   onNavigate,
   onSelectRide,
+  onDeleteDraft,
+  onUseDraftAsTemplate,
 }: {
   draftRides: DraftRide[]
   rideGroups: {
@@ -397,10 +465,16 @@ function HomeScreen({
     featured: Ride[]
     completed: Ride[]
   }
+  completedChecklistByRide: Record<string, string[]>
   onNavigate: (screen: Screen) => void
   onSelectRide: (rideId: string, nextScreen?: Screen) => void
+  onDeleteDraft: (draftId: string) => void
+  onUseDraftAsTemplate: (draft: DraftRide) => void
 }) {
   const spotlight = rideGroups.upcoming[0]
+  const spotlightReadiness = spotlight
+    ? rideChecklistPercent(spotlight.id, completedChecklistByRide)
+    : 0
 
   return (
     <div className="screen-content">
@@ -414,6 +488,7 @@ function HomeScreen({
               <span>{spotlight.kickstandsUp}</span>
               <span>{spotlight.estimatedMiles} mi</span>
               <StatusPill status={spotlight.status} />
+              <ReadinessChip percent={spotlightReadiness} />
             </div>
             <button type="button" className="primary-action" onClick={() => onSelectRide(spotlight.id)}>
               Open Ride
@@ -447,11 +522,58 @@ function HomeScreen({
 
       <RidePhaseCard />
 
-      <DraftRideCollection drafts={draftRides} showCloudHint onCreate={() => onNavigate('create')} />
-      <RideCollection title="Upcoming group rides" rides={rideGroups.upcoming} onSelectRide={onSelectRide} />
-      <RideCollection title="Featured local rides" rides={rideGroups.featured} onSelectRide={onSelectRide} />
-      <RideCollection title="Recently completed" rides={rideGroups.completed} onSelectRide={onSelectRide} />
+      <DraftRideCollection
+        drafts={draftRides}
+        showCloudHint
+        onCreate={() => onNavigate('create')}
+        onDeleteDraft={onDeleteDraft}
+        onUseDraftAsTemplate={onUseDraftAsTemplate}
+      />
+      <RideCollection
+        title="Upcoming group rides"
+        rides={rideGroups.upcoming}
+        completedChecklistByRide={completedChecklistByRide}
+        onSelectRide={onSelectRide}
+      />
+      <RideCollection
+        title="Featured local rides"
+        rides={rideGroups.featured}
+        completedChecklistByRide={completedChecklistByRide}
+        onSelectRide={onSelectRide}
+      />
+      <RideCollection
+        title="Recently completed"
+        rides={rideGroups.completed}
+        completedChecklistByRide={completedChecklistByRide}
+        onSelectRide={onSelectRide}
+      />
     </div>
+  )
+}
+
+function rideChecklistPercent(rideId: string, completedMap: Record<string, string[]>): number {
+  const checklist = getChatForRide(rideId)?.checklist ?? []
+  const checklistIds = checklist.map((item) => item.id)
+  const seeded: Record<string, string[]> = {
+    ...completedMap,
+    [rideId]: [
+      ...new Set([
+        ...(completedMap[rideId] ?? []),
+        ...checklist.filter((item) => item.complete).map((item) => item.id),
+      ]),
+    ],
+  }
+  return checklistReadiness(rideId, checklistIds, seeded)
+}
+
+function ReadinessChip({ percent }: { percent: number }) {
+  const label = readinessLabel(percent)
+  const tone = percent >= 80 ? 'ready' : percent >= 50 ? 'almost' : 'needs'
+  return (
+    <span className={`readiness-chip readiness-chip--${tone}`} title={`${percent}% checklist complete`}>
+      {label}
+      <span className="readiness-chip-pct">{percent}%</span>
+    </span>
   )
 }
 
@@ -489,10 +611,14 @@ function DraftRideCollection({
   drafts,
   onCreate,
   showCloudHint,
+  onDeleteDraft,
+  onUseDraftAsTemplate,
 }: {
   drafts: DraftRide[]
   onCreate?: () => void
   showCloudHint?: boolean
+  onDeleteDraft?: (draftId: string) => void
+  onUseDraftAsTemplate?: (draft: DraftRide) => void
 }) {
   return (
     <section className="section-block">
@@ -524,6 +650,27 @@ function DraftRideCollection({
                 <span>{draft.routeType}</span>
               </div>
               <p className="feature-note">{draft.notes}</p>
+              <p className="draft-saved-at">Saved {draft.savedAt}</p>
+              <div className="draft-actions">
+                {onUseDraftAsTemplate && (
+                  <button
+                    type="button"
+                    className="compact-action"
+                    onClick={() => onUseDraftAsTemplate(draft)}
+                  >
+                    Use as template
+                  </button>
+                )}
+                {onDeleteDraft && (
+                  <button
+                    type="button"
+                    className="compact-action draft-delete-btn"
+                    onClick={() => onDeleteDraft(draft.id)}
+                  >
+                    Delete draft
+                  </button>
+                )}
+              </div>
             </article>
           ))}
         </div>
@@ -535,10 +682,12 @@ function DraftRideCollection({
 function RideCollection({
   title,
   rides: collection,
+  completedChecklistByRide,
   onSelectRide,
 }: {
   title: string
   rides: Ride[]
+  completedChecklistByRide: Record<string, string[]>
   onSelectRide: (rideId: string, nextScreen?: Screen) => void
 }) {
   return (
@@ -549,7 +698,12 @@ function RideCollection({
       </div>
       <div className="ride-grid">
         {collection.map((ride) => (
-          <RideCard key={ride.id} ride={ride} onSelectRide={onSelectRide} />
+          <RideCard
+            key={ride.id}
+            ride={ride}
+            readinessPercent={rideChecklistPercent(ride.id, completedChecklistByRide)}
+            onSelectRide={onSelectRide}
+          />
         ))}
       </div>
     </section>
@@ -558,15 +712,18 @@ function RideCollection({
 
 function RideCard({
   ride,
+  readinessPercent,
   onSelectRide,
 }: {
   ride: Ride
+  readinessPercent: number
   onSelectRide: (rideId: string, nextScreen?: Screen) => void
 }) {
   return (
     <article className="ride-card">
       <div className="card-topline">
         <StatusPill status={ride.status} />
+        <ReadinessChip percent={readinessPercent} />
         <span>{ride.estimatedMiles} mi</span>
       </div>
       <h3>{ride.name}</h3>
@@ -1133,11 +1290,19 @@ function CommsPanel() {
 function SafetyScreen({
   contacts,
   onContactsChange,
+  selectedRide,
+  readinessPercent,
+  onOpenChat,
 }: {
   contacts: EmergencyContact[]
   onContactsChange: (updater: (current: EmergencyContact[]) => EmergencyContact[]) => void
+  selectedRide?: Ride
+  readinessPercent: number
+  onOpenChat: () => void
 }) {
   const [formError, setFormError] = useState('')
+  const readinessTitle =
+    readinessPercent >= 80 ? 'Ready to roll' : readinessPercent >= 50 ? 'Almost ready' : 'Needs checklist'
 
   function handleAddContact(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -1188,6 +1353,27 @@ function SafetyScreen({
           <li>Ride your own ride — never chase the pack beyond your skill.</li>
         </ul>
       </section>
+
+      {selectedRide && (
+        <section className="readiness-panel">
+          <div>
+            <p className="eyebrow">Selected ride checklist</p>
+            <h3>{readinessTitle}</h3>
+            <p>
+              {selectedRide.name}: {readinessPercent}% of the pre-ride checklist is confirmed on this
+              device for this ride.
+            </p>
+          </div>
+          <div className="readiness-meter" aria-label={`${readinessPercent}% checklist readiness`}>
+            <span style={{ width: `${readinessPercent}%` }} />
+          </div>
+          {readinessPercent < 80 && (
+            <button type="button" className="secondary-action wide-action" onClick={onOpenChat}>
+              Complete checklist in Chat
+            </button>
+          )}
+        </section>
+      )}
 
       <section className="contacts-panel">
         <div className="section-heading">
@@ -1474,44 +1660,70 @@ function SettingsPanel({ items }: { items: PermissionModule[] }) {
 
 function CreateRideScreen({
   draftRides,
+  draftTemplate,
   saveMessage,
   onSubmit,
   onBack,
+  onDeleteDraft,
+  onUseDraftAsTemplate,
 }: {
   draftRides: DraftRide[]
+  draftTemplate: DraftRide | null
   saveMessage: string
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onBack: () => void
+  onDeleteDraft: (draftId: string) => void
+  onUseDraftAsTemplate: (draft: DraftRide) => void
 }) {
+  const formKey = draftTemplate?.id ?? 'blank'
+
   return (
     <div className="screen-content">
       <section className="create-panel">
         <div className="section-heading">
           <div>
             <p className="eyebrow">Mock create flow</p>
-            <h2>Create ride</h2>
+            <h2>{draftTemplate ? 'Create from template' : 'Create ride'}</h2>
           </div>
           <button type="button" className="compact-action" onClick={onBack}>
             Back
           </button>
         </div>
 
-        <form className="ride-form" onSubmit={onSubmit}>
+        {draftTemplate && (
+          <p className="subtle-copy">
+            Prefilling from &ldquo;{draftTemplate.title}&rdquo; (saved {draftTemplate.savedAt}). Saving creates a
+            new draft.
+          </p>
+        )}
+
+        <form key={formKey} className="ride-form" onSubmit={onSubmit}>
           <label>
             Ride title
-            <input name="title" type="text" placeholder="Saturday ridge loop" required />
+            <input
+              name="title"
+              type="text"
+              placeholder="Saturday ridge loop"
+              defaultValue={draftTemplate?.title ?? ''}
+              required
+            />
           </label>
           <label>
             Date and time
-            <input name="dateTime" type="datetime-local" />
+            <input name="dateTime" type="datetime-local" defaultValue="" />
           </label>
           <label>
             Meet spot
-            <input name="meetSpot" type="text" placeholder="Fuel stop or landmark" />
+            <input
+              name="meetSpot"
+              type="text"
+              placeholder="Fuel stop or landmark"
+              defaultValue={draftTemplate?.meetSpot ?? ''}
+            />
           </label>
           <label>
             Route type
-            <select name="routeType" defaultValue="Backroads">
+            <select name="routeType" defaultValue={draftTemplate?.routeType ?? 'Backroads'}>
               <option>Backroads</option>
               <option>Coastal loop</option>
               <option>Mountain route</option>
@@ -1520,7 +1732,7 @@ function CreateRideScreen({
           </label>
           <label>
             Pace
-            <select name="pace" defaultValue="Moderate">
+            <select name="pace" defaultValue={draftTemplate?.pace ?? 'Moderate'}>
               <option>Relaxed</option>
               <option>Moderate</option>
               <option>Spirited</option>
@@ -1529,7 +1741,7 @@ function CreateRideScreen({
           </label>
           <label>
             Visibility
-            <select name="visibility" defaultValue="Pack invite">
+            <select name="visibility" defaultValue={draftTemplate?.visibility ?? 'Pack invite'}>
               <option>Pack invite</option>
               <option>Local riders</option>
               <option>Private draft</option>
@@ -1537,7 +1749,11 @@ function CreateRideScreen({
           </label>
           <label className="full-span">
             Notes
-            <textarea name="notes" placeholder="Safety notes, fuel stops, road condition, rider expectations" />
+            <textarea
+              name="notes"
+              placeholder="Safety notes, fuel stops, road condition, rider expectations"
+              defaultValue={draftTemplate?.notes ?? ''}
+            />
           </label>
           <button type="submit" className="primary-action full-span">
             Save Mock Ride
@@ -1547,7 +1763,11 @@ function CreateRideScreen({
         {saveMessage && <p className="save-message">{saveMessage}</p>}
       </section>
 
-      <DraftRideCollection drafts={draftRides} />
+      <DraftRideCollection
+        drafts={draftRides}
+        onDeleteDraft={onDeleteDraft}
+        onUseDraftAsTemplate={onUseDraftAsTemplate}
+      />
     </div>
   )
 }
