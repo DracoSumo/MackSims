@@ -5,9 +5,9 @@
 **Location preference:** Tampa / Florida first; remote OK any industry  
 **Status:** Drafts ready — attach PDF and send from your inbox  
 
-**ATS / AI keyword coverage:** Resume includes a Skills/Keywords block plus natural keyword placement for General Manager, Regional Director, Business Development, Strategic/Channel Partnerships, Operations, Growth, Sales Director, retail energy/utilities, pipeline/quota/forecasting, GTM, CRM, remote/Florida, and Veteran/military leadership.
+**ATS / AI keyword coverage:** Resume includes a Skills/Keywords block plus natural keyword placement for General Manager, Regional Director, Business Development, Strategic/Channel Partnerships, Community Outreach / Engagement / Relations, External Affairs, Operations, Growth, Sales Director, retail energy/utilities, pipeline/quota/forecasting, GTM, CRM, remote/Florida, and Veteran/military leadership.
 
-**Florida / Tampa area (onsite + hybrid + remote):** See `FLORIDA_TAMPA_JOBS.md` for ranked local listings and area-specific emails (CLEAR TPA GM, TheMilVet Tampa/Orlando, Peoples Gas BD, MasTec, Albireo, partnerships roles, etc.).
+**Florida / Tampa area (onsite + hybrid + remote):** See `FLORIDA_TAMPA_JOBS.md` for ranked local listings and emails — commercial seats plus community outreach roles (Metropolitan Ministries, YMCA Community Partnerships, United Way, HCA community engagement, Peoples Gas external affairs, etc.).
 
 ---
 
