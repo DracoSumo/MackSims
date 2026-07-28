@@ -4164,7 +4164,8 @@ ${url}`).catch(() => {});
           supabaseClient.from('trip_private_details').select('*').limit(LIVE_QUERY_LIMIT),
           supabaseClient.from('trip_members').select('*').limit(LIVE_QUERY_LIMIT * 2),
           supabaseClient.from('join_requests').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
-          supabaseClient.from('trip_messages').select('*').order('created_at', { ascending: true }).limit(LIVE_QUERY_LIMIT * 2),
+          // Newest-first: ascending + limit kept the oldest rows and dropped recent crew chat after the cap.
+          supabaseClient.from('trip_messages').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT * 2),
           supabaseClient.from('feed_posts').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
           supabaseClient.from('media_assets').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
           supabaseClient.from('moderation_items').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
@@ -4224,7 +4225,9 @@ ${url}`).catch(() => {});
         }
         if (messagesRes.data?.length) {
           state.messages = {};
-          messagesRes.data.forEach((m) => {
+          // Query is newest-first; reverse per trip so chat renders oldest → newest.
+          const chronological = [...messagesRes.data].reverse();
+          chronological.forEach((m) => {
             if (!state.messages[m.trip_id]) state.messages[m.trip_id] = [];
             state.messages[m.trip_id].push({ id: m.id, senderId: m.sender_id, senderName: m.sender_name || 'FishCrew user', body: m.body || '', createdAt: m.created_at || now() });
           });
