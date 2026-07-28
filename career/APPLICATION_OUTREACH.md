@@ -3,7 +3,9 @@
 **Resume:** `Christopher_Sims_Resume.pdf` (also `.md` / `.html`)  
 **From:** csims@macksims.com  
 **Location preference:** Tampa / Florida first; remote OK any industry  
-**Status:** Drafts ready — attach PDF and send from your inbox
+**Status:** Drafts ready — attach PDF and send from your inbox  
+
+**ATS / AI keyword coverage:** Resume includes a Skills/Keywords block plus natural keyword placement for General Manager, Regional Director, Business Development, Strategic/Channel Partnerships, Operations, Growth, Sales Director, retail energy/utilities, pipeline/quota/forecasting, GTM, CRM, remote/Florida, and Veteran/military leadership.
 
 ---
 

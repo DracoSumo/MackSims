@@ -5,211 +5,86 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Christopher Sims — Resume</title>
   <style>
-    :root {
-      --ink: #1a1f24;
-      --muted: #4a5560;
-      --rule: #c5ccd3;
-      --accent: #1e3a4c;
-    }
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      padding: 0;
-      color: var(--ink);
-      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-      font-size: 9.75pt;
-      line-height: 1.28;
-      background: #fff;
-    }
-    .page {
-      width: 8.5in;
-      min-height: 11in;
-      margin: 0 auto;
-      padding: 0.42in 0.55in 0.35in;
-    }
-    h1 {
-      margin: 0 0 0.06in;
-      font-size: 20pt;
-      letter-spacing: 0.02em;
-      color: var(--accent);
-      font-weight: 700;
-      line-height: 1.05;
-    }
-    .contact {
-      margin: 0 0 0.04in;
-      color: var(--muted);
-      font-size: 9pt;
-    }
-    .contact a { color: var(--muted); text-decoration: none; }
-    .tagline {
-      margin: 0 0 0.12in;
-      font-size: 9.5pt;
-      font-weight: 600;
-      color: var(--accent);
-    }
-    h2 {
-      margin: 0.11in 0 0.05in;
-      padding-bottom: 0.025in;
-      border-bottom: 1.25px solid var(--accent);
-      font-size: 10pt;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--accent);
-    }
-    p { margin: 0 0 0.06in; }
-    .role-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 0.15in;
-      margin: 0.07in 0 0.01in;
-    }
-    .role-head h3 {
-      margin: 0;
-      font-size: 10.25pt;
-      font-weight: 700;
-    }
-    .dates {
-      white-space: nowrap;
-      color: var(--muted);
-      font-size: 9pt;
-      font-weight: 600;
-    }
-    .org {
-      margin: 0 0 0.04in;
-      color: var(--muted);
-      font-size: 9pt;
-      font-style: italic;
-    }
-    ul {
-      margin: 0 0 0.04in;
-      padding-left: 0.16in;
-    }
-    li { margin: 0 0 0.02in; }
-    .skills {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.02in 0.2in;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-    .skills li::before {
-      content: "• ";
-      color: var(--accent);
-      font-weight: 700;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 0.02in 0 0.02in;
-      font-size: 9pt;
-    }
-    td {
-      vertical-align: top;
-      padding: 0.015in 0.06in 0.015in 0;
-      border-bottom: 1px solid var(--rule);
-    }
-    td:first-child {
-      width: 1.2in;
-      font-weight: 700;
-      color: var(--accent);
-    }
-    .targets {
-      margin: 0.03in 0 0;
-      font-size: 9pt;
-    }
-    .note {
-      margin: 0.04in 0 0;
-      color: var(--muted);
-      font-size: 8.5pt;
-      font-style: italic;
-    }
-    @media print {
-      .page { padding: 0; width: auto; min-height: auto; }
-      a { color: inherit; text-decoration: none; }
-    }
-    @page { margin: 0.4in 0.5in; size: letter; }
+    :root { --ink:#1a1f24; --muted:#4a5560; --accent:#1e3a4c; --rule:#c5ccd3; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); font:10pt/1.32 "Segoe UI","Helvetica Neue",Arial,sans-serif; }
+    .page { max-width:8.5in; margin:0 auto; padding:0.45in 0.55in; }
+    h1 { margin:0 0 0.05in; font-size:18pt; color:var(--accent); }
+    .contact, .tagline { margin:0 0 0.05in; color:var(--muted); font-size:9pt; }
+    .tagline { color:var(--accent); font-weight:700; }
+    h2 { margin:0.12in 0 0.05in; padding-bottom:0.02in; border-bottom:1.25px solid var(--accent); font-size:10pt; letter-spacing:0.05em; text-transform:uppercase; color:var(--accent); }
+    p { margin:0 0 0.07in; }
+    .role { display:flex; justify-content:space-between; gap:0.2in; margin:0.08in 0 0.01in; font-weight:700; }
+    .org { margin:0 0 0.04in; color:var(--muted); font-style:italic; font-size:9pt; }
+    ul { margin:0 0 0.06in; padding-left:0.16in; }
+    li { margin:0 0 0.02in; }
+    .skills p { margin:0 0 0.04in; font-size:8.6pt; }
+    .skills strong { color:var(--accent); }
+    .note { color:var(--muted); font-size:8.5pt; font-style:italic; }
+    @media print { a { color:inherit; text-decoration:none; } }
   </style>
 </head>
 <body>
   <main class="page">
     <h1>Christopher Sims</h1>
-    <p class="contact">
-      Tampa Bay Area, FL ·
-      <a href="mailto:csims@macksims.com">csims@macksims.com</a> ·
-      <a href="https://www.linkedin.com/in/chris-sims-62a51bb1">linkedin.com/in/chris-sims-62a51bb1</a>
-    </p>
-    <p class="tagline">U.S. Air Force Veteran · Founder · Regional Sales &amp; Operations Leader</p>
+    <p class="contact">Tampa Bay Area, FL · <a href="mailto:csims@macksims.com">csims@macksims.com</a> · <a href="https://www.linkedin.com/in/chris-sims-62a51bb1">linkedin.com/in/chris-sims-62a51bb1</a> · Open to Remote / Florida / Tampa</p>
+    <p class="tagline">U.S. Air Force Veteran · Founder · Regional Director · Business Development · Operations · Partnerships · Growth</p>
 
     <h2>Professional Summary</h2>
-    <p>
-      Founder and commercial leader based in Tampa Bay with 10+ years building customer pipelines, partner networks,
-      and market presence in energy and home services, plus hands-on experience launching community-focused digital
-      products. Combines military discipline with entrepreneurial execution—owns growth, relationships, and multi-brand
-      operations. Seeking senior Tampa/Florida or remote roles in GM, business development, partnerships, operations, or growth.
-    </p>
+    <p>Results-driven General Manager / Regional Director and founder with 10+ years of commercial leadership in retail energy, utilities-adjacent home services, customer acquisition, and team development. Proven in business development, strategic partnerships, channel partnerships, territory growth, pipeline development, consultative selling, and go-to-market (GTM) execution. Experienced owner-operator who builds brands, platforms, and multi-venture portfolios while driving revenue growth, market expansion, stakeholder engagement, and operational accountability. Seeking senior remote or Tampa / Florida roles: General Manager, Regional Director, Director of Business Development, Director of Strategic Partnerships, Director of Operations, Head of Growth, Sales Director, or venture studio operator.</p>
 
-    <h2>Core Strengths</h2>
-    <ul class="skills">
-      <li><strong>Leadership &amp; Accountability</strong> — team development, ownership of results</li>
-      <li><strong>Revenue &amp; Relationship Sales</strong> — acquisition, consultative selling, referrals</li>
-      <li><strong>Partnerships &amp; Channels</strong> — partner recruitment and alliance GTM</li>
-      <li><strong>Brand &amp; Platform Building</strong> — zero-to-one products and portfolio ops</li>
-      <li><strong>Operations Mindset</strong> — process clarity and execution under ambiguity</li>
-      <li><strong>Cross-Industry Transfer</strong> — services, energy, tech, growth-stage companies</li>
-    </ul>
+    <h2>Skills / Keywords</h2>
+    <div class="skills">
+      <p><strong>Leadership &amp; Operations:</strong> General Management, Regional Leadership, Operations Management, Multi-Unit / Multi-Market Leadership, Performance Management, KPI Tracking, Process Improvement, Cross-Functional Collaboration, Change Management, Coaching &amp; Mentoring, Talent Development, Accountability, P&amp;L Mindset, Strategic Planning, Execution Excellence</p>
+      <p><strong>Sales &amp; Business Development:</strong> Business Development, B2B Sales, B2C Sales, Enterprise Relationship Selling, Consultative Selling, Solution Selling, Full-Cycle Sales, Lead Generation, Pipeline Development, Pipeline Management, Quota Ownership, Forecasting, Territory Management, Market Expansion, Revenue Growth, Customer Acquisition, Customer Retention, Account Management, Contract Negotiation, Closing, Outbound Prospecting</p>
+      <p><strong>Partnerships &amp; Channels:</strong> Strategic Partnerships, Channel Partnerships, Partner Recruitment, Alliance Development, Referral Networks, Ecosystem Building, Co-Marketing, Stakeholder Management, Community Partnerships, Vendor / Trade Partner Relationships</p>
+      <p><strong>Energy &amp; Home Services:</strong> Retail Energy, Utilities, Electricity, Natural Gas, Renewable Options, Home Services, Demand Response Familiarity, Energy Sales, Customer Education, Enrollment, Service Value Proposition</p>
+      <p><strong>Product, Brand &amp; Growth:</strong> Venture Studio, Company Building, Brand Building, Product Development, Go-to-Market Strategy, Growth Strategy, Portfolio Management, Zero-to-One Launch, Beta Programs, Digital Platforms, Community-Focused Ventures</p>
+      <p><strong>Work Style &amp; Tools:</strong> Remote Work, Hybrid Work, Travel Ready, CRM / Pipeline Tracking, Microsoft Office, Google Workspace, Reporting &amp; Dashboards, Presentation Skills, Negotiation, Military Leadership, Veteran</p>
+    </div>
 
     <h2>Professional Experience</h2>
-
-    <div class="role-head">
-      <h3>Founder</h3>
-      <span class="dates">Present</span>
-    </div>
+    <div class="role"><span>Founder</span><span>Present</span></div>
     <p class="org">MackSims — Parent Company &amp; Venture Studio · Tampa, FL</p>
     <ul>
-      <li>Founded and operate a Tampa Bay parent company/venture studio building brands, platforms, and community-centered products.</li>
-      <li>Set vision and operating cadence across a multi-product portfolio (consumer mobility, faith/creators, coaching, outdoor/community, local services).</li>
-      <li>Drive brand positioning, product scoping, beta readiness, and go-to-market for MotoCrew, CurbCue, Sermon Studio, CoachCore, and FishCrew.</li>
-      <li>Coordinate design/engineering workflows and tester feedback; own strategy-through-shipping decisions as owner-operator.</li>
+      <li>Own end-to-end company building across a multi-venture portfolio: strategic planning, brand positioning, product development, go-to-market strategy, beta launch, and operational accountability.</li>
+      <li>Drive business development and partnership-oriented product narratives for consumer and community platforms including MotoCrew, CurbCue, Sermon Studio, CoachCore, and FishCrew.</li>
+      <li>Lead cross-functional collaboration across design, engineering, and go-to-market workflows; manage feedback loops, quality standards, and shipping cadence.</li>
+      <li>Build growth systems for early-stage products: positioning, user acquisition concepts, partner/community channels, and portfolio prioritization.</li>
+      <li>Operate with founder-level ownership of KPIs, roadmap decisions, stakeholder communication, and execution under ambiguity.</li>
     </ul>
 
-    <div class="role-head">
-      <h3>Regional Director</h3>
-      <span class="dates">Jan 2015 – Present</span>
-    </div>
+    <div class="role"><span>Regional Director</span><span>January 2015 – Present</span></div>
     <p class="org">Stream (Stream Energy / Stream Home)</p>
     <ul>
-      <li>Independent regional leadership focused on customer growth, relationship sales, and team development for retail energy and home services.</li>
-      <li>Built and sustained a referral- and relationship-driven customer acquisition engine over 10+ years.</li>
-      <li>Educated households and businesses on energy and home-service options; guided enrollment and ongoing account relationships.</li>
-      <li>Recruited, mentored, and developed associates/leaders to expand market reach; operated with high autonomy and pipeline ownership.</li>
+      <li>Regional Director responsible for business development, customer acquisition, relationship sales, channel/referral growth, and team leadership across retail energy and home services (electricity, natural gas, mobile, protective/home services).</li>
+      <li>Built and sustained a relationship-driven sales engine focused on lead generation, pipeline development, customer acquisition, and long-term account relationships over 10+ years.</li>
+      <li>Executed full-cycle consultative selling: prospecting, needs discovery, solution presentation, enrollment/closing, and customer retention follow-up.</li>
+      <li>Expanded market presence through territory development, referral networks, partner recruitment, and community-based channel partnerships.</li>
+      <li>Recruited, coached, and mentored associates and emerging leaders; drove performance management, accountability, and talent development in a decentralized model.</li>
+      <li>Owned personal quota-style production in a performance-based commercial environment with high autonomy, forecasting discipline, and consistent pipeline management.</li>
+      <li>Educated residential and business customers on energy solutions and home-service value propositions; strengthened stakeholder trust and brand representation.</li>
     </ul>
 
-    <div class="role-head">
-      <h3>United States Air Force</h3>
-      <span class="dates">Veteran</span>
-    </div>
+    <div class="role"><span>United States Air Force</span><span>Veteran</span></div>
     <p class="org">Military Service</p>
     <ul>
-      <li>U.S. Air Force Veteran. Brings mission focus, integrity, adaptability, and leadership under pressure to civilian business environments.</li>
+      <li>U.S. Air Force Veteran with transferable strengths in leadership, operations discipline, mission execution, integrity, adaptability, teamwork, and performance under pressure.</li>
+      <li>Experienced translating military leadership into civilian general management, sales leadership, and business operations.</li>
     </ul>
 
     <h2>Selected Ventures (MackSims Portfolio)</h2>
-    <table>
-      <tr><td>MotoCrew</td><td>Motorcycle group-ride coordination and safety-first rider community product</td></tr>
-      <tr><td>CurbCue</td><td>Ride comparison and pickup-pressure awareness for smarter booking decisions</td></tr>
-      <tr><td>Sermon Studio</td><td>Tools for pastors/creators—sermon drafting, series planning, worship setlists</td></tr>
-      <tr><td>CoachCore</td><td>Coaching accountability and athlete/coach workflow concepts</td></tr>
-      <tr><td>FishCrew</td><td>Fishing trip planning, community reports, and local partner connections</td></tr>
-    </table>
+    <ul>
+      <li><strong>MotoCrew:</strong> Motorcycle group-ride coordination platform; community operations and safety-first product development</li>
+      <li><strong>CurbCue:</strong> Ride comparison and demand/pickup-pressure awareness product for smarter consumer decisions</li>
+      <li><strong>Sermon Studio:</strong> Creator/pastor productivity platform for sermon drafting, series planning, and worship setlists</li>
+      <li><strong>CoachCore:</strong> Coaching accountability and athlete/coach workflow platform concepts</li>
+      <li><strong>FishCrew:</strong> Fishing community platform for trip planning, reports, and local business partnerships</li>
+    </ul>
 
-    <h2>Target Roles</h2>
-    <p class="targets">
-      General Manager · Regional Director · Director of Business Development · Director of Partnerships /
-      Strategic Alliances · Director of Operations · Head of Growth · Venture Studio / Operator roles
-    </p>
-    <p class="note">Tampa / Florida preferred; open to remote U.S. with travel as needed. USAF Veteran.</p>
+    <h2>Target Titles</h2>
+    <p>General Manager · Regional Director · Regional Sales Director · Director of Business Development · Director of Strategic Partnerships · Director of Partnerships · Director of Operations · Head of Growth · Sales Director · Channel Development Director · Venture Studio Director · Operator-in-Residence</p>
+    <p class="note">Open to remote United States roles and Florida-based opportunities (Tampa Bay preferred). Willing to travel for regional coverage, partner meetings, and customer engagement.</p>
   </main>
 </body>
 </html>
