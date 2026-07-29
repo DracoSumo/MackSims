@@ -11,7 +11,7 @@
     "test": "vitest run",
     "check": "npm run test && npm run build",
     "prepare": "husky",
-    "deploy:netlify": "netlify deploy --prod",
+    "deploy:netlify": "netlify build && netlify deploy --prod --no-build --dir .netlify/static --functions .netlify/functions-internal",
     "cap:sync": "npx cap sync",
     "cap:ios": "npx cap open ios",
     "cap:android": "npx cap open android",
