@@ -47,7 +47,12 @@ export function AthleteAccountabilityPanel() {
       </p>
 
       <div className="mt-5 space-y-3">
-        {athletes.map((athlete) => {
+        {athletes.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-white/15 p-4 text-sm text-slate-400">
+            No athletes on this roster yet. Import your team to see film, workout, fueling, and readiness status.
+          </p>
+        ) : (
+          athletes.map((athlete) => {
           const checkedInToday = todayCheckInIds.has(athlete.id);
           return (
             <Link
@@ -89,7 +94,8 @@ export function AthleteAccountabilityPanel() {
               </div>
             </Link>
           );
-        })}
+        })
+        )}
       </div>
     </div>
   );
