@@ -4,9 +4,8 @@ import { AthleteAccountabilityPanel } from "@/components/AthleteAccountabilityPa
 import { RecentActionLogPanel } from "@/components/RecentActionLogPanel";
 import { RecentCheckInsPanel } from "@/components/RecentCheckInsPanel";
 import { DashboardSyncStrip } from "@/components/DashboardSyncStrip";
-import { actionCards, activityTimeline, coachCoreStats, playbookItems } from "@/data/mock";
+import { actionCards, activityTimeline, coachCoreStats, integrations, playbookItems } from "@/data/mock";
 import { coachCoreConfig } from "@/config/coachcore";
-import { DashboardIntegrationsStrip } from "@/components/integrations/DashboardIntegrationsStrip";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CommandCard, CrossLinkStrip, DemoDisclaimerStrip, FoundationNote, MetricCard, StatusPill } from "@/components/ui/CoachCards";
 
@@ -162,7 +161,19 @@ export default function CoachDashboard() {
               </div>
             </div>
 
-            <DashboardIntegrationsStrip />
+            <div className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-5">
+              <h2 className="text-2xl font-black">Integration center</h2>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {integrations.slice(0, 8).map((item) => (
+                  <span key={item.name} className="rounded-full bg-white/10 px-3 py-2 text-xs text-slate-200">
+                    {item.name}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-5 text-sm leading-6 text-slate-400">
+                Plugin-ready placeholders only. No external APIs or credentials are connected.
+              </p>
+            </div>
 
             <div className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-5">
               <h2 className="text-2xl font-black">Activity timeline</h2>

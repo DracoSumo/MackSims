@@ -46,6 +46,7 @@ create table if not exists user_blocks (
   blocker_id uuid not null,
   blocked_id uuid not null,
   created_at timestamptz not null default now(),
+  check (blocker_id <> blocked_id),
   unique (blocker_id, blocked_id)
 );
 
@@ -75,11 +76,14 @@ alter table content_reports enable row level security;
 drop policy if exists "blocks select own" on user_blocks;
 create policy "blocks select own"
   on user_blocks for select to authenticated
-  using (blocker_id = auth.uid());
+  using (
+    blocker_id = auth.uid()
+    or (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
+  );
 drop policy if exists "blocks insert own" on user_blocks;
 create policy "blocks insert own"
   on user_blocks for insert to authenticated
-  with check (blocker_id = auth.uid());
+  with check (blocker_id = auth.uid() and blocked_id <> auth.uid());
 drop policy if exists "blocks delete own" on user_blocks;
 create policy "blocks delete own"
   on user_blocks for delete to authenticated
@@ -88,7 +92,14 @@ create policy "blocks delete own"
 drop policy if exists "reports insert own" on content_reports;
 create policy "reports insert own"
   on content_reports for insert to authenticated
-  with check (reporter_id = auth.uid());
+  with check (
+    reporter_id = auth.uid()
+    and status = 'open'
+    and action_taken is null
+    and reviewed_by is null
+    and reviewed_at is null
+    and audit_note is null
+  );
 drop policy if exists "reports select own" on content_reports;
 create policy "reports select own"
   on content_reports for select to authenticated
@@ -96,9 +107,21 @@ create policy "reports select own"
 drop policy if exists "reports moderate" on content_reports;
 create policy "reports moderate"
   on content_reports for update to authenticated
-  using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'moderator')
-  with check ((auth.jwt() -> 'app_metadata' ->> 'role') = 'moderator');
+  using (
+    (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
+    and reporter_id <> auth.uid()
+  )
+  with check (
+    (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
+    and reporter_id <> auth.uid()
+    and reviewed_by = auth.uid()
+  );
 drop policy if exists "reports select moderators" on content_reports;
-create policy "reports select moderators"
+drop policy if exists "reports select admins" on content_reports;
+create policy "reports select admins"
   on content_reports for select to authenticated
-  using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'moderator');
+  using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+revoke update on content_reports from authenticated;
+grant update (status, action_taken, reviewed_by, reviewed_at, audit_note, updated_at)
+  on content_reports to authenticated;
