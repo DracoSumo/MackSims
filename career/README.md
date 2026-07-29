@@ -9,7 +9,7 @@ Files for job applications (remote + Tampa/Florida area, any work arrangement):
 | `Christopher_Sims_Resume.html` | Printable web version |
 | `APPLICATION_OUTREACH.md` | Ready-to-send emails for remote priority roles |
 | `FLORIDA_TAMPA_JOBS.md` | Tampa Bay / Florida jobs (onsite, hybrid, remote) including community outreach + area outreach emails |
-| `JOB_RANKINGS_PROS_CONS.md` | Full ranked list of all roles with tailored pros/cons and apply sequence |
+| `AUTO_APPLY_TRACKER.md` | New jobs found + auto-apply analysis (no-account forms, LinkedIn Easy Apply, email) |
 
 Send from `csims@macksims.com`. Prefer Tampa / Florida; any industry OK; remote OK.
 
