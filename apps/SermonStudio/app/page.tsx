@@ -16,6 +16,8 @@ import { buildSermonNotes, openPrintableOutline } from '@/lib/sermonExport'
 import { downloadLibraryIcs, downloadSermonIcs } from '@/lib/localIcs'
 import { SERMON_TEMPLATES } from '@/lib/sermonTemplates'
 import { defaultOutline, type Sermon, type SermonOutline, type Series, type Song, type Verse } from '@/lib/types'
+import { canEnterPreachMode } from '@/lib/preachingMode'
+import PreachingMode from '@/components/PreachingMode'
 
 const TRANSLATIONS = [
   { id: 'KJV', name: 'King James Version (KJV)', license: 'Public Domain', available: true },
@@ -182,6 +184,7 @@ export default function Page() {
   const [saving, setSaving] = useState(false)
 
   const [sermon, setSermon] = useState<Sermon>(emptySermon())
+  const [preachSermon, setPreachSermon] = useState<Sermon | null>(null)
   const [status, setStatus] = useState<{ kind: 'info'|'success'|'error'; text: string } | null>(null)
   const [newSeriesName, setNewSeriesName] = useState('')
   const hydrated = useRef(false)
@@ -438,6 +441,19 @@ export default function Page() {
         </div>
         <div className='ss-action-row flex flex-wrap gap-3'>
           <Button onClick={saveSermon} disabled={saving}>{saving ? 'Saving…' : 'Save Draft'}</Button>
+          <Button
+            variant='outline'
+            disabled={!canEnterPreachMode(sermon)}
+            onClick={() => {
+              if (!canEnterPreachMode(sermon)) {
+                notify('info', 'Add a title, passage, key point, or notes before preaching.')
+                return
+              }
+              setPreachSermon(sermon)
+            }}
+          >
+            Preach
+          </Button>
           <Button variant='outline' onClick={copySermonNotes}>Copy Sermon Notes</Button>
           <Button variant='outline' onClick={printSermonOutline}>Print Outline</Button>
           <Button variant='outline' onClick={()=>{
@@ -840,6 +856,13 @@ export default function Page() {
                     window.scrollTo({ top: 0, behavior: 'smooth' })
                     notify('info', `Loaded "${s.title || 'Untitled Sermon'}" into the editor above.`)
                   }}>Edit</Button>
+                  <Button
+                    variant='outline'
+                    disabled={!canEnterPreachMode(s)}
+                    onClick={() => setPreachSermon(normalizeSermon(s))}
+                  >
+                    Preach
+                  </Button>
                   <Button variant='outline' onClick={()=>{
                     const copy = normalizeSermon({
                       ...s,
@@ -865,6 +888,10 @@ export default function Page() {
       <footer className='pb-4 text-center text-xs text-[color:var(--ss-muted)]'>
         Pastor&apos;s Sermon Studio — external beta. Works fully offline in this browser; connect Supabase to sync across devices.
       </footer>
+
+      {preachSermon ? (
+        <PreachingMode sermon={preachSermon} onClose={() => setPreachSermon(null)} />
+      ) : null}
     </div>
   )
 }
