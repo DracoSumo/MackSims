@@ -53,7 +53,10 @@ CREATE POLICY feed_update_owner_or_admin ON public.feed_posts
   FOR UPDATE
   TO authenticated
   USING (author_id = (auth.uid())::text OR public.is_admin())
-  WITH CHECK (author_id = (auth.uid())::text OR public.is_admin());
+  WITH CHECK (
+    public.is_admin()
+    OR (author_id = (auth.uid())::text AND status = 'Removed')
+  );
 
 DROP POLICY IF EXISTS feed_delete_owner_or_admin ON public.feed_posts;
 CREATE POLICY feed_delete_owner_or_admin ON public.feed_posts
