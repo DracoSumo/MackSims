@@ -1,20 +1,19 @@
 # Sermon Studio - Store Launch Status
 
-Sermon Studio may need a later store-readiness pass and is not yet store-ready.
+**Updated:** 2026-07-23  
+**Owner paste kit:** [`../../OWNER_UPLOAD_KIT.md`](../../OWNER_UPLOAD_KIT.md)
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Console status | NOT STARTED | Do not create records until owner approval |
-| iOS | NOT STARTED | Bundle ID and TestFlight status not confirmed |
-| Android | NOT STARTED | Package name and AAB status not confirmed |
-| Web/PWA | NOT STARTED | Current deployment status not confirmed |
-| Bundle/package confirmed | NEEDS OWNER CONFIRMATION |  |
-| Store copy | NOT STARTED | Seeded template only |
-| Privacy/data safety | NEEDS OWNER CONFIRMATION | Complete `PRIVACY_DATA.md` |
-| Screenshots/assets | NOT STARTED | Capture after build is final |
-| Reviewer notes | NOT STARTED | Draft exists; must be updated for actual build |
-| Tester track | NOT STARTED |  |
-| Backend readiness | NEEDS OWNER CONFIRMATION | Confirm auth, storage, generated content, calendar/export |
+| Console status | **READY TO PASTE** metadata | ASC `6787823019` exists per APP_STORE_ASSETS; do not duplicate |
+| Store copy | **READY TO PASTE** | OWNER_UPLOAD_KIT |
+| Privacy/data safety | **READY TO PASTE** matrix · **OWNER CONFIRM** wizard | PRIVACY_DATA + CSV |
+| Screenshots/assets | **READY TO PASTE** | 4×6.5, 4×6.9, 4×iPad 12.9 |
+| Age / content rights | **OWNER CONFIRM** | Scripture/source rights + 12+ |
+| Reviewer notes | **READY TO PASTE** | Login required — provision `review.sermonstudio@…` |
+| Bundle/package | `com.chrissims.sermonstudio` | Confirmed in docs |
+| Web/PWA | LIVE | https://sermon-studio-beta.netlify.app/ |
+| Backend readiness | **OWNER CONFIRM** | Auth, storage, AI/export scope |
 
 ## Highest-Priority Blockers
 

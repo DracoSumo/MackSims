@@ -27,20 +27,30 @@
 - Pass 005 capture result: public/support-safe route was captured locally but marked `REJECT`; live route showed `Site not found`.
 - Pass 005 blocker: ShutterBid public route must be fixed/replaced before store screenshots can use it; no screenshots were uploaded.
 
+## ASC blockers (Version 1.0 Prepare for Submission — 2026-07-23)
+
+Unable to Add for Review until all of:
+
+1. **App Privacy Policy URL** — paste `https://macksims-public-site.netlify.app/privacy/` and complete App Privacy questionnaire
+2. **12.9" iPad screenshots** — local pack ready (`app-store-assets/shutterbid/ipad-12.9/`, 3× 2048×2732); upload after owner approval
+3. **Content Rights** — OWNER CONFIRM
+4. **Age Ratings** — OWNER CONFIRM (docs: 12+ / audience 18+)
+5. **Primary Category** — Photo & Video
+
+Also: Support URL → `https://macksims-public-site.netlify.app/support/`; Copyright → `© 2026 MackSims LLC`; Marketing → live https (prefer Netlify product host if macksims.com 404s). Checklist: `../../ASC_SUBMISSION_BLOCKERS_ALL_APPS.md`.
+
 ## App Store Connect
 
 1. Do not create a duplicate Apple app record.
 2. Do not change bundle ID `com.chrissims.shutterbid`.
 3. Review `STORE_FORM_DRAFTS.md` and fill owner-confirmed privacy answers only.
 4. Complete `PRIVACY_OWNER_QUESTIONNAIRE.md`; App Privacy is not started in ASC and must not be submitted without owner-confirmed data details.
-5. Review `SCREENSHOT_EXECUTION_CHECKLIST.md`; app-specific scenes need route/screen confirmation before capture, and the public/support-safe capture is rejected because the live route showed `Site not found`.
-6. Review `SCREENSHOT_PLAN.md`; visible iPhone 6.5-inch slot currently shows 0 of 10 screenshots.
-7. Select an uploaded build for App Review only after screenshots and privacy are ready; the App Store version currently shows `Add Build`.
-8. Apple Marketing URL is corrected to `https://macksims.com/shutterbid`.
-9. Confirm App Information fields, including SKU/category/age rating if needed; readable App Information fields were not confirmed.
-10. Confirm reviewer/demo access outside repo. Sign-in is required and credentials are present in App Store Connect; use `DO_NOT_COMMIT_PASSWORD` in docs and do not commit or reveal passwords.
-11. Confirm Apple privacy/account deletion URL fields where supported.
-12. Use `screenshots/apple` and `screenshots/google-play` for owner-approved captures only.
+5. Upload iPhone 6.5 / 6.9 and **iPad 12.9** packs from `app-store-assets/shutterbid/` after owner approval (`SCREENSHOTS.md`).
+6. Select an uploaded build for App Review; the App Store version previously showed `Add Build`.
+7. Prefer Support URL `https://macksims-public-site.netlify.app/support/` (https). Marketing URL must be a live https page.
+8. Confirm App Information: Primary Category **Photo & Video**, Age Ratings, Content Rights, Copyright `© 2026 MackSims LLC`.
+9. Confirm reviewer/demo access outside repo. Sign-in is required; see `DEMO_REVIEW_LOGINS.md` (do not commit alternate passwords).
+10. Confirm Apple privacy/account deletion URL fields where supported.
 
 ## Privacy Owner Questionnaire
 

@@ -1,50 +1,40 @@
 # CoachCore - Screenshots
 
-**Updated:** 2026-07-11 · v0.7.1  
+**Updated:** 2026-07-23 · store-launch pack  
 **Base URL:** https://coachcore7.netlify.app
+
+## Packs (local)
+
+| Slot | Path | Count | Size |
+| --- | --- | ---: | --- |
+| iPhone 6.5" | `../../app-store-assets/coachcore/iphone-6.5/` | 5 | 1242×2688 |
+| iPhone 6.9" | `../../app-store-assets/coachcore/iphone-6.9/` | 5 | 1320×2868 |
+| iPad 12.9" | `../../app-store-assets/coachcore/ipad-12.9/` | 5 | 2048×2732 |
+
+**ASC note:** 12.9" iPad screenshots are **required** before Add for Review. See [`../../ASC_SUBMISSION_BLOCKERS_ALL_APPS.md`](../../ASC_SUBMISSION_BLOCKERS_ALL_APPS.md).
 
 ## Before capture
 
 1. Open production URL in a clean browser profile
 2. **Dismiss** the demo walkthrough banner (session dismiss is OK)
 3. Use **mock data only** — no real athlete names or private info
-4. Capture at listed viewports; save to `store-assets/v071/`
 
 ## Required shots
 
-| # | Screen | URL | Viewport | iOS | Android |
-| --- | --- | --- | --- | --- | --- |
-| 1 | Landing hero | `/` | 1290×2796 (6.7") | Yes | Phone 1080×2400 |
-| 2 | Coach dashboard | `/app` | 1290×2796 | Yes | Phone |
-| 3 | Accountability | `/app/accountability` | 1290×2796 | Yes | Phone |
-| 4 | Training | `/app/training` | 1290×2796 | Yes | Phone |
-| 5 | Team chat | `/app/chat` | 1290×2796 | Yes | Phone |
-| 6 | Privacy footer | `/privacy` | 1290×2796 | Optional | Optional |
-| 7 | Dashboard tablet | `/app` | 2048×2732 | iPad | 7" tablet 1200×1920 |
-
-## Google Play extras
-
-| Asset | Size | Status |
+| # | Screen | URL |
 | --- | --- | --- |
-| Feature graphic | 1024×500 | NOT STARTED |
-| App icon | 512×512 | Use 1024 source scaled |
+| 1 | Landing hero | `/` |
+| 2 | Coach dashboard | `/app` |
+| 3 | Accountability | `/app/accountability` |
+| 4 | Training | `/app/training` |
+| 5 | Team chat | `/app/chat` |
 
-## iOS icon
-
-| Asset | Size | Notes |
-| --- | --- | --- |
-| App Store icon | 1024×1024 | No alpha channel |
-
-## Capture command (optional)
-
-From `coachcore-static-v001`:
+## Capture command
 
 ```bash
-npx playwright install chromium
-node scripts/capture-store-screens.mjs
+cd docs/store-launch
+node scripts/capture-all-store-screens.mjs --apps=coachcore --forms=ipad-12.9
 ```
-
-Outputs to `store-assets/v071/`.
 
 ## Avoid in screenshots
 
@@ -57,7 +47,7 @@ Outputs to `store-assets/v071/`.
 
 | Asset | Status | Notes |
 | --- | --- | --- |
-| App icon 1024 | NOT STARTED | MackSims brand + CoachCore wordmark |
-| iOS 6.7" set (5) | NOT STARTED | Run capture script |
-| Android phone set (5) | NOT STARTED | Run capture script |
-| Feature graphic | NOT STARTED | Play only |
+| App icon 1024 | READY | `../../app-store-assets/coachcore/icon-1024.png` |
+| iOS 6.5" / 6.9" | READY locally | Upload in ASC still needed |
+| iOS 12.9" iPad | READY locally | **Required** for submission |
+| Feature graphic | Play only | |

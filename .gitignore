@@ -25,12 +25,22 @@ apps/momentpick-web/
 *.zip
 *.log
 secrets/
-
 backups/
-
-
 docs/store-launch/DEMO_REVIEW_LOGINS.md
 
+# Local deployment, console, and generated test artifacts
+apps/CoachCore/_redeploy_*.txt
+apps/CoachCore/coachcore-static-v001/_opensrs.json
+apps/CoachCore/coachcore-static-v001/_test_report_tmp/
+apps/CoachCore/coachcore-static-v001/disk-*
+apps/SermonStudio/_coachcore_siteurl_result.md
+apps/SermonStudio/_followup_result.md
+apps/SermonStudio/_site_api_out.json
+apps/SermonStudio/_site_query.json
+docs/store-launch/eng.traineddata
+docs/store-launch/scripts/_*.mjs
+docs/store-launch/scripts/*-report.json
+docs/store-launch/scripts/*-summary.json
 
 # Local Netlify folder
 .netlify

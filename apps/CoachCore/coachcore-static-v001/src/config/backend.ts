@@ -3,7 +3,11 @@ export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
 export const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
 
 function isValidAnonKey(key: string): boolean {
-  return key.length > 40 && key.startsWith("eyJ") && !key.includes("your-anon-key");
+  return (
+    key.length > 40 &&
+    (key.startsWith("eyJ") || key.startsWith("sb_publishable_")) &&
+    !key.includes("your-anon-key")
+  );
 }
 
 export const supabaseProjectRef = SUPABASE_URL
@@ -12,7 +16,7 @@ export const supabaseProjectRef = SUPABASE_URL
 
 export function supabaseStatusLabel(): string {
   if (SUPABASE_URL && isValidAnonKey(SUPABASE_ANON_KEY)) {
-    return `${SUPABASE_URL} — client ready (schema/auth wiring is v0.6)`;
+    return `${SUPABASE_URL} — client ready (v0.7.1 auth + sync)`;
   }
   if (SUPABASE_URL && SUPABASE_ANON_KEY) {
     return `${SUPABASE_URL} — anon key looks like a placeholder; paste the JWT from Supabase API settings`;
@@ -24,3 +28,7 @@ export function supabaseStatusLabel(): string {
 }
 
 export const isSupabaseConfigured = Boolean(SUPABASE_URL && isValidAnonKey(SUPABASE_ANON_KEY));
+
+/** Flip only after Meta Facebook Login + Supabase Facebook provider are configured and tested. */
+export const isFacebookAuthEnabled =
+  (process.env.NEXT_PUBLIC_ENABLE_FACEBOOK_AUTH ?? "false").trim().toLowerCase() === "true";

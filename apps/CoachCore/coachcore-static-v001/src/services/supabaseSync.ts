@@ -222,6 +222,9 @@ export async function mergeOnSignIn(user: User): Promise<string | null> {
   }
 
   try {
+    const { syncIntegrationsOnSignIn } = await import("./integrationsSync");
+    await syncIntegrationsOnSignIn();
+
     const [remoteCheckIns, remoteActions] = await Promise.all([pullCheckIns(), pullActionLog()]);
 
     // localStorage wins on id conflicts; add remote-only rows

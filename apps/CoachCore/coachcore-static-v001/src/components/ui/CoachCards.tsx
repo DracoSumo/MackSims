@@ -1,4 +1,5 @@
 ﻿import Link from "next/link";
+import { isSupabaseConfigured } from "@/config/backend";
 import { coachCoreConfig, connectedSurfaceLinks } from "@/config/coachcore";
 
 export function MetricCard({
@@ -88,9 +89,17 @@ export function CrossLinkStrip({ current }: { current?: string }) {
 }
 
 export function DemoDisclaimerStrip() {
+  const live = isSupabaseConfigured;
   return (
-    <p className="rounded-[12px] border border-amber-300/25 bg-[rgba(249,115,22,0.12)] px-4 py-3 text-sm leading-6 text-amber-50/95 backdrop-blur-sm">
-      <span className="font-bold">Static demo.</span> {coachCoreConfig.safetyNote}
+    <p
+      className={`rounded-[12px] border px-4 py-3 text-sm leading-6 backdrop-blur-sm ${
+        live
+          ? "border-emerald-300/25 bg-[rgba(16,185,129,0.12)] text-emerald-50/95"
+          : "border-amber-300/25 bg-[rgba(249,115,22,0.12)] text-amber-50/95"
+      }`}
+    >
+      <span className="font-bold">{live ? "Live beta." : "Setup needed."}</span>{" "}
+      {coachCoreConfig.safetyNote}
     </p>
   );
 }
@@ -98,7 +107,7 @@ export function DemoDisclaimerStrip() {
 export function FoundationNote() {
   return (
     <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 text-sm leading-6 text-slate-400">
-      <span className="font-bold text-slate-200">{coachCoreConfig.version} static demo:</span>{" "}
+      <span className="font-bold text-slate-200">{coachCoreConfig.version} live beta:</span>{" "}
       {coachCoreConfig.safetyNote}
     </div>
   );

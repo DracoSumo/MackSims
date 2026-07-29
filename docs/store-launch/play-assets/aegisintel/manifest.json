@@ -1,0 +1,134 @@
+{
+  "app": "aegisintel",
+  "capturedAt": "2026-07-23T22:09:32.823Z",
+  "aegis404Fix": {
+    "note": "Deep links /watchlist and /settings return Netlify 404; captures use SPA nav / #settings",
+    "summary": {
+      "iphone-6.5": [
+        {
+          "shot": "01-home",
+          "url": "https://sprightly-lily-160925.netlify.app/",
+          "width": 1242,
+          "height": 2688,
+          "bytes": 612194
+        },
+        {
+          "shot": "02-watchlist",
+          "oldUrl": "https://sprightly-lily-160925.netlify.app/watchlist",
+          "newUrl": "https://sprightly-lily-160925.netlify.app/ + click button.app-nav-btn:Watchlist",
+          "width": 1242,
+          "height": 2688,
+          "bytes": 820469
+        },
+        {
+          "shot": "03-settings",
+          "oldUrl": "https://sprightly-lily-160925.netlify.app/settings",
+          "newUrl": "https://sprightly-lily-160925.netlify.app/#settings",
+          "width": 1242,
+          "height": 2688,
+          "bytes": 664424
+        }
+      ],
+      "iphone-6.9": [
+        {
+          "shot": "01-home",
+          "url": "https://sprightly-lily-160925.netlify.app/",
+          "width": 1320,
+          "height": 2868,
+          "bytes": 623120
+        },
+        {
+          "shot": "02-watchlist",
+          "oldUrl": "https://sprightly-lily-160925.netlify.app/watchlist",
+          "newUrl": "https://sprightly-lily-160925.netlify.app/ + click button.app-nav-btn:Watchlist",
+          "width": 1320,
+          "height": 2868,
+          "bytes": 849305
+        },
+        {
+          "shot": "03-settings",
+          "oldUrl": "https://sprightly-lily-160925.netlify.app/settings",
+          "newUrl": "https://sprightly-lily-160925.netlify.app/#settings",
+          "width": 1320,
+          "height": 2868,
+          "bytes": 704428
+        }
+      ],
+      "iphone-6.7": [
+        {
+          "shot": "01-home",
+          "url": "https://sprightly-lily-160925.netlify.app/",
+          "width": 1290,
+          "height": 2796,
+          "bytes": 619615
+        },
+        {
+          "shot": "02-watchlist",
+          "oldUrl": "https://sprightly-lily-160925.netlify.app/watchlist",
+          "newUrl": "https://sprightly-lily-160925.netlify.app/ + click button.app-nav-btn:Watchlist",
+          "width": 1290,
+          "height": 2796,
+          "bytes": 837346
+        },
+        {
+          "shot": "03-settings",
+          "oldUrl": "https://sprightly-lily-160925.netlify.app/settings",
+          "newUrl": "https://sprightly-lily-160925.netlify.app/#settings",
+          "width": 1290,
+          "height": 2796,
+          "bytes": 641337
+        }
+      ],
+      "ipad-12.9": [
+        {
+          "shot": "01-home",
+          "url": "https://sprightly-lily-160925.netlify.app/",
+          "width": 2048,
+          "height": 2732,
+          "bytes": 845835
+        },
+        {
+          "shot": "02-watchlist",
+          "oldUrl": "https://sprightly-lily-160925.netlify.app/watchlist",
+          "newUrl": "https://sprightly-lily-160925.netlify.app/ + click button.app-nav-btn:Watchlist",
+          "width": 2048,
+          "height": 2732,
+          "bytes": 997622
+        },
+        {
+          "shot": "03-settings",
+          "oldUrl": "https://sprightly-lily-160925.netlify.app/settings",
+          "newUrl": "https://sprightly-lily-160925.netlify.app/#settings",
+          "width": 2048,
+          "height": 2732,
+          "bytes": 1098356
+        }
+      ],
+      "play-phone": [
+        {
+          "shot": "01-home",
+          "url": "https://sprightly-lily-160925.netlify.app/",
+          "width": 1080,
+          "height": 2400,
+          "bytes": 608164
+        },
+        {
+          "shot": "02-watchlist",
+          "oldUrl": "https://sprightly-lily-160925.netlify.app/watchlist",
+          "newUrl": "https://sprightly-lily-160925.netlify.app/ + click button.app-nav-btn:Watchlist",
+          "width": 1080,
+          "height": 2400,
+          "bytes": 748092
+        },
+        {
+          "shot": "03-settings",
+          "oldUrl": "https://sprightly-lily-160925.netlify.app/settings",
+          "newUrl": "https://sprightly-lily-160925.netlify.app/#settings",
+          "width": 1080,
+          "height": 2400,
+          "bytes": 572122
+        }
+      ]
+    }
+  }
+}

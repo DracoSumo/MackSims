@@ -22,9 +22,12 @@ Generated under `docs/store-launch/app-store-assets/<app>/`:
 |---------------|------|----------|
 | `icon-1024.png` | 1024×1024 | **Source for native builds** (Codemagic injects into IPA/AAB). Play Console Main store listing also uses a 512×512 derived from this. |
 | `iphone-6.7/*.png` | 1290×2796 | Version → Screenshots → **6.7" Display** |
-| `ipad-12.9/*.png` | 2048×2732 | Version → Screenshots → **12.9" iPad Pro** (optional) |
+| `iphone-6.5/*.png` | 1242×2688 | Version → Screenshots → **6.5" Display** |
+| `iphone-6.9/*.png` | 1320×2868 | Version → Screenshots → **6.9" Display** |
+| `ipad-12.9/*.png` | 2048×2732 | Version → Screenshots → **12.9" iPad Pro** — **required** before Add for Review (see `ASC_SUBMISSION_BLOCKERS_ALL_APPS.md`) |
 
-**Re-capture:** `node scripts/capture-app-store-screens.mjs all`  
+**Re-capture phones + Play:** `node scripts/capture-all-store-screens.mjs`  
+**Re-capture iPad 12.9 only:** `node scripts/capture-all-store-screens.mjs --forms=ipad-12.9`  
 **Open folders + ASC:** `.\scripts\open-app-store-assets.ps1`
 
 ### Codemagic icon injection (all hybrid apps)
@@ -74,11 +77,12 @@ Full text per app: `TIER3_PLAY_STORE_LISTINGS.md` and per-app `docs/store-launch
 ## Upload checklist (per app)
 
 1. **App icon** — `icon-1024.png` (no transparency)
-2. **6.7" iPhone screenshots** — all files in `iphone-6.7/` (3–10 shots)
-3. **12.9" iPad** (optional) — all files in `ipad-12.9/`
+2. **6.5" / 6.9" iPhone screenshots** — files in `iphone-6.5/` and `iphone-6.9/` (3–10 shots)
+3. **12.9" iPad screenshots** — **required** for submission — all files in `ipad-12.9/` (2048×2732)
 4. **Description, subtitle, keywords** — paste from listing docs
-5. **Support / marketing / privacy URLs** — shared URLs above
-6. **Save** — version does not need App Store submission for TestFlight-only beta
+5. **Support / marketing / privacy URLs** — shared URLs above (https Netlify)
+6. **Age Ratings, Content Rights, Primary Category** — see `ASC_SUBMISSION_BLOCKERS_ALL_APPS.md`
+7. **Save** — version does not need App Store submission for TestFlight-only beta
 
 ## TestFlight note
 

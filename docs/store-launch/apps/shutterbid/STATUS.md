@@ -1,17 +1,20 @@
 # ShutterBid - Existing Console Status
 
+**Updated:** 2026-07-23  
+**Owner paste kit:** [`../../OWNER_UPLOAD_KIT.md`](../../OWNER_UPLOAD_KIT.md)  
 ShutterBid is an existing console-flow app. Audit current setup and complete missing pieces; do not create duplicate Apple or Google records.
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Console status | EXISTING CONSOLE RECORDS | Per v001.1 request |
-| App Store Connect | IN PROGRESS | Existing Apple app record, visible app name, bundle ID, TestFlight build upload, and App Store version metadata confirmed; screenshots, submission build selection, App Privacy, app info/category, and some URL fields still need work/confirmation |
-| Google Play Console | IN PROGRESS | Existing Play record, package, AAB, and internal testing confirmed; store listing/privacy/assets still incomplete or unconfirmed |
-| Bundle/package confirmed | READY | Apple bundle ID and Google Play package both confirmed as `com.chrissims.shutterbid` |
-| Store copy | BLOCKED | Apple promotional text, description, keywords, support URL, marketing URL, version, copyright, and review notes are populated; Google Play short description and full description are blank; Pass 004 added draft Play listing copy for owner review only |
-| Privacy/data safety | BLOCKED | Google Play Privacy Policy URL is blank; Google Data safety and Apple App Privacy still need owner/console confirmation |
-| Screenshots/assets | IN PROGRESS | Pass 006: 3 READY local scenes; Pass 007: upload **WAITING OWNER APPROVAL** (web layout vs native presentation, footer admin link, post-job demo prefill mismatch) |
-| Reviewer notes | IN PROGRESS | Apple sign-in required is checked and reviewer account fields are populated; password is intentionally not recorded in docs |
+| Console status | EXISTING CONSOLE RECORDS | ASC `6783551944` · do not duplicate |
+| App Store Connect | **READY TO PASTE** + blockers | Fix Support URL if still `http://macksims.com/support` → public-site https; paste privacy URL |
+| Google Play Console | **READY TO PASTE** listing blanks | Short/full/privacy/category/contact from kit |
+| Bundle/package confirmed | READY | `com.chrissims.shutterbid` |
+| Store copy | **READY TO PASTE** | OWNER_UPLOAD_KIT (Play was blank) |
+| Privacy/data safety | **OWNER CONFIRM** | URL paste ready; questionnaire still owner-gated |
+| Screenshots/assets | **READY TO PASTE** locally · upload **OWNER CONFIRM** | 3×6.5, 3×6.9, 3×iPad 12.9 + Play feature/icon |
+| Age / content rights | **OWNER CONFIRM** | ASC Add-for-Review blockers |
+| Reviewer notes | **READY TO PASTE** | Client + photographer DEMO_REVIEW_LOGINS; sync ASC fields |
 | Tester track | IN PROGRESS | Apple TestFlight approved build and tester groups confirmed; Google Play internal testing is available to internal testers |
 | Backend readiness | NEEDS OWNER CONFIRMATION | Confirm auth, uploads, marketplace, contact/messaging, admin approval, moderation |
 | Public URLs | BLOCKED | Support, privacy, terms, and account deletion were previously reachable; Pass 005 live capture of `https://macksims.com/shutterbid` showed `Site not found` |

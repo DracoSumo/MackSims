@@ -1,35 +1,35 @@
 # Aegis Intel - Screenshots
 
-Use with `../../SCREENSHOT_AND_ASSET_CHECKLIST.md`.  
-Capture script (Aegis repo): `node scripts/capture-store-screenshots.mjs` → `docs/store-screenshots/`.
+**Updated:** 2026-07-23  
+Use with `../../SCREENSHOT_AND_ASSET_CHECKLIST.md` and `../../ASC_SUBMISSION_BLOCKERS_ALL_APPS.md`.
+
+## Packs (local)
+
+| Slot | Path | Count | Size |
+| --- | --- | ---: | --- |
+| iPhone 6.5" | `../../app-store-assets/aegisintel/iphone-6.5/` | 3 | 1242×2688 |
+| iPhone 6.9" | `../../app-store-assets/aegisintel/iphone-6.9/` | 3 | 1320×2868 |
+| iPad 12.9" | `../../app-store-assets/aegisintel/ipad-12.9/` | 3 | 2048×2732 |
+
+**ASC note:** 12.9" iPad screenshots are **required** before Add for Review.
 
 ## Required Capture List
 
-- [x] Home / dashboard (store pack script)
-- [x] Watchlist tab
+- [x] Home / dashboard
+- [x] Watchlist
 - [x] Settings / account controls
-- [ ] Disclaimer or terms path (manual if needed)
-- [ ] Empty vs populated watchlist (prefer demo tickers for review build)
 
 ## Avoid
 
-- Broker, trading, or order-execution claims.
-- Financial advice or guaranteed-outcome language.
-- Private account data.
+- Broker, trading, or order-execution claims
+- Financial advice or guaranteed-outcome language
+- Private account data
 
 ## Asset Status
 
 | Asset | Status | Notes |
 | --- | --- | --- |
-| App icon 1024 | **READY** | `../../app-store-assets/aegisintel/icon-1024.png` |
-| iOS screenshots | **IN PROGRESS** | Generate via capture script; upload 6.7" + 6.5" |
-| Android screenshots | **IN PROGRESS** | Same pack; phone frames |
-| Feature graphic | **NEEDED** | Play 1024×500 — design from icon + Aegis wordmark |
-
-## Store sizes (Apple / Play)
-
-| Slot | Approx CSS viewport used by script |
-| --- | --- |
-| iPhone 6.7" | 430×932 @3x |
-| iPhone 6.5" | 414×896 @3x |
-| Android phone | 412×915 @2.625x |
+| App icon 1024 | READY | `../../app-store-assets/aegisintel/icon-1024.png` |
+| iOS phone packs | READY locally | Upload still needed |
+| iOS 12.9" iPad | READY locally | **Required** for submission |
+| Feature graphic | NEEDED | Play 1024×500 |

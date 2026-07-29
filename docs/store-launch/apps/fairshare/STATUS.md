@@ -1,17 +1,20 @@
-# FairShare - Store Launch Status
+# FairShare / CurbCue - Store Launch Status
+
+**Updated:** 2026-07-23  
+**Owner paste kit:** [`../../OWNER_UPLOAD_KIT.md`](../../OWNER_UPLOAD_KIT.md) (section CurbCue)
 
 ## Current Status
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| iOS | NOT STARTED | Bundle ID and TestFlight status not confirmed |
-| Android | NOT STARTED | Package name and AAB status not confirmed |
-| Web/PWA | NOT STARTED | Current deployment status not confirmed |
-| Store copy | NOT STARTED | Seeded template only; owner review required |
-| Privacy | NEEDS OWNER CONFIRMATION | Complete `PRIVACY_DATA.md` |
-| Screenshots | NOT STARTED | Capture after build is final |
-| Tester readiness | NOT STARTED | Demo/reviewer path not confirmed |
-| Backend readiness | NEEDS OWNER CONFIRMATION | Confirm APIs, location, comparison data, analytics |
+| Store copy | **READY TO PASTE** | OWNER_UPLOAD_KIT + ASC/Play docs |
+| Privacy / App Privacy wizard | **OWNER CONFIRM** | Matrix in PRIVACY_DATA / CSV; do not invent |
+| Screenshots | **READY TO PASTE** | 4×6.5, 4×6.9, 4×iPad 12.9; Play phone+feature ready |
+| Age / content rights | **OWNER CONFIRM** | Target 12+ / audience 18+ |
+| Reviewer notes | **READY TO PASTE** | Guest browse + optional demo login |
+| iOS / Android binaries | IN PROGRESS | ASC `6787820297` · package `com.chrissims.fairshare` |
+| Web/PWA | LIVE | https://fairshare-v03-20260624.netlify.app/ |
+| Backend readiness | **OWNER CONFIRM** | Location / fare source / provider language |
 
 ## Highest-Priority Blockers
 

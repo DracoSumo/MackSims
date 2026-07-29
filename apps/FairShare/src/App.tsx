@@ -224,7 +224,7 @@ export function App() {
   }, [currentPath, rawPath, locationKey]);
 
   return (
-    <BetaGate>
+    <BetaGate bypass={currentPath === "/auth/callback"}>
       <AppShell currentPath={currentPath} onNavigate={navigate}>
         {page}
       </AppShell>

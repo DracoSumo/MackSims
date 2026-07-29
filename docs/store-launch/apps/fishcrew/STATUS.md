@@ -1,17 +1,20 @@
 # FishCrew - Existing Console Status
 
+**Updated:** 2026-07-23  
+**Owner paste kit:** [`../../OWNER_UPLOAD_KIT.md`](../../OWNER_UPLOAD_KIT.md)  
 FishCrew is an existing console-flow app. Audit current setup and complete missing pieces; do not create duplicate Apple or Google records.
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Console status | EXISTING CONSOLE RECORDS | Per v001.1 request |
-| App Store Connect | IN PROGRESS | Existing Apple app record, visible app name, bundle ID, TestFlight build upload, App Store version metadata, screenshot requirements, reviewer sign-in state, and App Privacy not-started state confirmed; screenshots, submission build selection, App Privacy answers, and Apple privacy URL still need work/confirmation |
-| Google Play Console | IN PROGRESS | Existing Play record, package, AAB, and internal testing confirmed; listing assets/category/contact/Data safety still incomplete or unconfirmed |
-| Bundle/package confirmed | READY | Apple bundle ID and Google Play package both confirmed as `com.chrissims.fishcrew` |
-| Store copy | IN PROGRESS | Apple promotional text, description, keywords, support URL, marketing URL, version, copyright, and review notes are populated; Google Play app name, short description, and full description are populated |
-| Privacy/data safety | BLOCKED | Apple App Privacy page shows `Get Started` with blank Apple Privacy Policy URL; Google Play Privacy Policy URL is populated; Google Data safety still needs owner confirmation |
-| Screenshots/assets | IN PROGRESS | Pass 006: 3 READY local scenes at `1242 x 2688`; Pass 007: visual approval ready, **upload blocked pending owner build-match sign-off** (v0.7.0 vs submitted `1.0`); not uploaded |
-| Reviewer notes | IN PROGRESS | Apple review notes/contact info populated; sign-in required is not checked in App Store Connect; owner must confirm whether the actual app build requires login |
+| Console status | EXISTING CONSOLE RECORDS | ASC `6783567028` · do not duplicate |
+| App Store Connect | **READY TO PASTE** + remaining blockers | Privacy URL into App Privacy; upload screenshots; select build |
+| Google Play Console | **READY TO PASTE** assets/category/contact | Listing copy already populated; assets/category/contact from kit |
+| Bundle/package confirmed | READY | `com.chrissims.fishcrew` |
+| Store copy | **READY TO PASTE** | OWNER_UPLOAD_KIT mirrors ASC draft |
+| Privacy/data safety | **OWNER CONFIRM** | Play privacy URL ready; Apple App Privacy + Data Safety wizard owner-gated |
+| Screenshots/assets | **READY TO PASTE** locally · upload **OWNER CONFIRM** | 3×6.5, 3×6.9, 3×iPad 12.9 + Play feature/icon |
+| Age / content rights | **OWNER CONFIRM** | Target 12+ / 18+ |
+| Reviewer notes | **READY TO PASTE** | Guest preferred; optional demo login |
 | Tester track | IN PROGRESS | Apple TestFlight approved build and tester groups confirmed; FishCrew external TestFlight group was renamed from `ShutterBid Testers` to `FishCrew Testers`; Google Play internal testing is available to internal testers |
 | Backend readiness | NEEDS OWNER CONFIRMATION | Confirm auth, storage, location, UGC, weather/maps, notifications |
 | Public URLs | READY | Support, privacy, terms, account deletion, and FishCrew web target returned HTTP 200 on 2026-07-01 |

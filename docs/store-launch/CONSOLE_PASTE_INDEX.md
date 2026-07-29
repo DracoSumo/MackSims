@@ -1,7 +1,10 @@
 # Store console paste index (ASC + Play)
 
-**Updated:** 2026-07-14  
+**Updated:** 2026-07-23  
 Use this as the routing sheet. Full copy lives in each app folder.
+
+**Master owner paste kit (start here):** [OWNER_UPLOAD_KIT.md](./OWNER_UPLOAD_KIT.md) — all seven apps, ASC + Play paste blocks, screenshot full paths, Add-for-Review blockers.  
+Also: [ASC_SUBMISSION_BLOCKERS_ALL_APPS.md](./ASC_SUBMISSION_BLOCKERS_ALL_APPS.md)
 
 | App | ASC form | Play form | Review logins | Data Safety CSV |
 | --- | --- | --- | --- | --- |
@@ -31,12 +34,13 @@ Use this as the routing sheet. Full copy lives in each app folder.
 1. **Provision** every `review.*@macksims.com` user in the correct Supabase/auth project
 2. Sync ShutterBid ASC review fields to the new client/photographer pair
 3. Paste privacy URLs into Apple App Privacy (FishCrew + ShutterBid) and Play (ShutterBid)
-4. Import remaining Data Safety CSVs (Aegis noted saved previously)
-5. Upload screenshots/icons after owner approval boards
-6. Select App Review / closed-testing builds
-7. Resolve CoachCore package ID split: docs `com.macksims.coachcore` vs Play `com.chrissims.coachcore`
-8. Aegis native packaging go/no-go before creating ASC/Play records
+4. **ShutterBid Support URL:** if ASC still shows `http://macksims.com/support`, replace with `https://macksims-public-site.netlify.app/support/` (see OWNER_UPLOAD_KIT)
+5. Import remaining Data Safety CSVs (Aegis noted saved previously)
+6. Upload screenshots/icons from `app-store-assets/` + `play-assets/` (owner-controlled; Aegis Play feature graphic still NEEDED)
+7. Select App Review / closed-testing builds
+8. Resolve CoachCore package ID split: docs `com.macksims.coachcore` vs Play `com.chrissims.coachcore`
 9. Confirm ThrottleLink vs MotoCrew final public name (Play listing currently ThrottleLink)
+10. Age Ratings + Content Rights in ASC — **OWNER CONFIRM** (suggestions only in kit)
 
 ## Login requirement summary
 

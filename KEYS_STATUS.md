@@ -1,6 +1,6 @@
 ﻿# Netlify Supabase Env Alignment Status
 
-Updated: 2026-07-14 (align + Aegis cleanup pass)
+Updated: 2026-07-23 (Aegis anon set + portfolio live-product pass)
 
 ## Summary
 
@@ -36,7 +36,7 @@ Initial `align-all-supabase-env.ps1` failed post-set verify (`env:get --site` ->
 | fairshare-v03-20260624 | f81df982-2348-4d3c-b842-fb806b1b4b00 | dsbwqxhqktzsdleeobbi | Match. Vite=true; VITE_* + NEXT_PUBLIC_* set |
 | motocrewz | 94099ea3-9d62-4c02-9ab3-5162c59282a7 | npmiwnxnqgonnmwvblyi | Match. Vite=true |
 | sermon-studio-beta | f695214f-1e22-429a-86ac-5adac2822414 | zipxwqkmenapnckwyzrh | Match. Wrong VITE_* (was motocrew) **deleted**. Vite=false |
-| sprightly-lily-160925 (Aegis) | 31c40a08-099e-4357-87c0-03f432bdfcd7 | yferqiqlpfvbvevtfbsn | URLs OK. Anon/VITE cleared. **NEED_KEYS** |
+| sprightly-lily-160925 (Aegis) | 31c40a08-099e-4357-87c0-03f432bdfcd7 | yferqiqlpfvbvevtfbsn | URLs + anon set 2026-07-23 from Supabase publishable keys; live v15.5.4; `supabase-health` client-ready |
 | shutterbid-web | 21cb44ef-3d91-4636-88d3-5599ca0cc9ac | ykhpqnnthhcqilzqvkvs | Firebase-primary. `NEXT_PUBLIC_SUPABASE_URL=https://shutterbid.macksims.com` (not `*.supabase.co`). Anon JWT ref already ykhpqnn. **Left unchanged** |
 | fishcrew | 456ad8ef-3582-4123-9031-63af8e7d68fb | n/a | No SUPABASE_* vars |
 
@@ -45,7 +45,7 @@ Initial `align-all-supabase-env.ps1` failed post-set verify (`env:get --site` ->
 - `SUPABASE_URL` = https://yferqiqlpfvbvevtfbsn.supabase.co
 - `NEXT_PUBLIC_SUPABASE_URL` = https://yferqiqlpfvbvevtfbsn.supabase.co
 - Deleted: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_KEY`, `SUPABASE_ANON_KEY`, `VITE_SUPABASE_KEY`
-- **NEED_KEYS:** set correct anon for `yferqiqlpfvbvevtfbsn` then redeploy (do not invent)
+- **DONE 2026-07-23:** `NEXT_PUBLIC_SUPABASE_ANON_KEY` + `SUPABASE_ANON_KEY` set for `yferqiqlpfvbvevtfbsn`; health ping OK. Service role still optional/absent.
 
 ### Aegis related key presence (yes/no)
 

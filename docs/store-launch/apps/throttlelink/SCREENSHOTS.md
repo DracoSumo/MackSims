@@ -1,29 +1,36 @@
 # ThrottleLink / MotoCrew - Screenshots
 
-Use with `../../SCREENSHOT_AND_ASSET_CHECKLIST.md`.
+**Updated:** 2026-07-23  
+Use with `../../SCREENSHOT_AND_ASSET_CHECKLIST.md` and `../../ASC_SUBMISSION_BLOCKERS_ALL_APPS.md`.
+
+## Packs (local)
+
+| Slot | Path | Count | Size |
+| --- | --- | ---: | --- |
+| iPhone 6.5" | `../../app-store-assets/motocrew/iphone-6.5/` | 4 | 1242×2688 |
+| iPhone 6.9" | `../../app-store-assets/motocrew/iphone-6.9/` | 4 | 1320×2868 |
+| iPad 12.9" | `../../app-store-assets/motocrew/ipad-12.9/` | 4 | 2048×2732 |
+
+**ASC note:** 12.9" iPad screenshots are **required** before Add for Review.
 
 ## Required Capture List
 
-- [ ] Home or ride dashboard.
-- [ ] Route planning or map surface if included.
-- [ ] Group ride or event screen if included.
-- [ ] Profile or crew screen.
-- [ ] Safety/support/account controls.
+- Home
+- Rides
+- Map
+- Safety
 
 ## Avoid Until Confirmed
 
-- Background tracking.
-- Emergency, rescue, or safety guarantee claims.
-- Calls/intercom/microphone features if not validated.
-- Live location sharing if not active.
-- Private route or rider data.
+- Background tracking
+- Emergency / rescue / safety guarantee claims
+- Live location sharing if not active
+- Private route or rider data
 
 ## Asset Status
 
 | Asset | Status | Notes |
 | --- | --- | --- |
-| App icon | TBD | Final name affects asset |
-| iOS screenshots | TBD | Capture from submitted build |
-| Android screenshots | TBD | Capture from submitted build |
-| Feature graphic | TBD | Google Play only |
-
+| App icon | READY | `../../app-store-assets/motocrew/icon-1024.png` |
+| iOS phone packs | READY locally | Upload still needed |
+| iOS 12.9" iPad | READY locally | **Required** for submission |
