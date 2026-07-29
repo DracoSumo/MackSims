@@ -25,10 +25,16 @@ import { supabaseStatusLabel } from './config/backend'
 import { checkSupabaseConnection } from './services/supabaseClient'
 import { getSyncMeta, pushJoinedRide, pushRideDraft } from './services/supabaseSync'
 import { AuthCallbackHandler, OAuthSignIn } from './components/OAuthSignIn'
+import { SafetyMenu } from './components/SafetyMenu'
+import {
+  listBlockedUsers,
+  listOpenReports,
+  resolveReport,
+  unblockUser,
+} from './services/communitySafety'
 import {
   commsModules,
   permissionModules,
-  ridePhases,
   riderProfile,
   roadAwarenessFeatures,
 } from './data/mockData'
@@ -271,6 +277,11 @@ function App() {
               rideGroups={rideGroups}
               onNavigate={setActiveScreen}
               onSelectRide={selectRide}
+              onDeleteDraft={(draftId) => {
+                if (!window.confirm('Delete this ride draft from this device?')) return
+                setDraftRides((current) => current.filter((draft) => draft.id !== draftId))
+                setSaveMessage('Draft deleted on this device.')
+              }}
             />
           )}
           {activeScreen === 'rides' && selectedRide && (
@@ -293,7 +304,7 @@ function App() {
             />
           )}
           {activeScreen === 'rides' && !selectedRide && (
-            <EmptyRideState message="No rides loaded in this demo shell." onBrowse={() => setActiveScreen('create')} />
+            <EmptyRideState message="No open rides yet. Create a local draft or wait for live pack listings." onBrowse={() => setActiveScreen('create')} />
           )}
           {activeScreen === 'map' && selectedRide && selectedRoute && (
             <MapScreen ride={selectedRide} route={selectedRoute} />
@@ -390,6 +401,7 @@ function HomeScreen({
   rideGroups,
   onNavigate,
   onSelectRide,
+  onDeleteDraft,
 }: {
   draftRides: DraftRide[]
   rideGroups: {
@@ -399,6 +411,7 @@ function HomeScreen({
   }
   onNavigate: (screen: Screen) => void
   onSelectRide: (rideId: string, nextScreen?: Screen) => void
+  onDeleteDraft: (draftId: string) => void
 }) {
   const spotlight = rideGroups.upcoming[0]
 
@@ -447,7 +460,12 @@ function HomeScreen({
 
       <RidePhaseCard />
 
-      <DraftRideCollection drafts={draftRides} showCloudHint onCreate={() => onNavigate('create')} />
+      <DraftRideCollection
+        drafts={draftRides}
+        showCloudHint
+        onCreate={() => onNavigate('create')}
+        onDeleteDraft={onDeleteDraft}
+      />
       <RideCollection title="Upcoming group rides" rides={rideGroups.upcoming} onSelectRide={onSelectRide} />
       <RideCollection title="Featured local rides" rides={rideGroups.featured} onSelectRide={onSelectRide} />
       <RideCollection title="Recently completed" rides={rideGroups.completed} onSelectRide={onSelectRide} />
@@ -456,31 +474,19 @@ function HomeScreen({
 }
 
 function RidePhaseCard() {
-  const currentPhase = ridePhases.find((phase) => phase.state === 'current') ?? ridePhases[0]
-
   return (
     <section className="phase-card">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Ride status — demo data</p>
-          <h2>{currentPhase.label}</h2>
+          <p className="eyebrow">Ride status</p>
+          <h2>No live pack session</h2>
         </div>
-        <span className="offline-pill">Not live</span>
+        <span className="offline-pill">Offline</span>
       </div>
-      <p className="subtle-copy">{currentPhase.detail}</p>
-      <div className="phase-rail" aria-label="Ride phases">
-        {ridePhases.map((phase) => (
-          <div key={phase.id} className={`phase-step ${phase.state}`}>
-            <span className="phase-dot" aria-hidden="true" />
-            <strong>{phase.label}</strong>
-            <span className="phase-eta">{phase.etaLabel}</span>
-          </div>
-        ))}
-      </div>
-      <p className="future-note">
-        Statuses and ETAs above are mocked. Live pack status requires GPS, a backend, and a ride
-        session service that are not connected in this beta.
+      <p className="subtle-copy">
+        Live kickstands-up status, ETAs, and pack tracking appear here when a ride session backend is connected.
       </p>
+      <p className="future-note">{SAFETY_NOTICE}</p>
     </section>
   )
 }
@@ -488,10 +494,12 @@ function RidePhaseCard() {
 function DraftRideCollection({
   drafts,
   onCreate,
+  onDeleteDraft,
   showCloudHint,
 }: {
   drafts: DraftRide[]
   onCreate?: () => void
+  onDeleteDraft?: (draftId: string) => void
   showCloudHint?: boolean
 }) {
   return (
@@ -524,6 +532,11 @@ function DraftRideCollection({
                 <span>{draft.routeType}</span>
               </div>
               <p className="feature-note">{draft.notes}</p>
+              {onDeleteDraft ? (
+                <button type="button" className="compact-action" onClick={() => onDeleteDraft(draft.id)}>
+                  Delete draft
+                </button>
+              ) : null}
             </article>
           ))}
         </div>
@@ -1015,6 +1028,18 @@ function ChatScreen({
   completedChecklistIds: string[]
   onToggleChecklistItem: (itemId: string) => void
 }) {
+  const [blocked, setBlocked] = useState<string[]>(() => listBlockedUsers())
+
+  useEffect(() => {
+    const refresh = () => setBlocked(listBlockedUsers())
+    window.addEventListener('motocrew:safety-changed', refresh)
+    window.addEventListener('storage', refresh)
+    return () => {
+      window.removeEventListener('motocrew:safety-changed', refresh)
+      window.removeEventListener('storage', refresh)
+    }
+  }, [])
+
   if (!chat) {
     return (
       <div className="screen-content">
@@ -1034,6 +1059,11 @@ function ChatScreen({
     )
   }
 
+  const visibleMessages = chat.messages.filter((message) => {
+    const authorKey = message.author.toLowerCase().replace(/\s+/g, '-')
+    return !blocked.includes(authorKey)
+  })
+
   return (
     <div className="screen-content">
       <section className="chat-panel">
@@ -1048,18 +1078,33 @@ function ChatScreen({
         <div className="announcement">
           <span>Host announcement</span>
           <p>{chat.announcement}</p>
+          <SafetyMenu
+            targetType="ride"
+            targetId={ride.id}
+            targetLabel={ride.name}
+            authorId={`ride-${ride.id}`}
+          />
         </div>
 
         <div className="message-list">
-          {chat.messages.map((message) => (
-            <article key={message.id} className={`message-bubble ${message.role}`}>
-              <div>
-                <strong>{message.author}</strong>
-                <span>{message.time}</span>
-              </div>
-              <p>{message.text}</p>
-            </article>
-          ))}
+          {visibleMessages.map((message) => {
+            const authorKey = message.author.toLowerCase().replace(/\s+/g, '-')
+            return (
+              <article key={message.id} className={`message-bubble ${message.role}`}>
+                <div>
+                  <strong>{message.author}</strong>
+                  <span>{message.time}</span>
+                  <SafetyMenu
+                    targetType="message"
+                    targetId={message.id}
+                    targetLabel={`${message.author}: ${message.text.slice(0, 40)}`}
+                    authorId={authorKey}
+                  />
+                </div>
+                <p>{message.text}</p>
+              </article>
+            )
+          })}
         </div>
 
         <div className="checklist">
@@ -1102,20 +1147,19 @@ function CommsPanel() {
         </div>
         <span className="offline-pill">Not live</span>
       </div>
-      <div className="comms-mock-controls" aria-label="Intercom placeholder controls">
-        <button type="button" disabled>
-          Join Voice Room (demo)
+      <div className="comms-mock-controls" aria-label="Intercom unavailable controls">
+        <button type="button" disabled title="Voice rooms are not connected">
+          Join Voice Room — unavailable
         </button>
-        <button type="button" disabled>
-          Push-to-Talk (demo)
+        <button type="button" disabled title="Push-to-talk is not connected">
+          Push-to-Talk — unavailable
         </button>
-        <button type="button" disabled>
-          Call Ride Lead (demo)
+        <button type="button" disabled title="Calling is not connected">
+          Call Ride Lead — unavailable
         </button>
       </div>
       <p className="future-note">
-        These controls are placeholders only. No voice, intercom, or calling is connected in this
-        beta build.
+        Voice, intercom, and calling are not connected. Controls stay disabled so they cannot look successful.
       </p>
       <div className="module-list">
         {commsModules.map((module) => (
@@ -1283,12 +1327,25 @@ function ProfileScreen({
   const [editing, setEditing] = useState(false)
   const [saveNote, setSaveNote] = useState('')
   const [supabasePing, setSupabasePing] = useState('Checking Supabase…')
+  const [blocked, setBlocked] = useState(() => listBlockedUsers())
+  const [openReports, setOpenReports] = useState(() => listOpenReports())
   const syncMeta = getSyncMeta()
 
   useEffect(() => {
     checkSupabaseConnection().then((result) => {
       setSupabasePing(result.state === 'connected' ? `Connected — ${result.detail}` : `Not connected — ${result.detail}`)
     })
+  }, [])
+
+  function refreshSafety() {
+    setBlocked(listBlockedUsers())
+    setOpenReports(listOpenReports())
+  }
+
+  useEffect(() => {
+    const refresh = () => refreshSafety()
+    window.addEventListener('motocrew:safety-changed', refresh)
+    return () => window.removeEventListener('motocrew:safety-changed', refresh)
   }, [])
 
   return (
@@ -1431,6 +1488,64 @@ function ProfileScreen({
         </div>
         <p>{profile.garage.setup}</p>
         <p className="future-note">{profile.garage.range}</p>
+      </section>
+
+      <section className="garage-card">
+        <div className="section-heading">
+          <h2>Community safety</h2>
+          <span>{openReports.length} open</span>
+        </div>
+        <p className="future-note">
+          Report and block from pack chat. Reporter identity stays private. Apply the Supabase safety schema for
+          server-enforced operator actions when live messaging ships.
+        </p>
+        {blocked.length === 0 ? (
+          <p className="empty-state">No blocked riders on this device.</p>
+        ) : (
+          <div className="module-list">
+            {blocked.map((id) => (
+              <article key={id} className="module-card">
+                <h3>{id}</h3>
+                <button
+                  type="button"
+                  className="compact-action"
+                  onClick={() => {
+                    unblockUser(id)
+                    refreshSafety()
+                  }}
+                >
+                  Unblock
+                </button>
+              </article>
+            ))}
+          </div>
+        )}
+        {openReports.length > 0 ? (
+          <div className="module-list" style={{ marginTop: '0.75rem' }}>
+            {openReports.map((report) => (
+              <article key={report.id} className="module-card">
+                <span>{report.category}</span>
+                <h3>{report.targetLabel}</h3>
+                <p>{report.details || 'No details provided.'}</p>
+                <div className="profile-actions">
+                  {(['hide', 'remove', 'dismiss', 'approve'] as const).map((action) => (
+                    <button
+                      key={action}
+                      type="button"
+                      className="compact-action"
+                      onClick={() => {
+                        resolveReport(report.id, action)
+                        refreshSafety()
+                      }}
+                    >
+                      {action}
+                    </button>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       <SettingsPanel items={permissionItems} />

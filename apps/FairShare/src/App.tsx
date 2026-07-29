@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppShell, internalNavItems } from "./components/AppShell";
-import { AdminMetricCard } from "./components/AdminMetricCard";
 import { BetaGate } from "./components/BetaGate";
 import { CrowdMeterCard } from "./components/CrowdMeterCard";
 import { DriverStatusCard } from "./components/DriverStatusCard";
@@ -37,7 +36,6 @@ import {
   supabaseStatusLabel
 } from "./config";
 import {
-  adminMetrics,
   canyonProjectFields,
   crowdPrecisionSources,
   crowdSignals,
@@ -447,7 +445,7 @@ function ComparePage({ navigate }: { navigate: Navigate }) {
 
   useEffect(() => {
     let cancelled = false;
-    setLoadState("loading");
+    setLoadState((current) => (estimates.length > 0 ? current : "loading"));
 
     fareDataAdapter
       .getRideEstimates({ marketId: market.id, pickup, dropoff, zoneId: selectedZoneId })
@@ -548,11 +546,17 @@ function ComparePage({ navigate }: { navigate: Navigate }) {
         onSubmit={handleSearch}
       />
 
-      {loadState === "loading" && (
+      {loadState === "loading" && estimates.length === 0 && (
         <section className="panel loading-block" aria-live="polite">
           <span className="loading-spinner" aria-hidden="true" />
           <p>Loading trip estimates…</p>
         </section>
+      )}
+
+      {loadState === "loading" && estimates.length > 0 && (
+        <p className="data-source-note" aria-live="polite">
+          Refreshing estimates…
+        </p>
       )}
 
       {loadState === "ready" && estimates.length > 0 && (
@@ -615,7 +619,13 @@ function ComparePage({ navigate }: { navigate: Navigate }) {
                     {provider?.name ?? "Saved option"} —{" "}
                     {estimate ? formatFareRange(estimate.fareLow, estimate.fareHigh, market) : "Re-open trip to refresh fare"}
                   </small>
-                  <button type="button" onClick={() => setSavedComparisons(removeSavedComparison(comparison.id))}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!window.confirm("Remove this saved comparison from this device?")) return;
+                      setSavedComparisons(removeSavedComparison(comparison.id));
+                    }}
+                  >
                     Remove
                   </button>
                 </div>
@@ -776,7 +786,7 @@ function CrowdMeterPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoadState("loading");
+    setLoadState((current) => (signals.length > 0 ? current : "loading"));
 
     fareDataAdapter
       .getCrowdSignals(market.id)
@@ -848,7 +858,7 @@ function CrowdMeterPage() {
         description="Pressure changes by destination type, pickup quality, timing, and nearby alternatives."
       />
 
-      {loadState === "loading" && (
+      {loadState === "loading" && signals.length === 0 && (
         <section className="panel loading-block" aria-live="polite">
           <span className="loading-spinner" aria-hidden="true" />
           <p>Loading crowd signals…</p>
@@ -1005,34 +1015,34 @@ function CrowdMeterPage() {
 }
 
 function AdminPage() {
-  const bermudaMetrics = adminMetrics.filter((metric) => metric.marketId === "bermuda");
-
   return (
     <div className="page-stack">
       <section className="page-header">
         <div>
           <p className="eyebrow">Admin / Operator dashboard</p>
           <h1>Operations shell</h1>
-          <p>Demand visibility, queue health, fleet status, venue pressure, and compliance placeholders.</p>
+          <p>Demand visibility and compliance tools stay empty until operator data feeds are connected.</p>
         </div>
       </section>
 
       <RotatingPhotoRail
         compact
         title="Operator view"
-        description="Demand surfaces stay visual while the data remains mocked and privacy-safe."
+        description="Visual shell only — no fabricated live demand KPIs."
       />
 
-      <div className="metric-card-grid">
-        {bermudaMetrics.map((metric) => (
-          <AdminMetricCard key={metric.id} metric={metric} />
-        ))}
-      </div>
+      <section className="panel empty-block">
+        <strong>No operator metrics connected</strong>
+        <p>
+          Queue health, fleet status, and venue pressure cards are withheld in external builds so testers do not see
+          fabricated live counts. Rider compare and CrowdMeter remain available for product testing.
+        </p>
+      </section>
 
       <section className="dashboard-grid">
         <div className="panel map-panel">
           <div className="section-heading">
-            <p className="eyebrow">Live demand map</p>
+            <p className="eyebrow">Demand map shell</p>
             <h2>Island pressure overview</h2>
           </div>
           <div className="map-placeholder">
@@ -1049,6 +1059,9 @@ function AdminPage() {
             <span>Shopping</span>
             <span>Hospital</span>
           </div>
+          <p className="muted" style={{ marginTop: "0.75rem" }}>
+            Map categories only — not live pressure signals.
+          </p>
         </div>
 
         <DashboardColumn

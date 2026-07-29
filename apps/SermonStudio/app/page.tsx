@@ -850,6 +850,7 @@ export default function Page() {
                     notify('success', 'Duplicate saved to library (local until you save while signed in).')
                   }}>Duplicate</Button>
                   <Button variant='destructive' onClick={()=>{
+                    if (!window.confirm(`Delete "${s.title || 'Untitled Sermon'}" from this browser?`)) return
                     setLibrary(arr => arr.filter(x=> x.id !== s.id))
                     notify('info', s.cloudSynced ? 'Removed from library view — Supabase row not deleted in this beta.' : 'Sermon deleted from this browser.')
                   }}>Delete</Button>
