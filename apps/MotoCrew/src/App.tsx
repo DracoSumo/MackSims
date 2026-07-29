@@ -26,6 +26,7 @@ import { checkSupabaseConnection } from './services/supabaseClient'
 import { getSyncMeta, pushJoinedRide, pushRideDraft } from './services/supabaseSync'
 import { AuthCallbackHandler, OAuthSignIn } from './components/OAuthSignIn'
 import { SafetyMenu } from './components/SafetyMenu'
+import { CrewScreen } from './components/CrewScreen'
 import {
   listBlockedUsers,
   listOpenReports,
@@ -54,14 +55,14 @@ import type {
 } from './types'
 import './App.css'
 
-type Screen = 'home' | 'rides' | 'map' | 'chat' | 'safety' | 'profile' | 'create' | 'focus'
+type Screen = 'home' | 'rides' | 'crew' | 'comms' | 'safety' | 'profile' | 'create' | 'focus' | 'map' | 'chat'
 
-const navItems: { screen: Exclude<Screen, 'create'>; label: string }[] = [
+const navItems: { screen: Exclude<Screen, 'create' | 'focus' | 'map' | 'chat'>; label: string }[] = [
   { screen: 'home', label: 'Home' },
   { screen: 'rides', label: 'Rides' },
-  { screen: 'map', label: 'Map' },
-  { screen: 'chat', label: 'Chat' },
+  { screen: 'crew', label: 'Crew' },
   { screen: 'safety', label: 'Safety' },
+  { screen: 'comms', label: 'Comms' },
   { screen: 'profile', label: 'Profile' },
 ]
 
@@ -320,6 +321,29 @@ function App() {
               onToggleChecklistItem={toggleChecklistItem}
             />
           )}
+          {activeScreen === 'crew' && <CrewScreen />}
+          {activeScreen === 'comms' && (
+            <div className="screen-content">
+              <CommsPanel />
+              <section className="comms-panel">
+                <div className="section-heading">
+                  <div>
+                    <p className="eyebrow">Ride coordination</p>
+                    <h2>What works today</h2>
+                  </div>
+                </div>
+                <ul className="safety-list">
+                  <li>Use Crew for circles, sessions, and check-ins.</li>
+                  <li>Use Safety for emergency contact readiness (device-local).</li>
+                  <li>Cardo / Bluetooth headset control is not available in this web/PWA build.</li>
+                  <li>Live voice rooms and push-to-talk stay disabled until a real media stack ships.</li>
+                </ul>
+                <button type="button" className="primary-action" onClick={() => setActiveScreen('crew')}>
+                  Open Crew coordination
+                </button>
+              </section>
+            </div>
+          )}
           {activeScreen === 'focus' && selectedRide && selectedRoute && (
             <FocusScreen
               ride={selectedRide}
@@ -450,8 +474,8 @@ function HomeScreen({
         <button type="button" onClick={() => onNavigate('rides')}>
           Find Ride
         </button>
-        <button type="button" onClick={() => onNavigate('profile')}>
-          My Pack
+        <button type="button" onClick={() => onNavigate('crew')}>
+          My Crew
         </button>
         <button type="button" onClick={() => onNavigate('safety')}>
           Safety
@@ -479,12 +503,13 @@ function RidePhaseCard() {
       <div className="section-heading">
         <div>
           <p className="eyebrow">Ride status</p>
-          <h2>No live pack session</h2>
+          <h2>Crew sessions live under Crew</h2>
         </div>
-        <span className="offline-pill">Offline</span>
+        <span className="offline-pill">Manual check-ins</span>
       </div>
       <p className="subtle-copy">
-        Live kickstands-up status, ETAs, and pack tracking appear here when a ride session backend is connected.
+        Start a private crew ride session, share opt-in status, and post OK / delayed / need-help check-ins.
+        Automatic crash detection, background GPS, and emergency dispatch are not available in this web build.
       </p>
       <p className="future-note">{SAFETY_NOTICE}</p>
     </section>

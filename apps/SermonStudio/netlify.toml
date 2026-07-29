@@ -1,8 +1,7 @@
 [build]
   command = "npm run build"
-  # Next.js Runtime (@netlify/plugin-nextjs) owns publish output.
-  # Do NOT set publish = ".next" - CLI manual deploys of .next return site-wide 404.
-  # Also clear Netlify UI "Publish directory" if it is stuck on .next (publishOrigin=ui).
+  # The Next.js runtime owns the deploy output. Publishing .next directly
+  # omits its generated routes/functions and produces a site-wide 404.
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
@@ -10,6 +9,11 @@
 [build.environment]
   NODE_VERSION = "20"
   SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_ANON_KEY"
+
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/___netlify-server-handler"
+  status = 200
 
 [[headers]]
   for = "/*"
