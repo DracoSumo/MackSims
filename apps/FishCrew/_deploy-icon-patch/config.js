@@ -1,5 +1,5 @@
 window.FISHCREW_CONFIG = {
-  VERSION: '0.7.3',
+  VERSION: '0.7.5',
   // Demo/sample content (fake users, trips, feed posts) only loads when this
   // is explicitly true. Production/beta builds must keep it false.
   DEMO_MODE: false,
@@ -19,7 +19,7 @@ window.FISHCREW_CONFIG = {
   ENABLE_MEDIA_MODERATION: true,
   ENABLE_SUPABASE_LIVE_CORE: true,
   ENABLE_REALTIME_SYNC: true,
-  LIVE_CORE_VERSION: '0.7.3',
+  LIVE_CORE_VERSION: '0.7.5',
   SUPPORT_EMAIL: 'support@fishcrew.app',
   MAX_LOCAL_UPLOAD_MB: 6,
   MAX_IMAGE_UPLOAD_MB: 10,
