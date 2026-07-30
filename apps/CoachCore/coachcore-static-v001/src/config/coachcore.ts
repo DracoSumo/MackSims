@@ -13,6 +13,8 @@
   version: "v0.7.2",
   safetyNote:
     "Live beta. Sign in with Google or GitHub when configured. Roster screens stay empty until your team is imported — no fabricated athletes in production. No payments. Hudl/wearables need real partner access — request from Integrations.",
+  privacyScope:
+    "Current scope is team operations only: roster, schedule, RSVP, and chat. CoachCore does not collect medical or health data. Training, fueling, and readiness screens are demos—do not enter real youth or health records. Any expansion requires an explicit owner privacy review before implementation.",
   coachingSupportDisclaimer:
     "Coaching support only — not medical advice, diagnosis, or treatment. Nutrition and readiness signals help coaches guide training; they are not clinical assessments.",
 };

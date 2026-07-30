@@ -33,12 +33,12 @@ export function supabaseStatusLabel(): string {
 
 export const isSupabaseConfigured = Boolean(SUPABASE_URL && isValidAnonKey(SUPABASE_ANON_KEY));
 
-/** Flip only after Meta Facebook Login + Supabase Facebook provider are configured and tested. */
+/** Facebook is live in Meta + Supabase; allow an explicit false as an emergency kill switch. */
 export const isFacebookAuthEnabled =
   String(
     (import.meta.env as Record<string, string | undefined>).VITE_ENABLE_FACEBOOK_AUTH ??
       (import.meta.env as Record<string, string | undefined>).NEXT_PUBLIC_ENABLE_FACEBOOK_AUTH ??
-      "false",
+      "true",
   )
     .trim()
     .toLowerCase() === "true";

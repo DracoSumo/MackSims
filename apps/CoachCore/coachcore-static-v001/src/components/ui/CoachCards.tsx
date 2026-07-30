@@ -99,7 +99,7 @@ export function DemoDisclaimerStrip() {
       }`}
     >
       <span className="font-bold">{live ? "Live beta." : "Setup needed."}</span>{" "}
-      {coachCoreConfig.safetyNote}
+      {coachCoreConfig.privacyScope}
     </p>
   );
 }

@@ -38,6 +38,9 @@ export function DemoWalkthroughBanner() {
             ? "Sign in from Profile to sync check-ins and coach actions. Empty states mean your team data is not imported yet — not fake athletes."
             : "Set Supabase env vars to enable sign-in. Roster screens stay empty until real team data is connected."}
       </p>
+      <p className="mt-2 rounded-xl border border-white/15 bg-slate-950/35 px-3 py-2 font-semibold leading-6 text-white">
+        Privacy scope: {coachCoreConfig.privacyScope}
+      </p>
       <div className="mt-3 flex flex-wrap gap-3 text-xs">
         <Link href={live ? "/login" : "/beta"} className="font-bold text-sky-200 underline">
           {live ? "Sign in" : "Request beta access"}

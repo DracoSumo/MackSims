@@ -34,21 +34,14 @@ Under **Authentication → Providers**:
 
 ### Facebook / Meta
 
-Facebook Login is implemented in AuthCard but **gated off** until Meta + Supabase are
-configured and tested. Do not set `NEXT_PUBLIC_ENABLE_FACEBOOK_AUTH=true` until the
-checklist below is complete.
+Configured and enabled in Supabase with dedicated Meta app `1616615176822509`.
+The UI is enabled by default; `NEXT_PUBLIC_ENABLE_FACEBOOK_AUTH=false` is an
+emergency kill switch. The exact provider callback is:
 
-1. Create a dedicated Meta app for Sermon Studio (do not reuse FishCrew/Shutterbid apps).
-2. Add **Facebook Login** product. Keep the app in **Development** mode.
-3. Valid OAuth Redirect URI (exact):
-   `https://zipxwqkmenapnckwyzrh.supabase.co/auth/v1/callback`
-4. App domain: `sermonstudio.macksims.com`
-5. Privacy Policy URL: `https://macksims-public-site.netlify.app/privacy/`
-6. Data deletion URL: `https://macksims-public-site.netlify.app/account-deletion/`
-7. Use Cases → Authentication and Account Creation: ensure `email` + `public_profile`.
-8. Supabase → Authentication → Providers → Facebook: enable and paste App ID + App Secret.
-9. Add yourself as a Meta app tester/admin, then test login.
-10. Only then set Netlify `NEXT_PUBLIC_ENABLE_FACEBOOK_AUTH=true` and redeploy.
+`https://zipxwqkmenapnckwyzrh.supabase.co/auth/v1/callback`
+
+The Meta app remains in Development mode, so only app-role users can complete login
+until the owner finishes role-user testing and deliberately moves it Live.
 
 ## 3. Netlify env (build time)
 
@@ -59,7 +52,7 @@ Redeploy after changing env vars.
 
 ## 4. Verify
 
-1. Open the app header — **AuthCard** shows Google/GitHub when Supabase is configured.
+1. Open the app header — **AuthCard** shows Google/GitHub/Facebook when Supabase is configured.
 2. Complete provider login → should return to `/` with session active.
 3. Without Supabase env, the app stays in **local demo mode** (localStorage).
 

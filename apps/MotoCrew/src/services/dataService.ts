@@ -53,6 +53,7 @@ export type LocalDraftStore = {
 export const localStorageKeys = {
   joinedRideIds: "motocrew.joinedRideIds",
   draftRides: "motocrew.draftRides",
+  rideLog: "motocrew.rideLog",
   emergencyContacts: "motocrew.emergencyContacts",
   safetyAcknowledged: "motocrew.safetyAcknowledged",
   completedChecklistIds: "motocrew.completedChecklistIds",

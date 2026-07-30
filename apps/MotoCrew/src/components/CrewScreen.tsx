@@ -340,6 +340,10 @@ export function CrewScreen() {
           Exact location is private by default. This PWA does not run background GPS. Precise mode records
           consent only unless you later add an explicit one-tap share — never expose home pins publicly.
         </p>
+        <p className="future-note">
+          Every rider must consent before location status is shared. “Need help” is a manual caution flag for
+          crew coordination only; it is not live-location SOS, crash detection, or emergency dispatch.
+        </p>
         <form className="stack-form" onSubmit={handleLocation}>
           <label>
             Precision

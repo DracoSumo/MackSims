@@ -415,6 +415,7 @@ export default function Page() {
             : ' Sign in with Google or GitHub to sync when tables are ready; unsaved drafts still work offline in this browser.'
           : ' Your data stays in this browser only — clearing browser data clears your library.'}
         {' '}Idea suggestions are simple local templates, <strong className='text-[color:var(--ss-ink)]'>not live AI</strong>.
+        Any future AI-assisted draft must be edited and verified by a human; it is not doctrinal authority, and users must check sources and originality rather than assume generated text is plagiarism-free.
         Please send feedback to feedback@macksims.com.
       </div>
 
@@ -658,7 +659,10 @@ export default function Page() {
                   <ul className='list-disc ml-5 space-y-2 text-sm'>
                     {ideas.map((i, idx)=> <li key={idx}>{i}</li>)}
                   </ul>
-                  <p className='text-xs text-[color:var(--ss-muted)]'>These prompts come from simple templates built into the app. Real AI assistance requires configuration and is not enabled in this beta.</p>
+                  <p className='text-xs text-[color:var(--ss-muted)]'>
+                    These prompts come from simple templates built into the app. Real AI assistance is not enabled in this beta.
+                    Human editing and source checks are required for any future AI-assisted draft; AI is not doctrinal authority and cannot guarantee originality or plagiarism-free text.
+                  </p>
                 </CardContent>
               </Card>
               <div>

@@ -20,7 +20,7 @@ describe("isOAuthProviderEnabled", () => {
     expect(isOAuthProviderEnabled("github")).toBe(true);
   });
 
-  it("keeps Facebook gated off until ENABLE_FACEBOOK_AUTH is flipped", () => {
-    expect(isOAuthProviderEnabled("facebook")).toBe(false);
+  it("enables the configured Facebook provider by default", () => {
+    expect(isOAuthProviderEnabled("facebook")).toBe(true);
   });
 });

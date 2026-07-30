@@ -15,6 +15,7 @@ export default function PreachingMode({ sermon, onClose }: Props) {
   const [index, setIndex] = useState(0);
   const [running, setRunning] = useState(true);
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [textScale, setTextScale] = useState(2);
 
   const slide = slides[Math.min(index, slides.length - 1)];
   const progress = slides.length <= 1 ? 100 : Math.round((index / (slides.length - 1)) * 100);
@@ -52,7 +53,7 @@ export default function PreachingMode({ sermon, onClose }: Props) {
       aria-modal="true"
       aria-label="Preaching mode"
     >
-      <div className="preach-shell">
+      <div className={`preach-shell preach-text-${textScale}`}>
         <header className="preach-toolbar">
           <div>
             <p className="preach-kicker">{slide.label}</p>
@@ -62,6 +63,24 @@ export default function PreachingMode({ sermon, onClose }: Props) {
             </p>
           </div>
           <div className="preach-actions">
+            <Button
+              type="button"
+              variant="outline"
+              aria-label="Decrease podium text size"
+              disabled={textScale <= 1}
+              onClick={() => setTextScale((value) => Math.max(1, value - 1))}
+            >
+              A−
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              aria-label="Increase podium text size"
+              disabled={textScale >= 3}
+              onClick={() => setTextScale((value) => Math.min(3, value + 1))}
+            >
+              A+
+            </Button>
             <Button type="button" variant="outline" onClick={() => setRunning((v) => !v)}>
               {running ? "Pause" : "Resume"}
             </Button>
@@ -103,7 +122,9 @@ export default function PreachingMode({ sermon, onClose }: Props) {
             Next
           </Button>
         </footer>
-        <p className="preach-hint">Keyboard: ← → Space · Esc exits · Timer is local only</p>
+        <p className="preach-hint">
+          Offline podium view: this draft and timer stay on this device; cloud sync is not required. Keyboard: ← → Space · Esc exits.
+        </p>
       </div>
     </div>
   );

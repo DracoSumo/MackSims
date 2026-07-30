@@ -4,6 +4,7 @@ export function downloadMotoCrewLocalData() {
   const keys = [
     localStorageKeys.joinedRideIds,
     localStorageKeys.draftRides,
+    localStorageKeys.rideLog,
     localStorageKeys.emergencyContacts,
     localStorageKeys.safetyAcknowledged,
     localStorageKeys.completedChecklistIds,

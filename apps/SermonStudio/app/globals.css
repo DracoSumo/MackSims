@@ -257,7 +257,7 @@ body {
 
 .preach-stage h1 {
   margin: 0;
-  font-size: clamp(1.8rem, 4vw, 3rem);
+  font-size: clamp(2.2rem, 5vw, 3.75rem);
   line-height: 1.2;
   color: var(--ss-ink);
 }
@@ -266,10 +266,15 @@ body {
   margin: 0;
   white-space: pre-wrap;
   font-family: inherit;
-  font-size: clamp(1.05rem, 2.2vw, 1.35rem);
-  line-height: 1.55;
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  line-height: 1.5;
   color: #e8dfd2;
 }
+
+.preach-text-1 .preach-stage h1 { font-size: clamp(1.8rem, 4vw, 3rem); }
+.preach-text-1 .preach-body { font-size: clamp(1.05rem, 2.2vw, 1.35rem); }
+.preach-text-3 .preach-stage h1 { font-size: clamp(2.75rem, 6vw, 4.75rem); }
+.preach-text-3 .preach-body { font-size: clamp(1.75rem, 4vw, 2.75rem); line-height: 1.42; }
 
 .preach-hint {
   margin: 0;

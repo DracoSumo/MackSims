@@ -48,6 +48,7 @@ import type {
   RideChat,
   RideDifficulty,
   RideFilter,
+  RideLogEntry,
   RidePace,
   RideStatus,
   RoadAwarenessFeature,
@@ -109,6 +110,7 @@ function App() {
   const [selectedRideId, setSelectedRideId] = useState(() => rides[0]?.id ?? '')
   const [joinedRideIds, setJoinedRideIds] = useLocalStorageState<string[]>(localStorageKeys.joinedRideIds, rides[0]?.id ? [rides[0].id] : [])
   const [draftRides, setDraftRides] = useLocalStorageState<DraftRide[]>(localStorageKeys.draftRides, [])
+  const [rideLog, setRideLog] = useLocalStorageState<RideLogEntry[]>(localStorageKeys.rideLog, [])
   const [emergencyContacts, setEmergencyContacts] = useLocalStorageState<EmergencyContact[]>(
     localStorageKeys.emergencyContacts,
     [],
@@ -222,6 +224,23 @@ function App() {
     event.currentTarget.reset()
   }
 
+  function handleLogRide(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
+    const milesValue = String(formData.get('miles') || '').trim()
+    const entry: RideLogEntry = {
+      id: `ride-log-${Date.now()}`,
+      title: String(formData.get('title') || 'Completed ride').trim(),
+      riddenOn: String(formData.get('riddenOn') || new Date().toISOString().slice(0, 10)),
+      miles: milesValue ? Number(milesValue) : null,
+      note: String(formData.get('note') || '').trim(),
+      loggedAt: new Date().toISOString(),
+    }
+    setRideLog((current) => [entry, ...current].slice(0, 30))
+    setSaveMessage(`${entry.title} added to the local ride log.`)
+    event.currentTarget.reset()
+  }
+
   return (
     <main className="app-shell">
       {authCallback ? (
@@ -275,9 +294,15 @@ function App() {
           {activeScreen === 'home' && (
             <HomeScreen
               draftRides={draftRides}
+              rideLog={rideLog}
               rideGroups={rideGroups}
               onNavigate={setActiveScreen}
               onSelectRide={selectRide}
+              onLogRide={handleLogRide}
+              onDeleteLogEntry={(entryId) => {
+                if (!window.confirm('Delete this ride log entry from this device?')) return
+                setRideLog((current) => current.filter((entry) => entry.id !== entryId))
+              }}
               onDeleteDraft={(draftId) => {
                 if (!window.confirm('Delete this ride draft from this device?')) return
                 setDraftRides((current) => current.filter((draft) => draft.id !== draftId))
@@ -422,12 +447,16 @@ function DesktopRail({
 
 function HomeScreen({
   draftRides,
+  rideLog,
   rideGroups,
   onNavigate,
   onSelectRide,
+  onLogRide,
+  onDeleteLogEntry,
   onDeleteDraft,
 }: {
   draftRides: DraftRide[]
+  rideLog: RideLogEntry[]
   rideGroups: {
     upcoming: Ride[]
     featured: Ride[]
@@ -435,6 +464,8 @@ function HomeScreen({
   }
   onNavigate: (screen: Screen) => void
   onSelectRide: (rideId: string, nextScreen?: Screen) => void
+  onLogRide: (event: FormEvent<HTMLFormElement>) => void
+  onDeleteLogEntry: (entryId: string) => void
   onDeleteDraft: (draftId: string) => void
 }) {
   const spotlight = rideGroups.upcoming[0]
@@ -490,10 +521,68 @@ function HomeScreen({
         onCreate={() => onNavigate('create')}
         onDeleteDraft={onDeleteDraft}
       />
+      <RideLog entries={rideLog} onSubmit={onLogRide} onDelete={onDeleteLogEntry} />
       <RideCollection title="Upcoming group rides" rides={rideGroups.upcoming} onSelectRide={onSelectRide} />
       <RideCollection title="Featured local rides" rides={rideGroups.featured} onSelectRide={onSelectRide} />
       <RideCollection title="Recently completed" rides={rideGroups.completed} onSelectRide={onSelectRide} />
     </div>
+  )
+}
+
+function RideLog({
+  entries,
+  onSubmit,
+  onDelete,
+}: {
+  entries: RideLogEntry[]
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onDelete: (entryId: string) => void
+}) {
+  return (
+    <section className="phase-card">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Ride history</p>
+          <h2>Local ride log</h2>
+        </div>
+        <span className="offline-pill">This device only</span>
+      </div>
+      <p className="subtle-copy">Record completed rides for your own reference. Entries are not GPS tracks and are not shared with your crew.</p>
+      <form className="stack-form" onSubmit={onSubmit}>
+        <label>
+          Ride name
+          <input name="title" maxLength={80} placeholder="Sunday backroads" required />
+        </label>
+        <label>
+          Date
+          <input name="riddenOn" type="date" required />
+        </label>
+        <label>
+          Miles (optional)
+          <input name="miles" type="number" min="0" step="0.1" inputMode="decimal" />
+        </label>
+        <label>
+          Note (optional)
+          <textarea name="note" maxLength={240} rows={2} placeholder="Weather, route, or maintenance reminder" />
+        </label>
+        <button type="submit" className="primary-action">Add completed ride</button>
+      </form>
+      {entries.length === 0 ? (
+        <p className="empty-state">No completed rides logged on this device yet.</p>
+      ) : (
+        <div className="draft-grid">
+          {entries.map((entry) => (
+            <article key={entry.id} className="draft-card">
+              <span>{entry.riddenOn}</span>
+              <h3>{entry.title}</h3>
+              <p>{entry.miles === null ? 'Mileage not recorded' : `${entry.miles} miles`}</p>
+              {entry.note ? <p>{entry.note}</p> : null}
+              <button type="button" className="compact-action" onClick={() => onDelete(entry.id)}>Delete entry</button>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -512,6 +601,9 @@ function RidePhaseCard() {
         Automatic crash detection, background GPS, and emergency dispatch are not available in this web build.
       </p>
       <p className="future-note">{SAFETY_NOTICE}</p>
+      <p className="danger-note">
+        Location status requires each rider&apos;s consent. “Need help” is a cautionary crew check-in only, not live-location SOS or emergency dispatch.
+      </p>
     </section>
   )
 }
@@ -881,7 +973,7 @@ function MapScreen({ ride, route }: { ride: Ride; route: RoutePreview }) {
           <div className="map-placeholder-grid" aria-hidden="true" />
           <div className="map-placeholder-copy">
             <strong>
-              {mapAdapter.status === "live" ? "Live map tiles" : "Map view not configured"}
+              {mapAdapter.status === "live" ? "Live map tiles" : "Offline map basics — mocked route outline"}
             </strong>
             <p>
               {mapAdapter.isLiveTrackingAvailable
@@ -911,7 +1003,7 @@ function MapScreen({ ride, route }: { ride: Ride; route: RoutePreview }) {
 
         <p className="future-note">
           {mapAdapter.status === "mock"
-            ? "Real maps and live route sharing will come later. This panel uses mocked route data from the map adapter seam."
+            ? "This is not navigation or a GPS track. Real maps and consent-based route sharing require a configured provider; this panel uses mocked route data from the map adapter seam."
             : "Route preview is served by the configured map adapter."}
         </p>
       </section>
