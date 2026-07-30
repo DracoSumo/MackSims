@@ -19,6 +19,7 @@ export function OAuthSignIn() {
   const [busy, setBusy] = useState<OAuthProvider | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [syncNote, setSyncNote] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const configured = authAvailable();
 
   useEffect(() => {
@@ -56,9 +57,14 @@ export function OAuthSignIn() {
   }
 
   async function handleSignOut() {
-    const err = await signOut();
-    setMessage(err ?? "Signed out.");
-    setUser(null);
+    setSigningOut(true);
+    try {
+      const err = await signOut();
+      setMessage(err ?? "Signed out.");
+      if (!err) setUser(null);
+    } finally {
+      setSigningOut(false);
+    }
   }
 
   if (user) {
@@ -67,8 +73,8 @@ export function OAuthSignIn() {
         <p className="muted">
           Signed in as <strong>{user.email}</strong>
         </p>
-        <button type="button" className="text-button" onClick={handleSignOut}>
-          Sign out
+        <button type="button" className="text-button" onClick={handleSignOut} disabled={signingOut}>
+          {signingOut ? "Signing out…" : "Sign out"}
         </button>
         {syncNote && <p className="muted">{syncNote}</p>}
         {message && <p className="muted">{message}</p>}

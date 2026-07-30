@@ -49,14 +49,14 @@ export function AppShell({
   return (
     <div className="min-h-screen overflow-x-hidden text-white">
       <div className="mx-auto flex min-h-screen max-w-7xl">
-        <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-white/10 bg-[rgba(4,18,30,0.92)] p-6 backdrop-blur-xl lg:flex">
+        <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-white/10 bg-[rgba(4,18,30,0.92)] px-5 py-6 backdrop-blur-xl lg:flex xl:px-6">
           <Link href="/" className="block">
             <p className="text-xs font-bold uppercase tracking-[0.35em] text-teal-300">MackSims</p>
             <h1 className="mt-2 text-2xl font-black tracking-tight">CoachCore</h1>
             <p className="mt-1 text-xs text-slate-400">No more guessing who is locked in.</p>
           </Link>
 
-          <nav className="mt-10 flex-1 space-y-1 overflow-y-auto">
+          <nav className="mt-8 flex-1 space-y-1 overflow-y-auto xl:mt-10">
             {navItems.map((item) => {
               const active =
                 item.href === "/app"
@@ -77,7 +77,7 @@ export function AppShell({
         </main>
 
         <nav
-          className="fixed bottom-0 left-2 right-2 z-50 mx-auto grid max-w-lg grid-cols-5 gap-1 border border-white/10 bg-[rgba(5,25,39,0.96)] px-2 py-2 backdrop-blur-xl lg:hidden"
+          className="fixed bottom-0 left-2 right-2 z-50 mx-auto grid max-w-lg grid-cols-5 gap-1 border border-white/10 bg-[rgba(5,25,39,0.96)] p-2 backdrop-blur-xl lg:hidden"
           style={{
             marginBottom: "max(8px, env(safe-area-inset-bottom))",
             borderRadius: "14px",

@@ -23,7 +23,18 @@
   --radius-xl: 28px;
   --shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
   --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --container: min(1120px, calc(100% - 40px));
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --page-gutter: clamp(20px, 4vw, 40px);
+  --section-gap: clamp(56px, 7vw, 72px);
+  --card-pad: clamp(20px, 2.5vw, 24px);
+  --container: min(1120px, calc(100% - (2 * var(--page-gutter))));
   --header-h: 64px;
 }
 
@@ -205,11 +216,11 @@ button:focus-visible {
 .site-main {
   width: var(--container);
   margin: 0 auto;
-  padding: 48px 0 64px;
+  padding: var(--space-12) 0 64px;
 }
 
 .section {
-  margin-bottom: 72px;
+  margin-bottom: var(--section-gap);
 }
 
 .section:last-child {
@@ -417,7 +428,7 @@ button:focus-visible {
 .product-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 18px;
+  gap: var(--space-5);
 }
 
 .product-card {
@@ -426,7 +437,7 @@ button:focus-visible {
   border: 1px solid var(--line);
   background: var(--surface);
   border-radius: var(--radius-lg);
-  padding: 22px;
+  padding: var(--card-pad);
   backdrop-filter: blur(8px);
   transition: border-color 0.15s, background 0.15s;
 }
@@ -530,7 +541,7 @@ button:focus-visible {
   border: 1px solid var(--line);
   background: var(--surface);
   border-radius: var(--radius-lg);
-  padding: 22px;
+  padding: var(--card-pad);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -613,7 +624,7 @@ button:focus-visible {
   border: 1px solid var(--line);
   background: var(--surface);
   border-radius: var(--radius-lg);
-  padding: 24px;
+  padding: var(--card-pad);
 }
 
 .info-card h3 {

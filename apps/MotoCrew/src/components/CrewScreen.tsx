@@ -169,14 +169,14 @@ export function CrewScreen() {
       <section className="crew-panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Crew / Circle</p>
+            <p className="eyebrow">Trusted riders</p>
             <h2>{activeCrew ? activeCrew.name : "Your private crew"}</h2>
           </div>
           <span className="offline-pill">{isSupabaseConfigured ? "Device + cloud-ready" : "Device only"}</span>
         </div>
         <p className="subtle-copy">
-          Life360-style private circles for your pack: invite-only membership, ride sessions, check-ins, and
-          opt-in location status. No background GPS, crash detection, or emergency dispatch in this web build.
+          Keep ride-day coordination inside an invite-only pack: start a session, post manual check-ins, and
+          choose what location status to share. No background GPS, crash detection, or emergency dispatch.
         </p>
         {message ? <p className="save-toast" role="status">{message}</p> : null}
 
@@ -234,8 +234,8 @@ export function CrewScreen() {
       <section className="crew-panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Create / join</p>
-            <h2>Start a circle</h2>
+            <p className="eyebrow">Build your pack</p>
+            <h2>Create or join a crew</h2>
           </div>
         </div>
         <form className="stack-form" onSubmit={handleCreate} aria-busy={busyAction === "create"}>

@@ -2749,3 +2749,62 @@ video{
     box-shadow:var(--elevation-card)!important;
   }
 }
+
+/* v0.4.1 semantic spacing system: web-first rhythm with deliberate phone density */
+:root{
+  --space-1:4px;
+  --space-2:8px;
+  --space-3:12px;
+  --space-4:16px;
+  --space-5:20px;
+  --space-6:24px;
+  --space-8:32px;
+  --page-gutter:clamp(20px,3vw,36px);
+  --page-block:clamp(16px,2vw,24px);
+  --section-gap:clamp(24px,3vw,32px);
+  --card-pad:clamp(16px,2vw,20px);
+}
+.app-shell{
+  width:min(1080px,100%);
+  max-width:1080px;
+  padding:
+    calc(env(safe-area-inset-top,0px) + var(--page-block))
+    var(--page-gutter)
+    calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + var(--space-8));
+}
+.app-header{margin-bottom:var(--space-5)}
+.section,
+.app-section-tight{margin-top:var(--section-gap)}
+.section-head{gap:var(--space-4);margin-bottom:var(--space-4)}
+.grid{gap:var(--space-4)}
+.panel,
+.trip-card,
+.feed-card,
+.mini-card,
+.admin-card,
+.business-card,
+.plugin-card,
+.tool-card,
+.guide-preview-card{padding:var(--card-pad)}
+.stack{gap:var(--space-3)}
+
+@media(min-width:1024px){
+  .grid.cards{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+@media(max-width:560px){
+  :root{
+    --page-gutter:14px;
+    --page-block:10px;
+    --section-gap:20px;
+    --card-pad:14px;
+  }
+  .app-shell{
+    padding-left:var(--page-gutter);
+    padding-right:var(--page-gutter);
+    padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 28px);
+  }
+  .app-header{margin-bottom:var(--space-3)}
+  .hero.home-hero{padding:var(--space-4)}
+  .section-head{margin-bottom:var(--space-3)}
+}

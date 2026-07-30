@@ -17,7 +17,17 @@ import { downloadLibraryIcs, downloadSermonIcs } from '@/lib/localIcs'
 import { SERMON_TEMPLATES } from '@/lib/sermonTemplates'
 import { defaultOutline, type Sermon, type SermonOutline, type Series, type Song, type Verse } from '@/lib/types'
 import { canEnterPreachMode } from '@/lib/preachingMode'
+import { selectWorkflowStep, WORKFLOW_STEPS, workflowPosition, type WorkMode } from '@/lib/workflow'
 import PreachingMode from '@/components/PreachingMode'
+import {
+  BookOpenText,
+  CalendarDays,
+  FilePenLine,
+  LibraryBig,
+  Mic2,
+  Save,
+  Settings2,
+} from 'lucide-react'
 
 const TRANSLATIONS = [
   { id: 'KJV', name: 'King James Version (KJV)', license: 'Public Domain', available: true },
@@ -41,8 +51,13 @@ const FALLBACK_SONGS: Song[] = [
 
 const TABS = ['Scripture','Ideas','Worship','Series','Library'] as const
 type TabId = typeof TABS[number]
-const WORK_MODES = ['Draft', 'Research', 'Preach', 'Library'] as const
-type WorkMode = typeof WORK_MODES[number]
+
+const WORK_MODE_META = {
+  Draft: { label: 'Draft', detail: 'Write', icon: FilePenLine },
+  Research: { label: 'Research', detail: 'Gather', icon: BookOpenText },
+  Preach: { label: 'Preach', detail: 'Deliver', icon: Mic2 },
+  Library: { label: 'Library', detail: 'Return', icon: LibraryBig },
+} satisfies Record<WorkMode, { label: string; detail: string; icon: typeof FilePenLine }>
 
 type SeriesWithSync = Series & { cloudSynced?: boolean }
 
@@ -193,6 +208,12 @@ export default function Page() {
   const hydrated = useRef(false)
 
   const outline = sermon.outline ?? defaultOutline()
+  const workflowProgress = workflowPosition(workMode)
+  function goToWorkflowStep(mode: WorkMode) {
+    const next = selectWorkflowStep(mode)
+    setWorkMode(next.workMode)
+    if (next.activeTab) setActiveTab(next.activeTab)
+  }
   function setOutline(patch: Partial<SermonOutline>) {
     setSermon(s => ({ ...s, outline: { ...(s.outline ?? defaultOutline()), ...patch } }))
   }
@@ -409,15 +430,28 @@ export default function Page() {
   }
 
   return (
-    <div className='ss-page p-4 sm:p-6 max-w-7xl mx-auto space-y-6'>
+    <div className='ss-page max-w-7xl mx-auto'>
       <header className='no-print ss-workspace-header'>
-        <div>
-          <p className='eyebrow-kicker'>Sermon workspace</p>
-          <h1 className='text-2xl sm:text-3xl font-bold tracking-tight text-[color:var(--ss-ink)]'>Pastor&apos;s Sermon Studio</h1>
-          <p className='text-sm text-[color:var(--ss-muted)]'>Move from first draft to the pulpit without losing your place.</p>
+        <div className='ss-brand'>
+          <div className='ss-brand-mark' aria-hidden='true'>S</div>
+          <div>
+            <p className='eyebrow-kicker'>Pastor&apos;s workspace</p>
+            <h1>Sermon Studio</h1>
+          </div>
+        </div>
+        <div className='ss-current-sermon' aria-label='Current sermon'>
+          <span>Working on</span>
+          <strong>{sermon.title.trim() || 'Untitled sermon'}</strong>
+          <small>
+            {sermon.date
+              ? <><CalendarDays size={13} aria-hidden='true' /> {new Date(`${sermon.date}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</>
+              : 'Draft in progress'}
+          </small>
         </div>
         <div className='ss-persistent-actions'>
-          <Button onClick={saveSermon} disabled={saving}>{saving ? 'Saving…' : 'Save Draft'}</Button>
+          <Button onClick={saveSermon} disabled={saving}>
+            <Save size={16} aria-hidden='true' />{saving ? 'Saving…' : 'Save Draft'}
+          </Button>
           <Button
             variant='outline'
             disabled={!canEnterPreachMode(sermon)}
@@ -439,30 +473,47 @@ export default function Page() {
               setPreachSermon(sermon)
             }}
           >
-            Preach
+            <Mic2 size={16} aria-hidden='true' />Preach
           </Button>
+          <span className='ss-save-feedback' aria-live='polite'>
+            {saving ? 'Saving this draft…' : 'Changes are kept on this device'}
+          </span>
         </div>
       </header>
 
       <nav className='no-print work-mode-nav' aria-label='Sermon workflow'>
-        {WORK_MODES.map((mode, index) => (
-          <button
-            key={mode}
-            type='button'
-            aria-current={workMode === mode ? 'step' : undefined}
-            data-active={workMode === mode}
-            onClick={() => {
-              setWorkMode(mode)
-              if (mode === 'Library') setActiveTab('Library')
-            }}
-          >
-            <span>{index + 1}</span>{mode}
-          </button>
-        ))}
+        <div className='work-mode-track'>
+          {WORKFLOW_STEPS.map((step, index) => {
+            const mode = step.id
+            const Icon = WORK_MODE_META[mode].icon
+            return (
+              <button
+                key={mode}
+                type='button'
+                aria-current={workMode === mode ? 'step' : undefined}
+                data-active={workMode === mode}
+                onClick={() => goToWorkflowStep(mode)}
+              >
+                <span className='work-mode-icon'><Icon size={17} aria-hidden='true' /></span>
+                <span className='work-mode-copy'>
+                  <strong>{WORK_MODE_META[mode].label}</strong>
+                  <small>{index + 1}. {WORK_MODE_META[mode].detail}</small>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+        <p className='work-mode-context'>
+          <strong>Step {workflowProgress.current} of {workflowProgress.total}</strong>
+          {workMode === 'Draft' && 'Shape the message'}
+          {workMode === 'Research' && 'Gather what serves the text'}
+          {workMode === 'Preach' && 'Prepare for the room'}
+          {workMode === 'Library' && 'Revisit and reuse'}
+        </p>
       </nav>
 
       <details className='no-print ss-utilities'>
-        <summary>Account, templates &amp; export tools</summary>
+        <summary><Settings2 size={16} aria-hidden='true' /> Account, templates &amp; export</summary>
         <div className='ss-utilities-body'>
           <AuthCard onSignedIn={handleSignedIn} onSignedOut={handleSignedOut} />
           <div className='ss-template-row flex flex-wrap gap-2'>
@@ -510,15 +561,21 @@ export default function Page() {
         </div>
       )}
 
-      {workMode === 'Draft' && <Card>
-        <CardHeader>
-          <CardTitle>Current Sermon</CardTitle>
+      <main className='ss-main'>
+      {workMode === 'Draft' && <Card className='ss-writing-sheet'>
+        <CardHeader className='ss-section-heading'>
+          <div>
+            <p className='ss-section-kicker'>Draft</p>
+            <CardTitle>Shape the message</CardTitle>
+            <p>Build the spine first, then give every idea a clear place.</p>
+          </div>
+          <span className='ss-draft-state'>Autosaved locally</span>
         </CardHeader>
         <CardContent className='space-y-4'>
           <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
-            <div className='md:col-span-2'>
+            <div className='md:col-span-2 ss-title-field'>
               <label className='text-sm font-medium'>Title</label>
-              <Input placeholder='e.g., Renewed Minds' value={sermon.title} onChange={e=>setSermon({...sermon, title: e.target.value})} />
+              <Input placeholder='Name this message…' value={sermon.title} onChange={e=>setSermon({...sermon, title: e.target.value})} />
             </div>
             <div>
               <label className='text-sm font-medium'>Theme</label>
@@ -545,7 +602,12 @@ export default function Page() {
             )}
           </div>
 
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+          <div className='ss-editor-section'>
+            <div className='ss-editor-section-label'>
+              <span>01</span>
+              <div><strong>Message structure</strong><small>The movements your congregation will follow</small></div>
+            </div>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
             <StringListEditor
               label='Key Points'
               placeholder='e.g., God initiates; we respond'
@@ -560,25 +622,40 @@ export default function Page() {
               onChange={illustrations=>setOutline({ illustrations })}
             />
           </div>
+          </div>
 
-          <div>
+          <div className='ss-editor-section'>
+            <div className='ss-editor-section-label'>
+              <span>02</span>
+              <div><strong>Response</strong><small>Bring the truth into the coming week</small></div>
+            </div>
             <label className='text-sm font-medium'>Application</label>
             <Textarea rows={3} placeholder='How should the congregation respond this week?' value={outline.application} onChange={e=>setOutline({ application: e.target.value })} />
           </div>
 
-          <div>
+          <div className='ss-editor-section'>
+            <div className='ss-editor-section-label'>
+              <span>03</span>
+              <div><strong>Pastoral notes</strong><small>Prayer, transitions, stories, and details for the room</small></div>
+            </div>
             <label className='text-sm font-medium'>Notes</label>
             <Textarea rows={5} placeholder='Prayer requests, calls-to-action, benediction, extra illustrations...' value={sermon.notes} onChange={e=>setSermon({...sermon, notes: e.target.value})} />
           </div>
 
-          <div className='flex flex-wrap gap-2'>
-            {sermon.passages.length===0 && <p className='text-sm text-[color:var(--ss-muted)]'>No passages attached yet — add them from the Scripture tab below.</p>}
+          <div className='ss-passage-shelf'>
+            <div>
+              <strong>Scripture shelf</strong>
+              <small>{sermon.passages.length ? `${sermon.passages.length} attached` : 'Your primary text belongs here'}</small>
+            </div>
+            <div className='flex flex-wrap gap-2'>
+            {sermon.passages.length===0 && <button type='button' className='ss-inline-link' onClick={() => { goToWorkflowStep('Research'); setActiveTab('Scripture') }}>Choose a passage in Research →</button>}
             {sermon.passages.map(ref => (
               <Badge key={ref}>
                 <span>{ref}</span>
                 <button className='ml-2 text-[color:var(--ss-muted)]' aria-label={`Remove ${ref}`} onClick={()=>removePassage(ref)}>×</button>
               </Badge>
             ))}
+            </div>
           </div>
         </CardContent>
       </Card>}
@@ -601,7 +678,7 @@ export default function Page() {
 
         {workMode === 'Preach' && (
           <Card className='ss-preach-ready'>
-            <CardHeader><CardTitle>Podium-ready view</CardTitle></CardHeader>
+            <CardHeader className='ss-section-heading'><div><p className='ss-section-kicker'>Preach</p><CardTitle>Podium-ready view</CardTitle><p>Keep the room in view, not your notes.</p></div></CardHeader>
             <CardContent className='space-y-4'>
               <p>Preaching mode keeps one section visible at a time, adds a timer, and works from the sermon saved in this browser.</p>
               <div className='ss-preach-summary'>
@@ -624,8 +701,8 @@ export default function Page() {
 
         {!loading && workMode === 'Research' && activeTab==='Scripture' && (
         <Card>
-          <CardHeader>
-            <CardTitle>Browse Scripture</CardTitle>
+          <CardHeader className='ss-section-heading'>
+            <div><p className='ss-section-kicker'>Research / Scripture</p><CardTitle>Begin with the text</CardTitle><p>Search the local library and attach passages to this draft.</p></div>
           </CardHeader>
           <CardContent className='space-y-4'>
             <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
@@ -657,7 +734,7 @@ export default function Page() {
                 </Card>
               ))}
               {scriptureResults.length===0 && (
-                <p className='text-sm text-[color:var(--ss-muted)] md:col-span-2'>No passages match &quot;{search}&quot;. This beta ships with a small local verse library — try a broader search like &quot;trust&quot; or &quot;John&quot;.</p>
+                <div className='ss-empty-state md:col-span-2'><BookOpenText aria-hidden='true' /><strong>No passages found</strong><p>Try a broader search such as &quot;trust&quot; or &quot;John&quot;. This beta includes a small local verse library.</p></div>
               )}
             </div>
 
@@ -831,7 +908,7 @@ export default function Page() {
 
         {!loading && workMode === 'Library' && (
         <Card>
-          <CardHeader><CardTitle>Saved Sermons & Schedule</CardTitle></CardHeader>
+          <CardHeader className='ss-section-heading'><div><p className='ss-section-kicker'>Library</p><CardTitle>Saved sermons &amp; schedule</CardTitle><p>Your messages, ready to return to when the season calls for them.</p></div></CardHeader>
           <CardContent className='space-y-3'>
             <div className='flex flex-wrap gap-2'>
               <Button variant='outline' onClick={()=>{
@@ -872,7 +949,7 @@ export default function Page() {
                 }
               }}>Export schedule ICS</Button>
             </div>
-            {library.length===0 && <p className='text-sm text-[color:var(--ss-muted)]'>No saved sermons yet. Draft one above and click Save Draft.</p>}
+            {library.length===0 && <div className='ss-empty-state'><LibraryBig aria-hidden='true' /><strong>Your library is waiting</strong><p>Finish shaping a message, then use Save Draft to keep it here.</p><Button variant='outline' onClick={() => setWorkMode('Draft')}>Return to draft</Button></div>}
             {library.map(s => (
               <div key={s.id} className='p-3 rounded-xl border border-[rgba(126,184,218,0.18)] flex flex-wrap items-start justify-between gap-3 hover:border-[rgba(126,184,218,0.35)] transition-colors'>
                 <div className='min-w-0'>
@@ -934,6 +1011,7 @@ export default function Page() {
         </Card>
         )}
       </div>
+      </main>
 
       <footer className='pb-4 text-center text-xs text-[color:var(--ss-muted)]'>
         Pastor&apos;s Sermon Studio — external beta. Works fully offline in this browser; connect Supabase to sync across devices.

@@ -17,6 +17,7 @@ import { mergeOnSignIn } from "../services/supabaseSync";
 export function OAuthSignIn() {
   const [user, setUser] = useState<User | null>(null);
   const [busy, setBusy] = useState<OAuthProvider | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const configured = authAvailable();
 
@@ -50,9 +51,12 @@ export function OAuthSignIn() {
   }
 
   async function handleSignOut() {
+    setSigningOut(true);
+    setMessage(null);
     const err = await signOut();
     setMessage(err ?? "Signed out.");
-    setUser(null);
+    if (!err) setUser(null);
+    setSigningOut(false);
   }
 
   if (user) {
@@ -61,8 +65,8 @@ export function OAuthSignIn() {
         <p className="future-note">
           Signed in as <strong>{user.email}</strong>
         </p>
-        <button type="button" className="compact-action" onClick={handleSignOut}>
-          Sign out
+        <button type="button" className="compact-action" onClick={handleSignOut} disabled={signingOut}>
+          {signingOut ? "Signing out…" : "Sign out"}
         </button>
         {message && <p className="future-note">{message}</p>}
       </div>
@@ -77,6 +81,7 @@ export function OAuthSignIn() {
           const providerReady = configured && isOAuthProviderEnabled(id);
           return (
             <button
+              data-action="sign-in"
               key={id}
               type="button"
               className="compact-action"

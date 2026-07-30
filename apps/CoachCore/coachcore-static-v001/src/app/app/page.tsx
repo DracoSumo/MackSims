@@ -50,8 +50,8 @@ export default function CoachDashboard() {
 
   return (
     <AppShell showStatusBanner={false}>
-      <div className="px-5 py-5 lg:px-10 lg:py-8">
-        <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+      <div className="ms-page">
+        <header className="mb-5 flex flex-wrap items-end justify-between gap-3 sm:mb-6">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.25em] text-sky-300">Coach dashboard</p>
             <h1 className="mt-1 text-3xl font-black tracking-tight lg:text-4xl">Today&apos;s priorities</h1>
@@ -62,7 +62,7 @@ export default function CoachDashboard() {
         </header>
 
         <section className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
-          <div className="rounded-[18px] border border-amber-300/20 bg-amber-300/[0.08] p-4 lg:p-5">
+          <div className="rounded-[18px] border border-amber-300/20 bg-amber-300/[0.08] p-[var(--ms-card-pad)]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-200">Athlete exceptions</p>
@@ -104,7 +104,7 @@ export default function CoachDashboard() {
             </div>
           </div>
 
-          <div className="rounded-[18px] border border-sky-300/20 bg-sky-300/[0.07] p-4 lg:p-5">
+          <div className="rounded-[18px] border border-sky-300/20 bg-sky-300/[0.07] p-[var(--ms-card-pad)]">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-sky-200">Next coach actions</p>
             <div className="mt-3 grid gap-2">
               {nextActions.map((action, index) => (
@@ -125,12 +125,12 @@ export default function CoachDashboard() {
           </div>
         </section>
 
-        <div className="mt-4 grid gap-2 lg:grid-cols-2">
+        <div className="mt-5 grid gap-3 lg:grid-cols-2">
           <DemoWalkthroughBanner embedded />
           <DashboardSyncStrip compact />
         </div>
 
-        <section className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <section className="mt-[var(--ms-section-gap)] grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {coachCoreStats.length ? (
             coachCoreStats.map((stat) => (
               <MetricCard key={stat.label} label={stat.label} value={stat.value} note={stat.note} />
@@ -145,13 +145,13 @@ export default function CoachDashboard() {
           )}
         </section>
 
-        <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="mt-[var(--ms-section-gap)] grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {commandModules.map((module) => (
             <CommandCard key={module.title} {...module} />
           ))}
         </section>
 
-        <section className="mt-6">
+        <section className="mt-[var(--ms-section-gap)]">
           <h2 className="text-2xl font-black">All coach actions</h2>
           <p className="mt-2 text-sm text-slate-400">
             Open action sheets to prepare film, training, fueling, and nudges. Live delivery stays off until backends are connected.
@@ -161,7 +161,7 @@ export default function CoachDashboard() {
               <Link
                 key={card.href}
                 href={card.href}
-                className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-5 transition hover:border-sky-300/30"
+                className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-[var(--ms-card-pad)] transition hover:border-sky-300/30"
               >
                 <StatusPill tone="sky">{card.tag}</StatusPill>
                 <h3 className="mt-4 text-xl font-black">{card.title}</h3>
@@ -171,7 +171,7 @@ export default function CoachDashboard() {
           </div>
         </section>
 
-        <section className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <section className="mt-[var(--ms-section-gap)] grid gap-[var(--ms-section-gap)] xl:grid-cols-[1.1fr_0.9fr]">
           <AthleteAccountabilityPanel />
 
           <div className="space-y-6">

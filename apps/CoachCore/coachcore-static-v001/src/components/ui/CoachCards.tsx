@@ -12,7 +12,7 @@ export function MetricCard({
   note: string;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-[14px] border border-[var(--ms-line-warm)] bg-[var(--ms-card)] p-5 shadow-[var(--ms-shadow)] ms-glass-panel">
+    <div className="relative overflow-hidden rounded-[14px] border border-[var(--ms-line-warm)] bg-[var(--ms-card)] p-[var(--ms-card-pad)] shadow-[var(--ms-shadow)] ms-glass-panel">
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),transparent_36%)]" />
       <p className="relative text-sm text-slate-400">{label}</p>
       <p className="relative mt-3 text-4xl font-black tracking-tight">{value}</p>
@@ -59,7 +59,7 @@ export function CommandCard({
   return (
     <Link
       href={href}
-      className="group relative block overflow-hidden rounded-[14px] border border-[var(--ms-line-warm)] bg-[var(--ms-card)] p-6 shadow-[var(--ms-shadow)] transition hover:-translate-y-0.5 hover:border-emerald-400/35 ms-glass-panel"
+      className="group relative block overflow-hidden rounded-[14px] border border-[var(--ms-line-warm)] bg-[var(--ms-card)] p-[var(--ms-card-pad)] shadow-[var(--ms-shadow)] transition hover:-translate-y-0.5 hover:border-emerald-400/35 ms-glass-panel"
     >
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),transparent_36%)]" />
       <StatusPill>{tag}</StatusPill>
@@ -112,7 +112,7 @@ export function DemoDisclaimerStrip() {
 
 export function FoundationNote() {
   return (
-    <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 text-sm leading-6 text-slate-400">
+    <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-[var(--ms-card-pad)] text-sm leading-6 text-slate-400">
       <span className="font-bold text-slate-200">{coachCoreConfig.version} live beta:</span>{" "}
       {coachCoreConfig.safetyNote}
     </div>
