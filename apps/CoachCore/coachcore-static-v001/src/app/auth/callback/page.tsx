@@ -3,12 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { exchangeAuthCallbackCode, getCurrentUser } from "@/lib/auth";
+import { consumeAuthReturnTo, exchangeAuthCallbackCode, getCurrentUser } from "@/lib/auth";
+import { getSupabaseClient } from "@/lib/supabaseClient";
+import { connectProviderLocally, syncIntegrationsOnSignIn } from "@/services/integrationsSync";
 import { mergeOnSignIn } from "@/services/supabaseSync";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState("Signing you in…");
 
   useEffect(() => {
     let active = true;
@@ -19,6 +22,10 @@ export default function AuthCallbackPage() {
         setError(message);
         return;
       }
+
+      const params = new URLSearchParams(window.location.search);
+      const plugin = params.get("plugin");
+
       const user = await getCurrentUser();
       if (user) {
         const syncErr = await mergeOnSignIn(user);
@@ -26,8 +33,31 @@ export default function AuthCallbackPage() {
           setError(syncErr);
           return;
         }
+        await syncIntegrationsOnSignIn();
       }
-      router.replace("/app");
+
+      if (plugin === "google_calendar" && user) {
+        setStatus("Linking Google Calendar…");
+        const supabase = getSupabaseClient();
+        const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
+        const hasProviderToken = Boolean(data.session?.provider_token);
+
+        await connectProviderLocally({
+          providerId: "google_calendar",
+          displayName: "Google Calendar",
+          status: hasProviderToken ? "connected" : "pending_oauth",
+          notes: hasProviderToken
+            ? "Google Calendar scopes granted. Event sync is not reading calendars yet — connection only."
+            : "Signed in after Calendar consent, but no provider_token in session. Confirm Google Calendar API + scopes on the OAuth client (docs/INTEGRATIONS_SETUP.md).",
+        });
+
+        if (!active) return;
+        router.replace("/app/integrations/");
+        return;
+      }
+
+      if (!active) return;
+      router.replace(consumeAuthReturnTo());
     });
 
     return () => {
@@ -51,7 +81,7 @@ export default function AuthCallbackPage() {
 
   return (
     <main className="grid min-h-screen place-items-center bg-slate-950 text-white">
-      <p className="text-slate-300">Signing you in…</p>
+      <p className="text-slate-300">{status}</p>
     </main>
   );
 }

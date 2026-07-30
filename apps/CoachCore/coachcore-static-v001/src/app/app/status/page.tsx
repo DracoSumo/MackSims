@@ -17,9 +17,10 @@ const locks = [
   "Video room",
   "Clickable video details",
   "Accountability dashboard",
-  "Integration center",
+  "Integration center (connect / request-access)",
   "OAuth sign-in (Google/GitHub when Supabase configured)",
-  "Optional Supabase sync (check-ins, actions, beta)",
+  "Optional Supabase sync (check-ins, actions, beta, plugins)",
+  "Google Calendar link (scopes via existing Google OAuth)",
   "Athlete check-in (localStorage)",
   "Mock action log (localStorage)",
   "Local data export/import",
@@ -29,11 +30,11 @@ const locks = [
 
 const safety = [
   "No production roster or Hudl data",
-  "Supabase writes need schema + RLS policies",
+  "Sample roster until real teams are imported",
   "No payments",
-  "No Hudl API connected",
-  "No wearable APIs connected",
-  "No third-party credentials stored in app",
+  "No Hudl API connected (request-access only)",
+  "No wearable APIs connected (request-access / needs credentials)",
+  "No third-party secrets in the client bundle",
   "No production deployment telemetry",
   "Demo athlete data only",
 ];
@@ -102,10 +103,11 @@ export default function StatusPage() {
         <p className="text-sm font-bold uppercase tracking-[0.25em] text-sky-200">
           Next build
         </p>
-        <h2 className="mt-3 text-3xl font-black">v0.6 — Supabase + OAuth wiring</h2>
+        <h2 className="mt-3 text-3xl font-black">v0.8 — Real teams + assignments</h2>
         <p className="mt-3 text-sm leading-6 text-sky-50/85">
-          Per-app Supabase projects, OAuth callback routes, local-first sync hooks, and connection status panels.
-          Run schema SQL and enable OAuth providers in each Supabase dashboard to go live.
+          Replace sample roster with org/team membership, persist assignments beyond localStorage,
+          and gate coach tools behind signed-in sessions once schema RLS is confirmed on production.
+          Plugin follow-ups: Calendar event sync, Strava token exchange function, partner API credentials.
         </p>
       </div>
     </SectionPage>
