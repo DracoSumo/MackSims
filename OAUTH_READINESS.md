@@ -9,19 +9,20 @@ Supabase Auth projects; no Netlify Identity or second auth system should be adde
 
 | App | Production URL | Login status | Supabase project | Login methods in UI |
 | --- | --- | --- | --- | --- |
-| CoachCore | `https://coachcore.macksims.com` | Enabled | `bfqfbkldxbojrrxeidcc` | Google, GitHub; Facebook gated (`NEXT_PUBLIC_ENABLE_FACEBOOK_AUTH`) |
-| CurbCue / FairShare | `https://fairshare.macksims.com` | Enabled in Settings | `dsbwqxhqktzsdleeobbi` | Google, GitHub; Facebook gated (`VITE_ENABLE_FACEBOOK_AUTH`) |
-| MotoCrew / ThrottleLink | `https://motocrew.macksims.com` | Enabled in Profile | `npmiwnxnqgonnmwvblyi` | Google, GitHub; Facebook gated (`VITE_ENABLE_FACEBOOK_AUTH`) |
-| Sermon Studio | `https://sermonstudio.macksims.com` | Enabled; local mode remains available | `zipxwqkmenapnckwyzrh` | Google, GitHub, email/password; Facebook gated (`NEXT_PUBLIC_ENABLE_FACEBOOK_AUTH`) |
+| CoachCore | `https://coachcore.macksims.com` | Enabled | `bfqfbkldxbojrrxeidcc` | Google, GitHub, Facebook |
+| CurbCue / FairShare | `https://fairshare.macksims.com` | Enabled in Settings | `dsbwqxhqktzsdleeobbi` | Google, GitHub, Facebook |
+| MotoCrew / ThrottleLink | `https://motocrew.macksims.com` | Enabled in Profile | `npmiwnxnqgonnmwvblyi` | Google, GitHub, Facebook |
+| Sermon Studio | `https://sermonstudio.macksims.com` | Enabled; local mode remains available | `zipxwqkmenapnckwyzrh` | Google, GitHub, Facebook, email/password |
 | FishCrew | `https://fishcrew.macksims.com` | Enabled | `kkyuychvitrmtehvzqfd` | Email/password; Google/Facebook deliberately gated off |
 
 The four TypeScript apps preserve a same-app return route through OAuth and reject
 absolute, protocol-relative, backslash, and callback-loop return targets. They accept
 both legacy JWT anon keys and current `sb_publishable_` keys. Facebook is wired into
 `signInWithOAuth({ provider: "facebook" })` with the same callback/return handling as
-Google/GitHub, but the Facebook button stays disabled (“coming soon”) until the
-matching `*_ENABLE_FACEBOOK_AUTH` flag is set after Meta + Supabase Facebook are
-configured and tested. FishCrew already persists sessions, handles password reset,
+Google/GitHub. Repository evidence records dedicated Meta apps and enabled Supabase
+Facebook providers for all four, so Facebook is now enabled by default. The existing
+`*_ENABLE_FACEBOOK_AUTH=false` value remains available only as an emergency kill
+switch. FishCrew already persists sessions, handles password reset,
 gates unavailable social buttons, and uses a fixed canonical redirect. Its Instagram
 profile connection is unchanged.
 
@@ -43,8 +44,8 @@ JavaScript origins are **not applicable** to these brokered login calls.
 - Required Netlify build variables:
   - `NEXT_PUBLIC_SUPABASE_URL`
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- Facebook UI gate (default off): `NEXT_PUBLIC_ENABLE_FACEBOOK_AUTH=true` only after
-  Meta + Supabase Facebook are live and tested.
+- Facebook UI is on by default. Set `NEXT_PUBLIC_ENABLE_FACEBOOK_AUTH=false` only as
+  an emergency kill switch.
 - Meta app domain / policies for Facebook Login:
   - App domain: `coachcore.macksims.com`
   - Privacy: `https://macksims-public-site.netlify.app/privacy/`
@@ -62,7 +63,7 @@ JavaScript origins are **not applicable** to these brokered login calls.
 - Required Netlify build variables:
   - `VITE_SUPABASE_URL`
   - `VITE_SUPABASE_ANON_KEY`
-- Facebook UI gate (default off): `VITE_ENABLE_FACEBOOK_AUTH=true`
+- Facebook UI is on by default; `VITE_ENABLE_FACEBOOK_AUTH=false` is an emergency kill switch.
 - Meta app domain: `fairshare.macksims.com` (same stable privacy/deletion URLs)
 
 ### MotoCrew / ThrottleLink
@@ -77,7 +78,7 @@ JavaScript origins are **not applicable** to these brokered login calls.
 - Required Netlify build variables:
   - `VITE_SUPABASE_URL`
   - `VITE_SUPABASE_ANON_KEY`
-- Facebook UI gate (default off): `VITE_ENABLE_FACEBOOK_AUTH=true`
+- Facebook UI is on by default; `VITE_ENABLE_FACEBOOK_AUTH=false` is an emergency kill switch.
 - Meta app domain: `motocrew.macksims.com` (same stable privacy/deletion URLs)
 
 ### Sermon Studio
@@ -92,7 +93,7 @@ JavaScript origins are **not applicable** to these brokered login calls.
 - Required Netlify variables:
   - `NEXT_PUBLIC_SUPABASE_URL`
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- Facebook UI gate (default off): `NEXT_PUBLIC_ENABLE_FACEBOOK_AUTH=true`
+- Facebook UI is on by default; `NEXT_PUBLIC_ENABLE_FACEBOOK_AUTH=false` is an emergency kill switch.
 - Meta app domain: `sermonstudio.macksims.com` (same stable privacy/deletion URLs)
 - Email/password remains the fallback.
 
@@ -157,8 +158,8 @@ For each Meta Facebook Login app:
 4. Use Cases → Authentication and Account Creation: `public_profile` + `email`.
 5. Copy App ID + App Secret into that product's Supabase Authentication → Providers
    → Facebook and enable the provider.
-6. Test in Development mode, then flip the app's `*_ENABLE_FACEBOOK_AUTH` flag and
-   redeploy.
+6. Test in Development mode with an app-role user. The repository UI is enabled by
+   default; use the flag only to disable the button during an incident.
 7. Never print or store App Secrets in the repo, docs, screenshots, or chat.
 
 ## Supabase dashboard checklist
@@ -194,9 +195,9 @@ Authentication was not added to excluded products.
 
 ### Code completed (this Meta pass)
 
-- CoachCore, CurbCue/FairShare, MotoCrew, Sermon Studio: Facebook added to
-  `OAuthProvider`, shared provider list, `signInWithOAuth` gate, and UI with
-  disabled “coming soon” until `*_ENABLE_FACEBOOK_AUTH=true`.
+- CoachCore, CurbCue/FairShare, MotoCrew, Sermon Studio: Facebook is included in
+  `OAuthProvider`, the shared provider list, and `signInWithOAuth`; the verified
+  provider is enabled by default in each UI.
 - Same-app callback/return sanitization unchanged and covered by tests.
 - FishCrew: `ENABLE_FACEBOOK_AUTH` remains `false`; Instagram config untouched;
   comments updated with console display-name findings.
@@ -226,21 +227,21 @@ Authentication was not added to excluded products.
 ### Remaining console blockers (exact)
 
 1. Test each login flow as a Meta app role user while still in Development mode.
-2. Only after a successful test: set the product’s `*_ENABLE_FACEBOOK_AUTH=true` in
-   Netlify and redeploy.
+2. After successful role-user tests, complete any Meta requirements and deliberately
+   switch each dedicated app Live before advertising Facebook login to the public.
 3. **FishCrew Facebook Login**: keep gated. Before enabling, inspect Meta app
    `1709471443573822` (do not touch `956207094120610` Instagram settings). If that
    Fishcrew app is clearly for login, configure its Facebook Login redirect to
    `https://kkyuychvitrmtehvzqfd.supabase.co/auth/v1/callback`, enable Supabase
    Facebook, test, then flip `ENABLE_FACEBOOK_AUTH`. If ambiguous, create a new
    dedicated FishCrew Login app instead of guessing.
-4. Prior Google/GitHub provider enablement gaps for CurbCue, MotoCrew, and Sermon
-   Studio remain as previously documented; CoachCore deployed public-key mismatch
-   remains unresolved.
+4. Google/GitHub console state for CurbCue, MotoCrew, and Sermon Studio was not
+   re-verified in the Meta pass. The repository has working buttons and callbacks,
+   while `KEYS_STATUS.md` confirms each deployed public key matches its Supabase
+   project; any provider-console failure still requires console inspection.
 
 ### Deployment prerequisites
 
 - No production deploy was made: working trees already contain unrelated dirty work.
-- Facebook buttons will remain non-functional “coming soon” until the env gates are
-  flipped after console setup + testing.
-- Redeploy is required after any `*_ENABLE_FACEBOOK_AUTH` or Supabase public env change.
+- Redeploy is required for this default-on Facebook UI change and after any Supabase
+  public env change.

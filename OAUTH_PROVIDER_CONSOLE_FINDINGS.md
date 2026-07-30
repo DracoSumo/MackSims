@@ -1,6 +1,14 @@
 # OAuth provider-console findings
 
-Inspection date: 2026-07-29 (updated during Meta/Facebook login pass)
+Earlier partial inspection: 2026-07-29
+
+> Historical note: this file captured an interrupted first console pass and is
+> superseded by the later completed verification in `OAUTH_READINESS.md`. That later
+> pass created dedicated Meta apps for CoachCore (`1732171628101176`), CurbCue
+> (`2243402953092342`), MotoCrew (`1040026771740958`), and Sermon Studio
+> (`1616615176822509`), then independently re-opened each matching Supabase Facebook
+> provider and confirmed it enabled with the exact product callback. Those four UI
+> providers are now enabled by default. FishCrew Google/Facebook login remains gated.
 
 ## Provider-console access result
 
@@ -59,12 +67,13 @@ FishCrew remains the only app with a live Meta Instagram OAuth path:
 - Stable policy URLs: `https://macksims-public-site.netlify.app/privacy/` and
   `https://macksims-public-site.netlify.app/account-deletion/`.
 
-## Manual follow-up required
+## Follow-up status (superseded)
 
-1. Create dedicated Meta Facebook Login apps for CoachCore, CurbCue, MotoCrew, and Sermon Studio (Development mode).
-2. For each, set only that product’s exact Supabase `/auth/v1/callback`, plus domain/privacy/deletion URLs.
-3. Enable the matching Supabase Facebook provider with App ID + secret (never store secrets in repo).
-4. Test, then flip each product’s `*_ENABLE_FACEBOOK_AUTH` and redeploy.
-5. For FishCrew login later: inspect `1709471443573822` carefully; do not touch Instagram settings on `956207094120610`.
+1. Dedicated Development-mode Meta apps, product callbacks, and Supabase Facebook
+   providers are complete for the four TypeScript apps.
+2. Role-user login testing and eventual Meta Live-mode decisions remain external.
+3. For FishCrew login later: inspect `1709471443573822` carefully; do not touch
+   Instagram settings on `956207094120610`.
 
-No Meta/Supabase Facebook provider setting was saved in this pass after browser control dropped.
+No Meta/Supabase setting was saved during this earlier interrupted pass; the later
+completed pass is the authoritative current status.
