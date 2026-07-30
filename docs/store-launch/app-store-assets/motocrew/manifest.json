@@ -1,0 +1,30 @@
+{
+  "app": "motocrew",
+  "storeName": "ThrottleLink",
+  "capturedAt": "2026-07-11T18:37:02.856Z",
+  "formFactors": [
+    "iphone",
+    "ipad"
+  ],
+  "shots": [
+    {
+      "name": "01-home",
+      "path": "/"
+    },
+    {
+      "name": "02-rides",
+      "path": "/",
+      "click": "Rides"
+    },
+    {
+      "name": "03-map",
+      "path": "/",
+      "click": "Map"
+    },
+    {
+      "name": "04-safety",
+      "path": "/",
+      "click": "Safety"
+    }
+  ]
+}

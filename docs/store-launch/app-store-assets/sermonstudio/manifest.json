@@ -1,0 +1,30 @@
+{
+  "app": "sermonstudio",
+  "storeName": "Sermon Studio",
+  "capturedAt": "2026-07-11T18:38:03.666Z",
+  "formFactors": [
+    "iphone",
+    "ipad"
+  ],
+  "shots": [
+    {
+      "name": "01-dashboard",
+      "path": "/"
+    },
+    {
+      "name": "02-scripture",
+      "path": "/",
+      "click": "Scripture"
+    },
+    {
+      "name": "03-ideas",
+      "path": "/",
+      "click": "Ideas"
+    },
+    {
+      "name": "04-series",
+      "path": "/",
+      "click": "Series"
+    }
+  ]
+}
