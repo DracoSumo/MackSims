@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { authAvailable, signInWithOAuth, type OAuthProvider } from "@/lib/auth";
-
-const providers: { id: OAuthProvider; label: string }[] = [
-  { id: "google", label: "Continue with Google" },
-  { id: "github", label: "Continue with GitHub" },
-];
+import {
+  authAvailable,
+  isOAuthProviderEnabled,
+  OAUTH_PROVIDERS,
+  signInWithOAuth,
+  type OAuthProvider,
+} from "@/lib/auth";
 
 export function OAuthButtons({ className = "" }: { className?: string }) {
   const [busy, setBusy] = useState<OAuthProvider | null>(null);
@@ -14,6 +15,7 @@ export function OAuthButtons({ className = "" }: { className?: string }) {
   const configured = authAvailable();
 
   async function handleSignIn(provider: OAuthProvider) {
+    if (!isOAuthProviderEnabled(provider)) return;
     setBusy(provider);
     setError(null);
     const message = await signInWithOAuth(provider);
@@ -26,26 +28,35 @@ export function OAuthButtons({ className = "" }: { className?: string }) {
   return (
     <div className={className}>
       <div className="grid gap-3">
-        {providers.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            disabled={!configured || busy !== null}
-            title={
-              configured
-                ? `Sign in with ${id}`
-                : "Supabase not configured — set env vars and redeploy"
-            }
-            onClick={() => handleSignIn(id)}
-            className={
-              configured
-                ? "rounded-2xl border border-white/15 px-5 py-3 font-bold text-white transition hover:border-sky-300/50 hover:bg-white/5 disabled:opacity-60"
-                : "cursor-not-allowed rounded-2xl border border-white/10 px-5 py-3 font-bold text-slate-500"
-            }
-          >
-            {busy === id ? "Redirecting…" : label}
-          </button>
-        ))}
+        {OAUTH_PROVIDERS.map(({ id, label }) => {
+          const providerReady = configured && isOAuthProviderEnabled(id);
+          return (
+            <button
+              key={id}
+              type="button"
+              disabled={!providerReady || busy !== null}
+              title={
+                !configured
+                  ? "Supabase not configured — set env vars and redeploy"
+                  : !isOAuthProviderEnabled(id)
+                    ? "Facebook login pending Meta + Supabase setup"
+                    : `Sign in with ${id}`
+              }
+              onClick={() => handleSignIn(id)}
+              className={
+                providerReady
+                  ? "rounded-2xl border border-white/15 px-5 py-3 font-bold text-white transition hover:border-sky-300/50 hover:bg-white/5 disabled:opacity-60"
+                  : "cursor-not-allowed rounded-2xl border border-white/10 px-5 py-3 font-bold text-slate-500"
+              }
+            >
+              {busy === id
+                ? "Redirecting…"
+                : !isOAuthProviderEnabled(id)
+                  ? `${label} (coming soon)`
+                  : label}
+            </button>
+          );
+        })}
       </div>
       {!configured && (
         <p className="mt-3 text-xs text-slate-500">
