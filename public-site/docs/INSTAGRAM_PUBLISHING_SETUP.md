@@ -80,7 +80,7 @@ All requests require `Authorization: Bearer <INSTAGRAM_PUBLISH_ADMIN_SECRET>`.
 
 1. Create a `draft` with `POST /api/admin/instagram/queue`.
 2. Review it with `GET /api/admin/instagram/queue`.
-3. Explicitly approve it with `POST /api/admin/instagram/queue/{id}/approve` and JSON `{ "approvedBy": "operator name" }`.
+3. Explicitly approve it with `POST /api/admin/instagram/queue/{id}/approve` and JSON `{ "approvedBy": "operator name" }`. Optional `queueNow: true` moves `scheduled_at` to now in the same atomic update so the next dispatcher cycle can claim it.
 4. The scheduled dispatcher can then claim it only after `scheduledAt`.
 5. Check configuration with `GET /api/admin/instagram/health`. Add `?verify=1` to make a read-only `/me` call to Meta.
 
