@@ -1,0 +1,62 @@
+[
+  {
+    "app": "fishcrew",
+    "scene": "home-local-fishing-hub",
+    "applePath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\fishcrew\\screenshots\\apple\\READY-fishcrew-home-local-fishing-hub-1242x2688.png",
+    "playPath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\fishcrew\\screenshots\\google-play\\READY-fishcrew-home-local-fishing-hub-1242x2688.png",
+    "actualSize": "1242 x 2688",
+    "status": "READY",
+    "reason": "Store-safe viewport capture at accepted Apple size",
+    "visibleIssues": []
+  },
+  {
+    "app": "fishcrew",
+    "scene": "explore-local-water",
+    "applePath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\fishcrew\\screenshots\\apple\\READY-fishcrew-explore-local-water-1242x2688.png",
+    "playPath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\fishcrew\\screenshots\\google-play\\READY-fishcrew-explore-local-water-1242x2688.png",
+    "actualSize": "1242 x 2688",
+    "status": "READY",
+    "reason": "Store-safe viewport capture at accepted Apple size",
+    "visibleIssues": []
+  },
+  {
+    "app": "fishcrew",
+    "scene": "feed-trip-activity",
+    "applePath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\fishcrew\\screenshots\\apple\\READY-fishcrew-feed-trip-activity-1242x2688.png",
+    "playPath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\fishcrew\\screenshots\\google-play\\READY-fishcrew-feed-trip-activity-1242x2688.png",
+    "actualSize": "1242 x 2688",
+    "status": "READY",
+    "reason": "Store-safe viewport capture at accepted Apple size",
+    "visibleIssues": []
+  },
+  {
+    "app": "shutterbid",
+    "scene": "marketplace-home",
+    "applePath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\apple\\READY-shutterbid-marketplace-home-1242x2688.png",
+    "playPath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\google-play\\READY-shutterbid-marketplace-home-1242x2688.png",
+    "actualSize": "1242 x 2688",
+    "status": "READY",
+    "reason": "Store-safe viewport capture at accepted Apple size",
+    "visibleIssues": []
+  },
+  {
+    "app": "shutterbid",
+    "scene": "job-detail-venue-content",
+    "applePath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\apple\\READY-shutterbid-job-detail-venue-content-1242x2688.png",
+    "playPath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\google-play\\READY-shutterbid-job-detail-venue-content-1242x2688.png",
+    "actualSize": "1242 x 2688",
+    "status": "READY",
+    "reason": "Store-safe viewport capture at accepted Apple size",
+    "visibleIssues": []
+  },
+  {
+    "app": "shutterbid",
+    "scene": "client-post-job",
+    "applePath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\apple\\READY-shutterbid-client-post-job-1242x2688.png",
+    "playPath": "C:\\Users\\draco\\OneDrive\\Documents\\MackSims\\docs\\store-launch\\apps\\shutterbid\\screenshots\\google-play\\READY-shutterbid-client-post-job-1242x2688.png",
+    "actualSize": "1242 x 2688",
+    "status": "READY",
+    "reason": "Store-safe viewport capture at accepted Apple size",
+    "visibleIssues": []
+  }
+]
