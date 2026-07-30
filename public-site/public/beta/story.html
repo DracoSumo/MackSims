@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>MackSims beta — Instagram / Snap story | MackSims</title>
+  <meta name="robots" content="noindex" />
+  <meta name="description" content="9:16 story frames for MackSims beta tester recruitment. Open on your phone, screenshot, post." />
+  <style>
+    :root {
+      --bg: #0a0c10;
+      --bg-soft: #12151c;
+      --text: #f0eee8;
+      --muted: #9a968c;
+      --gold: #c9a45c;
+      --line: rgba(255, 255, 255, 0.1);
+      --font: "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background: #050608;
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .controls {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: rgba(5, 6, 8, 0.92);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(8px);
+    }
+    .controls p {
+      margin: 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+      max-width: 42ch;
+    }
+    .controls a, .controls button {
+      font: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #1a1408;
+      background: var(--gold);
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 12px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .controls .ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--line);
+    }
+
+    .deck {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+      padding: 24px 16px 64px;
+    }
+
+    /* Story canvas: phone-screenshot friendly 9:16 */
+    .story {
+      width: min(100%, 420px);
+      aspect-ratio: 9 / 16;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 11% 10% 10%;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+    }
+
+    .story::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(18, 21, 28, 0.55) 0%, transparent 28%),
+        linear-gradient(0deg, rgba(10, 12, 16, 0.9) 0%, transparent 32%);
+      pointer-events: none;
+    }
+
+    .story > * { position: relative; z-index: 1; }
+
+    .brand {
+      font-size: clamp(1.05rem, 5.2vw, 1.35rem);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin: 0;
+    }
+
+    .story h1 {
+      margin: 18px 0 0;
+      font-size: clamp(1.85rem, 9.2vw, 2.55rem);
+      line-height: 1.12;
+      letter-spacing: -0.03em;
+      font-weight: 700;
+      max-width: 11ch;
+    }
+
+    .story .sub {
+      margin: 16px 0 0;
+      font-size: clamp(0.95rem, 4.2vw, 1.1rem);
+      line-height: 1.4;
+      color: var(--muted);
+      max-width: 18ch;
+    }
+
+    .qr-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      margin-top: auto;
+      padding-top: 24px;
+    }
+
+    .qr-wrap {
+      background: #fff;
+      padding: 14px;
+      border-radius: 12px;
+      line-height: 0;
+    }
+
+    .qr-wrap img {
+      width: min(42vw, 168px);
+      height: auto;
+      display: block;
+      image-rendering: pixelated;
+    }
+
+    .url {
+      margin: 0;
+      font-size: clamp(0.8rem, 3.5vw, 0.95rem);
+      color: var(--text);
+      letter-spacing: 0.01em;
+    }
+
+    .url span { color: var(--muted); }
+
+    /* Frame 2: QR-first */
+    .story.qr-first {
+      justify-content: center;
+      gap: 22px;
+      text-align: center;
+      padding-top: 14%;
+      padding-bottom: 12%;
+    }
+    .story.qr-first h1 {
+      margin: 0 auto;
+      max-width: 14ch;
+      font-size: clamp(1.55rem, 7.5vw, 2.1rem);
+    }
+    .story.qr-first .sub {
+      margin: 0 auto;
+      max-width: 22ch;
+    }
+    .story.qr-first .qr-block {
+      margin-top: 8px;
+      padding-top: 0;
+    }
+    .story.qr-first .qr-wrap img {
+      width: min(48vw, 196px);
+    }
+
+    .frame-label {
+      width: min(100%, 420px);
+      margin: 0 0 -12px;
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .how {
+      width: min(100%, 420px);
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    .how ol { margin: 8px 0 0; padding-left: 1.2rem; }
+    .how a { color: var(--gold); }
+
+    @media (max-width: 480px) {
+      .story {
+        width: 100%;
+        border-radius: 0;
+        border-left: 0;
+        border-right: 0;
+        min-height: 100svh;
+        aspect-ratio: auto;
+      }
+      .deck { padding: 0 0 40px; gap: 0; }
+      .frame-label { padding: 16px 16px 8px; width: 100%; }
+      .how { padding: 20px 16px; width: 100%; }
+      .controls p { display: none; }
+    }
+
+    @media print {
+      .controls, .how, .frame-label { display: none !important; }
+      body { background: #fff; }
+      .deck { padding: 0; gap: 0; }
+      .story {
+        width: 100%;
+        max-width: none;
+        height: 100vh;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        page-break-after: always;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <p>Open on your phone → screenshot each frame → post to Insta / Snap Stories. Desktop: use phone width or print.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="ghost" href="/beta/">Beta page</a>
+      <button type="button" onclick="window.print()">Print / save PDF</button>
+    </div>
+  </div>
+
+  <div class="deck">
+    <p class="frame-label">Frame 1 — text + QR</p>
+    <section class="story" aria-label="Story frame 1">
+      <div>
+        <p class="brand">MackSims</p>
+        <h1>Looking for a few beta testers</h1>
+        <p class="sub">Not polished yet — that’s the point.</p>
+      </div>
+      <div class="qr-block">
+        <div class="qr-wrap">
+          <img
+            src="/images/qr/macksims-beta.png"
+            width="512"
+            height="512"
+            alt="QR code linking to https://www.macksims.com/beta/"
+          />
+        </div>
+        <p class="url">www.macksims.com/beta <span>· scan or tap</span></p>
+      </div>
+    </section>
+
+    <p class="frame-label">Frame 2 — QR first</p>
+    <section class="story qr-first" aria-label="Story frame 2">
+      <p class="brand">MackSims</p>
+      <h1>Scan to try the apps</h1>
+      <p class="sub">Web demos are up. Signup if you want native invites too.</p>
+      <div class="qr-block">
+        <div class="qr-wrap">
+          <img
+            src="/images/qr/macksims-beta.png"
+            width="512"
+            height="512"
+            alt="QR code linking to https://www.macksims.com/beta/"
+          />
+        </div>
+        <p class="url">www.macksims.com/beta</p>
+      </div>
+    </section>
+
+    <div class="how">
+      <strong style="color:var(--text)">How to post today</strong>
+      <ol>
+        <li>Open this page on your phone (Chrome / Safari).</li>
+        <li>Screenshot Frame 1 (and Frame 2 if you want a second slide).</li>
+        <li>Upload to Instagram or Snapchat Story. Add a link sticker to <code>https://www.macksims.com/beta/</code> if available.</li>
+      </ol>
+      <p>Copy/paste text lives in the repo at <code>public-site/docs/BETA_TESTER_POST.md</code> (Instagram / Snap stories section).</p>
+    </div>
+  </div>
+</body>
+</html>
