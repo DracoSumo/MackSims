@@ -109,16 +109,25 @@ export async function listQueue(limit = 50): Promise<QueueRecord[]> {
   return result.rows.map(mapRow);
 }
 
-export async function approveDraft(id: string, approvedBy: string): Promise<QueueRecord | null> {
+export async function approveDraft(
+  id: string,
+  approvedBy: string,
+  options: { queueNow?: boolean } = {},
+): Promise<QueueRecord | null> {
+  const queueNow = options.queueNow === true;
   const result = await queryable().query<QueueRow>(
     `UPDATE instagram_publish_queue
-     SET state = 'approved', approved_at = now(), approved_by = $2, updated_at = now()
+     SET state = 'approved',
+         approved_at = now(),
+         approved_by = $2,
+         scheduled_at = CASE WHEN $3 THEN now() ELSE scheduled_at END,
+         updated_at = now()
      WHERE id = $1 AND state = 'draft'
      RETURNING *`,
-    [id, approvedBy],
+    [id, approvedBy, queueNow],
   );
   if (!result.rows[0]) return null;
-  await audit(id, "approved", approvedBy, "draft", "approved");
+  await audit(id, "approved", approvedBy, "draft", "approved", { queueNow });
   return mapRow(result.rows[0]);
 }
 
