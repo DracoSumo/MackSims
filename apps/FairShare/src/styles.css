@@ -1,3 +1,9 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 :root {
   color: #0c2e36;
   background: #eef6f4;
@@ -181,6 +187,55 @@ main,
   color: #ffffff;
   overflow: hidden;
   position: relative;
+}
+
+.home-intro {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  align-items: end;
+  min-height: 210px;
+  padding: 24px;
+  border-radius: var(--radius-feature);
+  background:
+    linear-gradient(110deg, rgba(7, 52, 59, 0.96), rgba(0, 122, 110, 0.78)),
+    url("https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&w=1500&q=80");
+  background-position: center;
+  background-size: cover;
+  box-shadow: var(--shadow);
+  color: #fff;
+}
+
+.home-intro .eyebrow {
+  color: #d6fff9;
+}
+
+.home-intro .hero-copy p {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.trip-task-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: -44px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow);
+  position: relative;
+  z-index: 2;
+}
+
+.trip-task-panel .trip-form {
+  padding: 0;
+  box-shadow: none;
+}
+
+.trip-task-panel .feature-label {
+  border-color: var(--line);
+  background: var(--teal-soft);
+  color: var(--teal);
 }
 
 .hero-section::before {
@@ -1214,6 +1269,7 @@ main,
 
 .beta-gate-card {
   width: min(560px, 100%);
+  max-width: 100%;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -1285,19 +1341,33 @@ main,
 }
 
 .demo-banner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
   margin-top: 8px;
   padding: 8px 12px;
-  border: 1px solid rgba(217, 93, 57, 0.4);
-  background: rgba(217, 93, 57, 0.08);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.78);
   border-radius: 10px;
   font-size: 0.85rem;
 }
 
-.demo-banner p {
+.demo-banner summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.demo-banner-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.demo-banner-detail p {
   margin: 0;
   flex: 1 1 220px;
   color: var(--ink);
@@ -1591,6 +1661,25 @@ main,
     min-height: 44px;
     padding-inline: 12px;
   }
+
+  .app-shell {
+    padding-top: 8px;
+  }
+
+  .topbar {
+    min-height: 54px;
+    top: 6px;
+    padding: 6px 8px;
+    border-radius: var(--radius-panel);
+  }
+
+  .brand-button {
+    padding: 4px 6px;
+  }
+
+  .brand-button small {
+    display: none;
+  }
 }
 
 @media (max-width: 430px) {
@@ -1607,6 +1696,16 @@ main,
   .hero-section {
     min-height: min(62vh, 480px);
     padding: 18px;
+  }
+
+  .home-intro {
+    min-height: 190px;
+    padding: 20px 18px 56px;
+  }
+
+  .trip-task-panel {
+    margin-top: -58px;
+    padding: 16px;
   }
 
   .hero-copy h1 {

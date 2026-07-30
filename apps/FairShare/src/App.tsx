@@ -69,14 +69,7 @@ function resolveRoutePath(pathname: string): string {
   return pathname;
 }
 
-const curbCueFeatures = [
-  "Ride Compare",
-  "Crowd Cue",
-  "Surge Watch",
-  "Pickup Smarts",
-  "Timing Signal",
-  "Route Options"
-] as const;
+const curbCueFeatures = ["Compare fares", "Check curb pressure", "Choose a pickup"] as const;
 
 const routeTitles: Record<string, string> = {
   "/": APP_NAME,
@@ -190,7 +183,7 @@ export function App() {
   const rawPath = window.location.pathname;
 
   useEffect(() => {
-    document.title = `${routeTitles[rawPath] ?? routeTitles[currentPath] ?? APP_NAME} | ${APP_NAME}`;
+    document.title = `${routeTitles[rawPath] ?? routeTitles[currentPath] ?? "Page not found"} | ${APP_NAME}`;
   }, [currentPath, rawPath, locationKey]);
 
   const page = useMemo(() => {
@@ -219,7 +212,7 @@ export function App() {
         if (HOME_ROUTE_ALIASES.has(rawPath)) {
           return <HomePage navigate={navigate} />;
         }
-        return <HomePage navigate={navigate} />;
+        return <NotFoundPage navigate={navigate} />;
     }
   }, [currentPath, rawPath, locationKey]);
 
@@ -229,6 +222,21 @@ export function App() {
         {page}
       </AppShell>
     </BetaGate>
+  );
+}
+
+function NotFoundPage({ navigate }: { navigate: Navigate }) {
+  return (
+    <div className="page-stack">
+      <section className="panel">
+        <p className="eyebrow">404</p>
+        <h1>Page not found</h1>
+        <p>This CurbCue route does not exist.</p>
+        <button className="text-button" type="button" onClick={() => navigate("/")}>
+          Return home
+        </button>
+      </section>
+    </div>
   );
 }
 
@@ -254,12 +262,19 @@ function HomePage({ navigate }: { navigate: Navigate }) {
 
   return (
     <div className="page-stack">
-      <section className="hero-section">
+      <section className="home-intro">
         <div className="hero-copy">
-          <MarketModeBadge market={market} />
+          <p className="eyebrow">A clearer way to leave the curb</p>
           <h1>{APP_NAME}</h1>
           <p className="hero-subhead">{APP_TAGLINE}</p>
           <p>{APP_SHORT_DESCRIPTION}</p>
+        </div>
+      </section>
+      <section className="trip-task-panel" aria-labelledby="trip-task-title">
+        <div className="section-heading">
+          <p className="eyebrow">Plan your pickup</p>
+          <h2 id="trip-task-title">Where are you going?</h2>
+          <p>Compare the practical ride options first. Market and data details stay available after the decision.</p>
         </div>
         <TripSearchForm onSubmit={startSearch} submitLabel="Check ride options" />
         <div className="feature-label-row" aria-label="CurbCue features">
@@ -269,8 +284,8 @@ function HomePage({ navigate }: { navigate: Navigate }) {
             </span>
           ))}
         </div>
-      <SavedComparisonsHomeBadge onOpenCompare={() => navigate("/compare")} />
       </section>
+      <SavedComparisonsHomeBadge onOpenCompare={() => navigate("/compare")} />
 
       <SavedPlacesPanel
         onSelectPlace={(place) =>
@@ -281,32 +296,9 @@ function HomePage({ navigate }: { navigate: Navigate }) {
         }
       />
 
-      <NightlifePanel marketId={market.id} />
-
-      <EcosystemFlairPanel navigate={navigate} />
-
-      <section className="split-layout">
-        <div className="panel">
-          <div className="section-heading">
-            <p className="eyebrow">Platform order</p>
-            <h2>Foundation first</h2>
-          </div>
-          <div className="sequence-list">
-            <div>
-              <strong>1. {APP_NAME}</strong>
-              <span>Consumer comparison and account foundation</span>
-            </div>
-            <div>
-              <strong>2. CrowdMeter</strong>
-              <span>Crowd and demand intelligence layer</span>
-            </div>
-            <div>
-              <strong>3. Bermuda pilot</strong>
-              <span>Taxi operations, training, queues, and reporting</span>
-            </div>
-          </div>
-        </div>
+      <section className="split-layout home-signal-section">
         <CrowdMeterCard signal={spotlightSignal} title="CrowdMeter preview" />
+        <NightlifePanel marketId={market.id} />
       </section>
 
       <section className="panel">

@@ -58,14 +58,24 @@ import './App.css'
 
 type Screen = 'home' | 'rides' | 'crew' | 'comms' | 'safety' | 'profile' | 'create' | 'focus' | 'map' | 'chat'
 
-const navItems: { screen: Exclude<Screen, 'create' | 'focus' | 'map' | 'chat'>; label: string }[] = [
-  { screen: 'home', label: 'Home' },
-  { screen: 'rides', label: 'Rides' },
-  { screen: 'crew', label: 'Crew' },
-  { screen: 'safety', label: 'Safety' },
-  { screen: 'comms', label: 'Comms' },
-  { screen: 'profile', label: 'Profile' },
+type NavIconName = 'home' | 'rides' | 'crew' | 'safety' | 'more'
+
+const navItems: { screen: Exclude<Screen, 'create' | 'focus' | 'map' | 'chat' | 'comms'>; label: string; icon: NavIconName }[] = [
+  { screen: 'home', label: 'Home', icon: 'home' },
+  { screen: 'rides', label: 'Rides', icon: 'rides' },
+  { screen: 'crew', label: 'Crew', icon: 'crew' },
+  { screen: 'safety', label: 'Safety', icon: 'safety' },
+  { screen: 'profile', label: 'More', icon: 'more' },
 ]
+
+function NavIcon({ name }: { name: NavIconName }) {
+  const props = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  if (name === 'home') return <svg {...props}><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z" /></svg>
+  if (name === 'rides') return <svg {...props}><circle cx="6" cy="17" r="3" /><circle cx="18" cy="17" r="3" /><path d="m6 17 4-8h4l4 8M9 12h6M12 9l-2-3" /></svg>
+  if (name === 'crew') return <svg {...props}><circle cx="9" cy="8" r="3" /><circle cx="17" cy="10" r="2.5" /><path d="M3 20c0-4 2.7-7 6-7s6 3 6 7M15 14c3 0 5 2.4 5 5" /></svg>
+  if (name === 'safety') return <svg {...props}><path d="M12 3 4 6v5c0 5.2 3.4 8.6 8 10 4.6-1.4 8-4.8 8-10V6Z" /><path d="m9 12 2 2 4-5" /></svg>
+  return <svg {...props}><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></svg>
+}
 
 const feedbackMailto = `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(
   `${APP_NAME} ${VERSION_LABEL} beta feedback`,
@@ -241,6 +251,22 @@ function App() {
     event.currentTarget.reset()
   }
 
+  const pathname = typeof window === 'undefined' ? '/' : window.location.pathname
+  if (pathname !== '/' && pathname !== '/auth/callback') {
+    return (
+      <main className="app-shell">
+        <section className="phone-stage">
+          <div className="screen-content">
+            <p className="eyebrow">404</p>
+            <h1>Page not found</h1>
+            <p>This MotoCrew route does not exist.</p>
+            <a className="primary-action" href="/">Return home</a>
+          </div>
+        </section>
+      </main>
+    )
+  }
+
   return (
     <main className="app-shell">
       {authCallback ? (
@@ -386,6 +412,7 @@ function App() {
               draftCount={draftRides.length}
               joinedCount={joinedRideIds.length}
               onCreate={() => setActiveScreen('create')}
+              onOpenComms={() => setActiveScreen('comms')}
             />
           )}
           {activeScreen === 'create' && (
@@ -498,21 +525,6 @@ function HomeScreen({
         )}
       </section>
 
-      <section className="quick-actions" aria-label="Quick actions">
-        <button type="button" onClick={() => onNavigate('create')}>
-          Create Ride
-        </button>
-        <button type="button" onClick={() => onNavigate('rides')}>
-          Find Ride
-        </button>
-        <button type="button" onClick={() => onNavigate('crew')}>
-          My Crew
-        </button>
-        <button type="button" onClick={() => onNavigate('safety')}>
-          Safety
-        </button>
-      </section>
-
       <RidePhaseCard />
 
       <DraftRideCollection
@@ -568,7 +580,10 @@ function RideLog({
         <button type="submit" className="primary-action">Add completed ride</button>
       </form>
       {entries.length === 0 ? (
-        <p className="empty-state">No completed rides logged on this device yet.</p>
+        <p className="empty-state" role="status">
+          No completed rides logged on this device yet. Use the form above to add your first entry —
+          logs stay private to this browser.
+        </p>
       ) : (
         <div className="draft-grid">
           {entries.map((entry) => (
@@ -588,23 +603,20 @@ function RideLog({
 
 function RidePhaseCard() {
   return (
-    <section className="phase-card">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Ride status</p>
-          <h2>Crew sessions live under Crew</h2>
-        </div>
-        <span className="offline-pill">Manual check-ins</span>
-      </div>
+    <details className="phase-card compact-disclosure">
+      <summary>
+        <span>
+          <span className="eyebrow">Ride status</span>
+          Crew sessions use manual check-ins
+        </span>
+        <span className="offline-pill">Safety details</span>
+      </summary>
       <p className="subtle-copy">
-        Start a private crew ride session, share opt-in status, and post OK / delayed / need-help check-ins.
-        Automatic crash detection, background GPS, and emergency dispatch are not available in this web build.
+        Start a private crew ride session and post OK, delayed, or need-help check-ins. Automatic crash detection,
+        background GPS, and emergency dispatch are not available.
       </p>
       <p className="future-note">{SAFETY_NOTICE}</p>
-      <p className="danger-note">
-        Location status requires each rider&apos;s consent. “Need help” is a cautionary crew check-in only, not live-location SOS or emergency dispatch.
-      </p>
-    </section>
+    </details>
   )
 }
 
@@ -972,13 +984,11 @@ function MapScreen({ ride, route }: { ride: Ride; route: RoutePreview }) {
         <div className="map-placeholder" role="img" aria-label="Map placeholder">
           <div className="map-placeholder-grid" aria-hidden="true" />
           <div className="map-placeholder-copy">
-            <strong>
-              {mapAdapter.status === "live" ? "Live map tiles" : "Offline map basics — mocked route outline"}
-            </strong>
+          <strong>{mapAdapter.status === "live" ? "Live route" : "Route outline available"}</strong>
             <p>
               {mapAdapter.isLiveTrackingAvailable
                 ? "Live GPS and map tiles are available in this build."
-                : "Live maps require a map provider and API key (Mapbox, Google Maps, or an OpenStreetMap stack). No key is bundled with this beta, so the panel below shows the mocked route outline instead."}
+                : "This route is a staged outline, not turn-by-turn navigation. Live maps are not configured."}
             </p>
           </div>
         </div>
@@ -1003,7 +1013,7 @@ function MapScreen({ ride, route }: { ride: Ride; route: RoutePreview }) {
 
         <p className="future-note">
           {mapAdapter.status === "mock"
-            ? "This is not navigation or a GPS track. Real maps and consent-based route sharing require a configured provider; this panel uses mocked route data from the map adapter seam."
+            ? "Preview only—not navigation or a GPS track. Live route sharing requires a configured provider and rider consent."
             : "Route preview is served by the configured map adapter."}
         </p>
       </section>
@@ -1434,11 +1444,13 @@ function ProfileScreen({
   draftCount,
   joinedCount,
   onCreate,
+  onOpenComms,
 }: {
   permissionItems: PermissionModule[]
   draftCount: number
   joinedCount: number
   onCreate: () => void
+  onOpenComms: () => void
 }) {
   const [profile, setProfile] = useState<RiderProfileLocal>(() => loadRiderProfile())
   const [editing, setEditing] = useState(false)
@@ -1572,6 +1584,9 @@ function ProfileScreen({
           )}
           <button type="button" className="compact-action" onClick={() => downloadMotoCrewLocalData()}>
             Export local data
+          </button>
+          <button type="button" className="compact-action" onClick={onOpenComms}>
+            Comms status
           </button>
         </div>
         {saveNote && <p className="future-note">{saveNote}</p>}
@@ -1800,7 +1815,7 @@ function BottomNav({
           className={activeScreen === item.screen ? 'active' : ''}
           onClick={() => onNavigate(item.screen)}
         >
-          <span aria-hidden="true">{item.label.slice(0, 1)}</span>
+          <span aria-hidden="true"><NavIcon name={item.icon} /></span>
           {item.label}
         </button>
       ))}

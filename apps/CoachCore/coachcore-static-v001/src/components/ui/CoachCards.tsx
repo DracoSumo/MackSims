@@ -35,9 +35,11 @@ export function StatusPill({
     red: "border-red-300/25 bg-red-300/10 text-red-100",
     slate: "border-white/10 bg-white/10 text-slate-200",
   };
+  const cues = { sky: "◆", green: "✓", amber: "!", red: "×", slate: "•" };
 
   return (
-    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${tones[tone]}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${tones[tone]}`}>
+      <span aria-hidden="true">{cues[tone]}</span>
       {children}
     </span>
   );
@@ -91,16 +93,20 @@ export function CrossLinkStrip({ current }: { current?: string }) {
 export function DemoDisclaimerStrip() {
   const live = isSupabaseConfigured;
   return (
-    <p
+    <div
+      role="note"
       className={`rounded-[12px] border px-4 py-3 text-sm leading-6 backdrop-blur-sm ${
         live
           ? "border-emerald-300/25 bg-[rgba(16,185,129,0.12)] text-emerald-50/95"
           : "border-amber-300/25 bg-[rgba(249,115,22,0.12)] text-amber-50/95"
       }`}
     >
-      <span className="font-bold">{live ? "Live beta." : "Setup needed."}</span>{" "}
-      {coachCoreConfig.privacyScope}
-    </p>
+      <p>
+        <span className="font-bold">{live ? "Live beta." : "Setup needed."}</span>{" "}
+        {coachCoreConfig.privacyScope}
+      </p>
+      <p className="mt-2 text-xs leading-5 opacity-90">{coachCoreConfig.coachingSupportDisclaimer}</p>
+    </div>
   );
 }
 

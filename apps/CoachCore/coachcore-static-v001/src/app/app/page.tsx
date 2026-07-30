@@ -5,10 +5,11 @@ import { RecentActionLogPanel } from "@/components/RecentActionLogPanel";
 import { RecentCheckInsPanel } from "@/components/RecentCheckInsPanel";
 import { DashboardSyncStrip } from "@/components/DashboardSyncStrip";
 import { actionCards, activityTimeline, coachCoreStats, playbookItems } from "@/data/mock";
-import { coachCoreConfig } from "@/config/coachcore";
 import { DashboardIntegrationsStrip } from "@/components/integrations/DashboardIntegrationsStrip";
+import { DemoWalkthroughBanner } from "@/components/DemoWalkthroughBanner";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { CommandCard, CrossLinkStrip, DemoDisclaimerStrip, FoundationNote, MetricCard, StatusPill } from "@/components/ui/CoachCards";
+import { CommandCard, FoundationNote, MetricCard, StatusPill } from "@/components/ui/CoachCards";
+import { athletes } from "@/data/mock";
 
 const commandModules = [
   {
@@ -38,56 +39,98 @@ const commandModules = [
 ];
 
 export default function CoachDashboard() {
+  const exceptions = athletes.filter((athlete) => athlete.status !== "Locked in");
+  const nextActions = actionCards.filter((card) =>
+    [
+      "/app/actions/send-nudge",
+      "/app/actions/assign-workout",
+      "/app/actions/assign-video",
+    ].includes(card.href),
+  );
+
   return (
-    <AppShell>
-      <div className="px-5 py-6 lg:px-10 lg:py-10">
-        <DemoDisclaimerStrip />
+    <AppShell showStatusBanner={false}>
+      <div className="px-5 py-5 lg:px-10 lg:py-8">
+        <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.25em] text-sky-300">Coach dashboard</p>
+            <h1 className="mt-1 text-3xl font-black tracking-tight lg:text-4xl">Today&apos;s priorities</h1>
+          </div>
+          <Link href="/app/accountability" className="text-sm font-bold text-sky-200 hover:text-white">
+            Full accountability →
+          </Link>
+        </header>
 
-        <DashboardSyncStrip />
-
-        <div className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_36%),rgba(255,255,255,0.04)] p-6">
-            <p className="text-sm font-bold uppercase tracking-[0.3em] text-sky-300">
-              Coach dashboard
-            </p>
-            <h1 className="mt-3 text-4xl font-black tracking-tight lg:text-6xl">
-              Who is locked in?
-            </h1>
-            <p className="mt-4 max-w-2xl text-slate-300">
-              Track film, workouts, fueling, playbook views, login time, and readiness from one command center.
-            </p>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-              {coachCoreConfig.accountabilityDefinition}
-            </p>
-            <div className="mt-6 flex flex-wrap gap-2">
-              <StatusPill tone="green">{coachCoreConfig.version}</StatusPill>
-              <StatusPill tone="sky">All sports</StatusPill>
-              <StatusPill tone="slate">Functional fitness</StatusPill>
+        <section className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
+          <div className="rounded-[18px] border border-amber-300/20 bg-amber-300/[0.08] p-4 lg:p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-200">Athlete exceptions</p>
+                <h2 className="mt-1 text-2xl font-black">
+                  {exceptions.length ? `${exceptions.length} need attention` : "Team is on track"}
+                </h2>
+              </div>
+              <StatusPill tone={exceptions.some((athlete) => athlete.status === "At risk") ? "red" : "green"}>
+                {exceptions.some((athlete) => athlete.status === "At risk") ? "At risk present" : "No urgent flags"}
+              </StatusPill>
             </div>
-            <div className="mt-5">
-              <CrossLinkStrip />
+
+            <div className="mt-4 grid gap-2">
+              {exceptions.length ? (
+                exceptions.slice(0, 3).map((athlete) => (
+                  <Link
+                    key={athlete.id}
+                    href={`/app/athletes/${athlete.id}`}
+                    className="group grid min-h-[72px] gap-2 rounded-[12px] border border-white/10 bg-slate-950/45 px-4 py-3 transition hover:border-sky-300/35 sm:grid-cols-[1fr_auto] sm:items-center"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-black">{athlete.name}</p>
+                        <StatusPill tone={athlete.status === "At risk" ? "red" : "amber"}>{athlete.status}</StatusPill>
+                      </div>
+                      <p className="mt-1 truncate text-sm text-slate-300">{athlete.note}</p>
+                    </div>
+                    <p className="text-sm font-bold text-sky-200 group-hover:text-white">
+                      {athlete.status === "At risk" ? "Check in now" : "Review gaps"} →
+                    </p>
+                  </Link>
+                ))
+              ) : (
+                <EmptyState
+                  title="No athlete exceptions"
+                  body="Once your roster is connected, missed work and readiness flags will surface here first."
+                />
+              )}
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-amber-300/20 bg-amber-300/10 p-6">
-            <p className="text-sm font-bold uppercase tracking-[0.25em] text-amber-200">
-              Coach alert
-            </p>
-            <h2 className="mt-3 text-3xl font-black">
-              {coachCoreStats.length ? "Work is visible now." : "Waiting for your roster."}
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-amber-50/90">
-              {coachCoreStats.length
-                ? "12 of 18 athletes watched assigned film. 5 missed meal logs. 3 have not opened this week's playbook."
-                : "No team metrics yet. After you import athletes and assignments, readiness, film, and fueling signals will show here."}
-            </p>
-            <p className="mt-4 text-xs leading-5 text-amber-100/70">
-              Athlete view: {coachCoreConfig.athleteTodayPrompt}
-            </p>
+          <div className="rounded-[18px] border border-sky-300/20 bg-sky-300/[0.07] p-4 lg:p-5">
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-sky-200">Next coach actions</p>
+            <div className="mt-3 grid gap-2">
+              {nextActions.map((action, index) => (
+                <Link
+                  key={action.href}
+                  href={action.href}
+                  className={`flex min-h-[52px] items-center justify-between gap-3 rounded-[12px] px-4 py-3 text-sm font-bold transition ${
+                    index === 0
+                      ? "bg-sky-300 text-slate-950 hover:bg-sky-200"
+                      : "border border-white/10 bg-slate-950/35 text-sky-100 hover:border-sky-300/35"
+                  }`}
+                >
+                  <span>{action.title}</span>
+                  <span aria-hidden="true">→</span>
+                </Link>
+              ))}
+            </div>
           </div>
+        </section>
+
+        <div className="mt-4 grid gap-2 lg:grid-cols-2">
+          <DemoWalkthroughBanner embedded />
+          <DashboardSyncStrip compact />
         </div>
 
-        <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {coachCoreStats.length ? (
             coachCoreStats.map((stat) => (
               <MetricCard key={stat.label} label={stat.label} value={stat.value} note={stat.note} />
@@ -102,14 +145,14 @@ export default function CoachDashboard() {
           )}
         </section>
 
-        <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {commandModules.map((module) => (
             <CommandCard key={module.title} {...module} />
           ))}
         </section>
 
-        <section className="mt-8">
-          <h2 className="text-2xl font-black">Quick coach actions</h2>
+        <section className="mt-6">
+          <h2 className="text-2xl font-black">All coach actions</h2>
           <p className="mt-2 text-sm text-slate-400">
             Open action sheets to prepare film, training, fueling, and nudges. Live delivery stays off until backends are connected.
           </p>
@@ -128,7 +171,7 @@ export default function CoachDashboard() {
           </div>
         </section>
 
-        <section className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <section className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <AthleteAccountabilityPanel />
 
           <div className="space-y-6">

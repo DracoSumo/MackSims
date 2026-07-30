@@ -719,11 +719,17 @@
   }
 
   function nav(screen) {
-    const allowed = ['home', 'explore', 'crew', 'feed', 'tools', 'profile'];
+    const allowed = ['home', 'explore', 'crew', 'feed', 'more', 'tools', 'profile'];
     if (!allowed.includes(screen)) screen = 'home';
     state.activeScreen = screen;
     $$('.screen').forEach((s) => s.classList.toggle('active', s.id === `screen-${screen}`));
-    $$('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.screen === screen));
+    const primaryDestination = ['tools', 'profile'].includes(screen) ? 'more' : screen;
+    $$('.nav-btn').forEach((b) => {
+      const isActive = b.dataset.screen === primaryDestination;
+      b.classList.toggle('active', isActive);
+      if (isActive) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    });
     save();
     render();
     setDebug(`Screen: ${screen}`);
@@ -1326,6 +1332,37 @@
       </section>`;
   }
 
+  function renderMore() {
+    const user = currentUser();
+    const unread = unreadNotifications();
+    const profileTitle = user ? `${safe(user.name.split(' ')[0])}'s fishing card` : 'Profile and sign in';
+    const profileDetail = user
+      ? `${safe(user.role || 'Angler')} ${MID} ${safe(user.area || userArea())}`
+      : 'Browse as a guest or sign in when you are ready to join and post.';
+    $('#screen-more').innerHTML = `
+      <section class="section more-room" aria-labelledby="moreTitle">
+        <span class="eyebrow">More</span>
+        <h1 class="page-title" id="moreTitle">Tools, profile, and settings.</h1>
+        <p class="lead">Keep the crew flow close. Open planning tools or manage your FishCrew card here.</p>
+        <div class="more-destination-grid mt">
+          <button class="more-destination more-tools" type="button" data-action="go" data-screen="tools">
+            <span class="nav-icon nav-tools" aria-hidden="true"></span>
+            <span><strong>Fishing tools</strong><small>Bait, gear, fish ID, measuring, guides, and devices.</small></span>
+            <b aria-hidden="true">&rsaquo;</b>
+          </button>
+          <button class="more-destination more-profile" type="button" data-action="go" data-screen="profile">
+            <span class="nav-icon nav-profile" aria-hidden="true"></span>
+            <span><strong>${profileTitle}</strong><small>${profileDetail}${unread ? ` ${safe(unread)} unread alert${unread === 1 ? '' : 's'}.` : ''}</small></span>
+            <b aria-hidden="true">&rsaquo;</b>
+          </button>
+        </div>
+        <div class="panel more-settings mt">
+          <div><span class="eyebrow">Account</span><h2>Preferences and support</h2><p class="muted">Manage alerts, privacy, safety, connected services, and help without crowding the main dock.</p></div>
+          <button class="btn dark" type="button" data-action="open-user-settings">Open settings</button>
+        </div>
+      </section>`;
+  }
+
   function renderTools() {
     const guides = state.guideLibrary || [];
     const lastFish = state.lastFishId;
@@ -1576,13 +1613,20 @@
       explore: renderExplore,
       crew: renderCrew,
       feed: renderFeed,
+      more: renderMore,
       tools: renderTools,
       profile: renderProfile
     };
     const activeRenderer = renderers[screen] || renderHome;
     activeRenderer();
     $$('.screen').forEach((s) => s.classList.toggle('active', s.id === `screen-${screen}`));
-    $$('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.screen === screen));
+    const primaryDestination = ['tools', 'profile'].includes(screen) ? 'more' : screen;
+    $$('.nav-btn').forEach((b) => {
+      const isActive = b.dataset.screen === primaryDestination;
+      b.classList.toggle('active', isActive);
+      if (isActive) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    });
   }
 
   async function refreshFeed(options = {}) {
@@ -4950,7 +4994,7 @@ ${url}`).catch(() => {});
 
   function screenFromUrl() {
     const screen = new URLSearchParams(location.search).get('screen');
-    return ['home', 'explore', 'crew', 'feed', 'tools', 'profile'].includes(screen) ? screen : '';
+    return ['home', 'explore', 'crew', 'feed', 'more', 'tools', 'profile'].includes(screen) ? screen : '';
   }
 
   function openDeepLinkModal() {

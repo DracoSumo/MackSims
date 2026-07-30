@@ -1,5 +1,5 @@
 ﻿import Link from "next/link";
-import { AuthShell, Field } from "@/components/auth/AuthShell";
+import { AuthShell } from "@/components/auth/AuthShell";
 import { OAuthButtons } from "@/components/auth/OAuthButtons";
 import { isSupabaseConfigured } from "@/config/backend";
 
@@ -31,15 +31,10 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        {!live && (
-          <div className="mt-6 space-y-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Email/password — coming soon
-            </p>
-            <Field label="Email" placeholder="coach@example.com" type="email" />
-            <Field label="Password" placeholder="••••••••" type="password" />
-          </div>
-        )}
+        <p className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm leading-6 text-slate-400">
+          Email/password sign-in is not available in this build. Use Google or GitHub once Supabase is configured, or
+          continue in the sample dashboard.
+        </p>
 
         <p className="mt-6 text-sm text-slate-400">
           New to CoachCore?{" "}

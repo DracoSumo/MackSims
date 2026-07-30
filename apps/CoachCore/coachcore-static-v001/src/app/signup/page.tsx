@@ -1,5 +1,5 @@
 ﻿import Link from "next/link";
-import { AuthShell, Field } from "@/components/auth/AuthShell";
+import { AuthShell } from "@/components/auth/AuthShell";
 import { OAuthButtons } from "@/components/auth/OAuthButtons";
 import { isSupabaseConfigured } from "@/config/backend";
 
@@ -30,13 +30,10 @@ export default function SignupPage() {
           </Link>
         </div>
 
-        {!live && (
-          <div className="mt-6 space-y-4">
-            <Field label="Name" placeholder="Coach Davis" />
-            <Field label="Email" placeholder="coach@example.com" type="email" />
-            <Field label="Organization" placeholder="School, club, gym, or private team" />
-          </div>
-        )}
+        <p className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm leading-6 text-slate-400">
+          Profile forms (name, email, organization) are not collected here yet. Sign up with OAuth when configured, or
+          explore the sample workspace without creating an account.
+        </p>
 
         <p className="mt-6 text-sm text-slate-400">
           Already have access?{" "}

@@ -39,16 +39,15 @@ export function AthleteAccountabilityPanel() {
   }, [checkIns]);
 
   return (
-    <div className="rounded-[18px] border border-[var(--ms-line-warm)] bg-[var(--ms-card)] p-5 ms-glass-panel">
-      <h2 className="text-2xl font-black tracking-tight">Who is locked in?</h2>
+    <div className="rounded-[var(--ms-radius-panel)] border border-[var(--ms-line-warm)] bg-[var(--ms-card)] p-5 ms-glass-panel">
+      <h2 className="text-2xl font-black tracking-tight">Full roster accountability</h2>
       <p className="mt-2 text-sm text-slate-400">
-        Film, workouts, fueling, and readiness in one view — tap an athlete for detail. Green badge =
-        checked in today (this device).
+        Review every athlete across film, workouts, fueling, and readiness. A green badge marks today&apos;s check-in on this device.
       </p>
 
       <div className="mt-5 space-y-3">
         {athletes.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-white/15 p-4 text-sm text-slate-400">
+          <p className="rounded-[var(--ms-radius-panel)] border border-dashed border-white/15 p-4 text-sm text-slate-300">
             No athletes on this roster yet. Import your team to see film, workout, fueling, and readiness status.
           </p>
         ) : (
@@ -58,12 +57,12 @@ export function AthleteAccountabilityPanel() {
             <Link
               key={athlete.id}
               href={`/app/athletes/${athlete.id}`}
-              className="block rounded-2xl border border-white/10 bg-[var(--ms-surface)] p-4 transition hover:border-emerald-400/35"
+              className="block rounded-[var(--ms-radius-panel)] border border-white/10 bg-[var(--ms-surface)] p-4 transition hover:border-emerald-400/35"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="font-black">{athlete.name}</p>
-                  <p className="text-sm text-slate-400">
+                  <p className="text-sm text-slate-300">
                     {athlete.role} • Last active: {athlete.lastActive}
                   </p>
                 </div>
@@ -75,20 +74,20 @@ export function AthleteAccountabilityPanel() {
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-                <div className="rounded-2xl bg-white/10 p-3">
-                  <p className="text-slate-400">Film</p>
+                <div className="rounded-[var(--ms-radius-ui)] bg-white/10 p-3">
+                  <p className="text-slate-300">Film</p>
                   <p className="font-black">{athlete.film}</p>
                 </div>
-                <div className="rounded-2xl bg-white/10 p-3">
-                  <p className="text-slate-400">Workouts</p>
+                <div className="rounded-[var(--ms-radius-ui)] bg-white/10 p-3">
+                  <p className="text-slate-300">Workouts</p>
                   <p className="font-black">{athlete.workouts}</p>
                 </div>
-                <div className="rounded-2xl bg-white/10 p-3">
-                  <p className="text-slate-400">Fueling</p>
+                <div className="rounded-[var(--ms-radius-ui)] bg-white/10 p-3">
+                  <p className="text-slate-300">Fueling</p>
                   <p className="font-black">{athlete.meals}</p>
                 </div>
-                <div className="rounded-2xl bg-white/10 p-3">
-                  <p className="text-slate-400">Readiness</p>
+                <div className="rounded-[var(--ms-radius-ui)] bg-white/10 p-3">
+                  <p className="text-slate-300">Readiness</p>
                   <p className="font-black">{athlete.readiness}</p>
                 </div>
               </div>

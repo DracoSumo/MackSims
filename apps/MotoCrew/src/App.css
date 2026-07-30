@@ -124,7 +124,7 @@
 .safety-panel,
 .contacts-panel,
 .feedback-panel {
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: var(--radius-panel);
   background:
     linear-gradient(180deg, rgba(12, 48, 68, 0.92), rgba(6, 25, 39, 0.94));
@@ -185,7 +185,7 @@
 .text-action,
 .primary-action,
 .secondary-action {
-  min-height: 42px;
+  min-height: 44px;
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
@@ -271,16 +271,16 @@ textarea:focus-visible {
 .ride-card,
 .module-card {
   padding: 14px;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-panel);
   background: linear-gradient(180deg, rgba(26, 26, 30, 0.96), rgba(18, 18, 20, 0.92));
-  border-left: 3px solid var(--accent-soft);
+  border-left: 3px solid transparent;
   transition: border-color 0.15s ease, transform 0.15s ease;
 }
 
 .ride-card:hover,
 .module-card:hover {
-  border-left-color: var(--accent);
+  border-color: rgba(255, 107, 0, 0.42);
   transform: translateY(-1px);
 }
 
@@ -870,7 +870,7 @@ textarea:focus-visible {
   transform: translateX(-50%);
   width: min(760px, calc(100% - 16px));
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   padding: 9px 10px;
   border: 1px solid var(--border);
@@ -896,9 +896,35 @@ textarea:focus-visible {
   place-items: center;
   width: 22px;
   height: 22px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  font-size: 11px;
+  color: currentColor;
+}
+
+.bottom-nav span svg {
+  display: block;
+}
+
+.compact-disclosure {
+  padding: 0;
+}
+
+.compact-disclosure summary {
+  display: flex;
+  min-height: 60px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  color: var(--text-strong);
+  font-weight: 750;
+}
+
+.compact-disclosure summary .eyebrow {
+  display: block;
+}
+
+.compact-disclosure > p {
+  margin: 0 16px 14px;
 }
 
 .safety-gate {
@@ -1159,7 +1185,7 @@ textarea:focus-visible {
 .readiness-panel {
   margin-top: 16px;
   padding: 16px;
-  border-radius: 18px;
+  border-radius: var(--radius-panel);
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.04);
 }
@@ -1186,7 +1212,7 @@ textarea:focus-visible {
 
 .ride-mode-screen .ride-mode-focus {
   padding: 16px;
-  border-radius: 18px;
+  border-radius: var(--radius-panel);
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.25);
 }
@@ -1304,7 +1330,7 @@ textarea:focus-visible {
   display: grid;
   gap: 12px;
   padding: 16px;
-  border-radius: 18px;
+  border-radius: var(--radius-panel);
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(160deg, rgba(18, 28, 36, 0.92), rgba(10, 14, 18, 0.88));
 }
@@ -1329,11 +1355,41 @@ textarea:focus-visible {
   font-size: 0.85rem;
 }
 
+.stack-form input:not([type="checkbox"]),
+.stack-form select,
+.stack-form textarea {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.055);
+  font: inherit;
+}
+
+.stack-form textarea {
+  resize: vertical;
+}
+
+.crew-panel .action-row .text-action,
+.crew-panel .stack-form .text-action {
+  min-height: 44px;
+  padding: 8px 4px;
+}
+
 .checkbox-row {
   display: flex !important;
   align-items: center;
   gap: 8px;
   grid-template-columns: none !important;
+}
+
+.checkbox-row input {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
 }
 
 .save-toast {

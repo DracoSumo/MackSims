@@ -36,7 +36,11 @@ export function MockActionPage({
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-6">
+        <div className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-4 sm:p-6">
+          <p className="mb-4 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-xs leading-5 text-amber-50/90">
+            Example fields only. Values are not saved. The control below records a generic activity marker in this
+            browser and does not sync it to a team account.
+          </p>
           <div className="grid gap-4">{children}</div>
 
           <MockActionRunner
@@ -54,7 +58,7 @@ export function MockActionPage({
           />
         </div>
 
-        <div className="rounded-[2rem] border border-emerald-300/20 bg-emerald-300/10 p-6">
+        <div className="rounded-[2rem] border border-emerald-300/20 bg-emerald-300/10 p-4 sm:p-6">
           <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-200">
             Expected live result
           </p>
@@ -86,7 +90,7 @@ export function MockField({
       <input
         type={type}
         placeholder={placeholder}
-        className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-sky-300/60"
+        className="mt-2 min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-sky-300/60 focus-visible:ring-2 focus-visible:ring-sky-300/40"
       />
     </label>
   );
@@ -104,7 +108,7 @@ export function MockTextarea({
       <span className="text-sm font-bold text-slate-200">{label}</span>
       <textarea
         placeholder={placeholder}
-        className="mt-2 min-h-32 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-sky-300/60"
+        className="mt-2 min-h-32 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-sky-300/60 focus-visible:ring-2 focus-visible:ring-sky-300/40"
       />
     </label>
   );
@@ -120,7 +124,7 @@ export function MockSelect({
   return (
     <label className="block">
       <span className="text-sm font-bold text-slate-200">{label}</span>
-      <select className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-sky-300/60">
+      <select className="mt-2 min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-sky-300/60 focus-visible:ring-2 focus-visible:ring-sky-300/40">
         {options.map((option) => (
           <option key={option}>{option}</option>
         ))}

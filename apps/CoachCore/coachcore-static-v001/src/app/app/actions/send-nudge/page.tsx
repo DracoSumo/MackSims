@@ -9,13 +9,13 @@ export default function SendNudgePage() {
       description="Mock reminder flow for athletes who missed film, fueling, workouts, or playbook installs."
       resultTitle="Nudge ready to send"
       resultBody="CoachCore would notify the selected athletes and record the nudge in their accountability timeline."
-      buttonLabel="Send Mock Nudge"
-      successTitle="Nudge sent in demo mode"
-      successBody="The selected athlete group now has a simulated reminder event in the local activity timeline."
+      buttonLabel="Record nudge preview"
+      successTitle="Nudge preview recorded"
+      successBody="A generic activity marker was stored locally; the target and message were not saved. No athlete notification, SMS, or push was sent."
       timelineItems={[
-        "Coach nudge created.",
-        "Target group flagged for follow-up.",
-        "Accountability timeline simulated locally.",
+        "Generic nudge preview activity recorded locally.",
+        "Target and message field values left unsaved.",
+        "No backend, database, or notification was used.",
       ]}
     >
       <MockSelect label="Target group" options={mockNudgeTargets} />

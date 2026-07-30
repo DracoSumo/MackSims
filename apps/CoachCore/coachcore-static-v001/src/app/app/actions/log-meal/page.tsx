@@ -8,13 +8,13 @@ export default function LogMealPage() {
       description="Mock athlete fueling log for meals, hydration, recovery, and performance habits."
       resultTitle="Meal log prepared"
       resultBody="CoachCore would update the athlete fueling timeline and help coaches spot missing hydration or recovery habits."
-      buttonLabel="Submit Mock Meal Log"
-      successTitle="Meal log submitted in demo mode"
-      successBody="A fake fueling record was added to the local timeline. Nothing was saved to a backend."
+      buttonLabel="Record fueling preview"
+      successTitle="Fueling preview recorded"
+      successBody="A generic activity marker was stored locally; meal, hydration, and note values were not saved. No athlete backend or coach notification was used."
       timelineItems={[
-        "Fueling log submitted.",
-        "Hydration check simulated.",
-        "Coach visibility event added locally.",
+        "Generic fueling preview activity recorded locally.",
+        "Meal, hydration, and note values left unsaved.",
+        "No backend or notification was used.",
       ]}
     >
       <MockSelect label="Meal type" options={["Breakfast", "Lunch", "Dinner", "Snack", "Pre-training", "Post-training"]} />

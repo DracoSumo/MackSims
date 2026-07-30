@@ -41,6 +41,8 @@ const FALLBACK_SONGS: Song[] = [
 
 const TABS = ['Scripture','Ideas','Worship','Series','Library'] as const
 type TabId = typeof TABS[number]
+const WORK_MODES = ['Draft', 'Research', 'Preach', 'Library'] as const
+type WorkMode = typeof WORK_MODES[number]
 
 type SeriesWithSync = Series & { cloudSynced?: boolean }
 
@@ -124,9 +126,9 @@ function suggestIdeas(theme: string, verses: Verse[]) {
   ]
 }
 
-function randomColor() {
-  const palette = ['#22c55e','#06b6d4','#a855f7','#f97316','#ef4444','#eab308','#3b82f6','#D946EF']
-  return palette[Math.floor(Math.random()*palette.length)]
+function seriesColor(index: number) {
+  const palette = ['#7fb7a3', '#d4a574', '#8fa7d6', '#c58ea7', '#b9a46c', '#88a9b7']
+  return palette[index % palette.length]
 }
 
 /** Small reusable editor for a list of short text entries (key points, illustrations). */
@@ -170,6 +172,7 @@ export default function Page() {
   const { supabase, ready } = useSupabase()
 
   const [activeTab, setActiveTab] = useState<TabId>('Scripture')
+  const [workMode, setWorkMode] = useState<WorkMode>('Draft')
   const [translation, setTranslation] = useState('KJV')
   const [search, setSearch] = useState('')
   const [theme, setTheme] = useState('')
@@ -177,7 +180,7 @@ export default function Page() {
 
   const [songs, setSongs] = useState<Song[]>(FALLBACK_SONGS)
   const [verses, setVerses] = useState<Verse[]>(FALLBACK_VERSES)
-  const [series, setSeries] = useState<SeriesWithSync[]>([{ id: 'fall-2025-renew', name: 'Renewed: A Romans 12 Series', color: '#D946EF', cloudSynced: false }])
+  const [series, setSeries] = useState<SeriesWithSync[]>([{ id: 'fall-2025-renew', name: 'Renewed: A Romans 12 Series', color: seriesColor(0), cloudSynced: false }])
   const [library, setLibrary] = useState<SermonWithSync[]>([])
   const [loading, setLoading] = useState(true)
   const [authed, setAuthed] = useState(false)
@@ -213,7 +216,7 @@ export default function Page() {
           }
         }
 
-        let seriesRows: SeriesWithSync[] = [{ id: 'fall-2025-renew', name: 'Renewed: A Romans 12 Series', color: '#D946EF', cloudSynced: false }]
+        let seriesRows: SeriesWithSync[] = [{ id: 'fall-2025-renew', name: 'Renewed: A Romans 12 Series', color: seriesColor(0), cloudSynced: false }]
         const rawS = localStorage.getItem(LS_SERIES)
         if (rawS) {
           try {
@@ -348,7 +351,7 @@ export default function Page() {
   async function createSeries(name: string) {
     const trimmed = name.trim()
     if (!trimmed) { notify('error', 'Enter a series name first.'); return }
-    const rec: SeriesWithSync = { id: crypto.randomUUID(), name: trimmed, color: randomColor(), cloudSynced: false }
+    const rec: SeriesWithSync = { id: crypto.randomUUID(), name: trimmed, color: seriesColor(series.length), cloudSynced: false }
     const user = await getAuthedUser()
     if (supabase && user) {
       const { series: saved, error } = await pushSeries(rec)
@@ -407,44 +410,27 @@ export default function Page() {
 
   return (
     <div className='ss-page p-4 sm:p-6 max-w-7xl mx-auto space-y-6'>
-      <div className='no-print rounded-2xl border border-[rgba(126,184,218,0.22)] bg-[rgba(21,28,36,0.72)] px-4 py-3 text-sm text-[color:var(--ss-muted)] backdrop-blur-sm' role='note'>
-        <strong className='text-[color:var(--ss-ink)]'>External beta{supabase ? (authed ? ' — signed in + Supabase' : ' — Supabase connected') : ' — local demo mode'}.</strong>{' '}
-        {supabase
-          ? authed
-            ? ' Sermons and series sync when you save; unsaved drafts still work offline in this browser.'
-            : ' Sign in with Google or GitHub to sync when tables are ready; unsaved drafts still work offline in this browser.'
-          : ' Your data stays in this browser only — clearing browser data clears your library.'}
-        {' '}Idea suggestions are simple local templates, <strong className='text-[color:var(--ss-ink)]'>not live AI</strong>.
-        Any future AI-assisted draft must be edited and verified by a human; it is not doctrinal authority, and users must check sources and originality rather than assume generated text is plagiarism-free.
-        Please send feedback to feedback@macksims.com.
-      </div>
-
-      <div className='no-print rounded-[12px] border border-[rgba(126,184,218,0.18)] bg-[rgba(126,184,218,0.08)] px-4 py-3 text-sm text-[color:var(--ss-muted)]' role='note'>
-        <strong className='text-[color:var(--ss-ink)]'>Start here:</strong> edit the demo sermon below → add key points → open <strong>Scripture</strong> →
-        use <strong>Copy Sermon Notes</strong> → <strong>Save Draft</strong>.
-      </div>
-
-      <header className='no-print flex flex-wrap items-center justify-between gap-4'>
+      <header className='no-print ss-workspace-header'>
         <div>
+          <p className='eyebrow-kicker'>Sermon workspace</p>
           <h1 className='text-2xl sm:text-3xl font-bold tracking-tight text-[color:var(--ss-ink)]'>Pastor&apos;s Sermon Studio</h1>
-          <p className='text-sm text-[color:var(--ss-muted)]'>Draft sermons, plan series, curate worship, and stay on schedule.</p>
-          <AuthCard className='mt-3' onSignedIn={handleSignedIn} onSignedOut={handleSignedOut} />
-          {(() => {
-            const meta = getSyncMeta()
-            if (!meta.lastSyncedAt && !meta.lastError) return null
-            return (
-              <p className='mt-2 text-xs text-[color:var(--ss-muted)]'>
-                {meta.lastSyncedAt ? `Last cloud sync: ${new Date(meta.lastSyncedAt).toLocaleString()}` : null}
-                {meta.lastError ? ` · Sync error: ${meta.lastError}` : null}
-              </p>
-            )
-          })()}
+          <p className='text-sm text-[color:var(--ss-muted)]'>Move from first draft to the pulpit without losing your place.</p>
         </div>
-        <div className='ss-action-row flex flex-wrap gap-3'>
+        <div className='ss-persistent-actions'>
           <Button onClick={saveSermon} disabled={saving}>{saving ? 'Saving…' : 'Save Draft'}</Button>
           <Button
             variant='outline'
             disabled={!canEnterPreachMode(sermon)}
+            title={
+              canEnterPreachMode(sermon)
+                ? 'Open offline podium view'
+                : 'Add a title, passage, key point, or notes before preaching'
+            }
+            aria-label={
+              canEnterPreachMode(sermon)
+                ? 'Enter preaching mode'
+                : 'Preach unavailable until the sermon has content'
+            }
             onClick={() => {
               if (!canEnterPreachMode(sermon)) {
                 notify('info', 'Add a title, passage, key point, or notes before preaching.')
@@ -455,28 +441,60 @@ export default function Page() {
           >
             Preach
           </Button>
-          <Button variant='outline' onClick={copySermonNotes}>Copy Sermon Notes</Button>
-          <Button variant='outline' onClick={printSermonOutline}>Print Outline</Button>
-          <Button variant='outline' onClick={()=>{
-            try {
-              downloadSermonIcs(sermon)
-              notify('success', 'ICS file downloaded for current draft.')
-            } catch {
-              notify('error', 'Could not build calendar file for this draft.')
-            }
-          }}>Download ICS</Button>
         </div>
       </header>
 
-      <div className='ss-template-row no-print flex flex-wrap gap-2'>
-        {SERMON_TEMPLATES.map(template => (
-          <Button key={template.id} variant='outline' onClick={()=>{
-            const next = template.build()
-            setSermon(next)
-            notify('info', `Loaded ${template.label} template.`)
-          }}>{template.label}</Button>
+      <nav className='no-print work-mode-nav' aria-label='Sermon workflow'>
+        {WORK_MODES.map((mode, index) => (
+          <button
+            key={mode}
+            type='button'
+            aria-current={workMode === mode ? 'step' : undefined}
+            data-active={workMode === mode}
+            onClick={() => {
+              setWorkMode(mode)
+              if (mode === 'Library') setActiveTab('Library')
+            }}
+          >
+            <span>{index + 1}</span>{mode}
+          </button>
         ))}
-      </div>
+      </nav>
+
+      <details className='no-print ss-utilities'>
+        <summary>Account, templates &amp; export tools</summary>
+        <div className='ss-utilities-body'>
+          <AuthCard onSignedIn={handleSignedIn} onSignedOut={handleSignedOut} />
+          <div className='ss-template-row flex flex-wrap gap-2'>
+            {SERMON_TEMPLATES.map(template => (
+              <Button key={template.id} variant='outline' onClick={()=>{
+                const next = template.build()
+                setSermon(next)
+                setWorkMode('Draft')
+                notify('info', `Loaded ${template.label} template.`)
+              }}>{template.label}</Button>
+            ))}
+          </div>
+          <div className='flex flex-wrap gap-2'>
+            <Button variant='outline' onClick={copySermonNotes}>Copy notes</Button>
+            <Button variant='outline' onClick={printSermonOutline}>Print outline</Button>
+            <Button variant='outline' onClick={()=>{
+              try {
+                downloadSermonIcs(sermon)
+                notify('success', 'ICS file downloaded for current draft.')
+              } catch {
+                notify('error', 'Could not build calendar file for this draft.')
+              }
+            }}>Download ICS</Button>
+          </div>
+          <p className='ss-utility-note' role='note'>
+            {supabase
+              ? authed ? 'Signed in; saved sermons and series sync to Supabase.' : 'Supabase is connected; sign in to sync.'
+              : 'Local mode: clearing browser data clears this library.'}
+            {' '}Suggestions are local templates, not live AI. Verify sources and originality before preaching.
+          </p>
+        </div>
+      </details>
 
       {status && (
         <div
@@ -492,7 +510,7 @@ export default function Page() {
         </div>
       )}
 
-      <Card>
+      {workMode === 'Draft' && <Card>
         <CardHeader>
           <CardTitle>Current Sermon</CardTitle>
         </CardHeader>
@@ -563,11 +581,11 @@ export default function Page() {
             ))}
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
       <div className='space-y-4'>
-        <div className='tabs' role='tablist' aria-label='Studio sections'>
-          {TABS.map(tab => (
+        {workMode === 'Research' && <div className='tabs' role='tablist' aria-label='Research sections'>
+          {TABS.filter(tab => tab !== 'Library').map(tab => (
             <button
               key={tab}
               role='tab'
@@ -579,7 +597,24 @@ export default function Page() {
               {tab}
             </button>
           ))}
-        </div>
+        </div>}
+
+        {workMode === 'Preach' && (
+          <Card className='ss-preach-ready'>
+            <CardHeader><CardTitle>Podium-ready view</CardTitle></CardHeader>
+            <CardContent className='space-y-4'>
+              <p>Preaching mode keeps one section visible at a time, adds a timer, and works from the sermon saved in this browser.</p>
+              <div className='ss-preach-summary'>
+                <span>{sermon.passages.length} passages</span>
+                <span>{outline.keyPoints.length} key points</span>
+                <span>{sermon.notes.trim() ? 'Notes ready' : 'Add notes'}</span>
+              </div>
+              <Button disabled={!canEnterPreachMode(sermon)} onClick={() => setPreachSermon(sermon)}>
+                Enter Preaching Mode
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {loading && (
           <Card>
@@ -587,7 +622,7 @@ export default function Page() {
           </Card>
         )}
 
-        {!loading && activeTab==='Scripture' && (
+        {!loading && workMode === 'Research' && activeTab==='Scripture' && (
         <Card>
           <CardHeader>
             <CardTitle>Browse Scripture</CardTitle>
@@ -631,7 +666,7 @@ export default function Page() {
         </Card>
         )}
 
-        {!loading && activeTab==='Ideas' && (
+        {!loading && workMode === 'Research' && activeTab==='Ideas' && (
         <Card>
           <CardHeader><CardTitle>Idea Gatherer</CardTitle></CardHeader>
           <CardContent className='space-y-4'>
@@ -674,7 +709,7 @@ export default function Page() {
         </Card>
         )}
 
-        {!loading && activeTab==='Worship' && (
+        {!loading && workMode === 'Research' && activeTab==='Worship' && (
         <Card>
           <CardHeader><CardTitle>Praise & Worship Setlist</CardTitle></CardHeader>
           <CardContent className='space-y-4'>
@@ -741,7 +776,7 @@ export default function Page() {
         </Card>
         )}
 
-        {!loading && activeTab==='Series' && (
+        {!loading && workMode === 'Research' && activeTab==='Series' && (
         <Card>
           <CardHeader><CardTitle>Series Planner</CardTitle></CardHeader>
           <CardContent className='space-y-4'>
@@ -794,7 +829,7 @@ export default function Page() {
         </Card>
         )}
 
-        {!loading && activeTab==='Library' && (
+        {!loading && workMode === 'Library' && (
         <Card>
           <CardHeader><CardTitle>Saved Sermons & Schedule</CardTitle></CardHeader>
           <CardContent className='space-y-3'>
@@ -857,12 +892,23 @@ export default function Page() {
                   <Button variant='outline' onClick={()=>{
                     setSermon(normalizeSermon(s))
                     setActiveTab('Scripture')
+                    setWorkMode('Draft')
                     window.scrollTo({ top: 0, behavior: 'smooth' })
                     notify('info', `Loaded "${s.title || 'Untitled Sermon'}" into the editor above.`)
                   }}>Edit</Button>
                   <Button
                     variant='outline'
                     disabled={!canEnterPreachMode(s)}
+                    title={
+                      canEnterPreachMode(s)
+                        ? `Preach “${s.title || 'Untitled Sermon'}”`
+                        : 'Add content before preaching'
+                    }
+                    aria-label={
+                      canEnterPreachMode(s)
+                        ? `Enter preaching mode for ${s.title || 'Untitled Sermon'}`
+                        : `Preach unavailable for ${s.title || 'Untitled Sermon'} until it has content`
+                    }
                     onClick={() => setPreachSermon(normalizeSermon(s))}
                   >
                     Preach

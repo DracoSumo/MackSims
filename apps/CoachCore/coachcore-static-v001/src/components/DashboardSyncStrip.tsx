@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { isSupabaseConfigured } from "@/config/backend";
 import { getSyncDashboard, syncStatusLabel } from "@/services/supabaseSync";
 
-export function DashboardSyncStrip() {
+export function DashboardSyncStrip({ compact = false }: { compact?: boolean }) {
   const [label, setLabel] = useState("Checking sync…");
   const [detail, setDetail] = useState("");
 
@@ -31,6 +31,27 @@ export function DashboardSyncStrip() {
       cancelled = true;
     };
   }, []);
+
+  if (compact) {
+    return (
+      <details className="group rounded-[12px] border border-white/10 bg-slate-950/50 text-sm">
+        <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 [&::-webkit-details-marker]:hidden">
+          <span className="min-w-0 truncate">
+            <span className="font-bold text-sky-200">Sync</span>
+            <span className="ml-2 text-slate-200">{label}</span>
+          </span>
+          <span className="shrink-0 text-xs font-bold text-sky-200 group-open:hidden">Details +</span>
+          <span className="hidden shrink-0 text-xs font-bold text-sky-200 group-open:inline">Close −</span>
+        </summary>
+        <div className="border-t border-white/10 px-4 pb-3 pt-2">
+          {detail ? <p className="text-xs leading-5 text-slate-300">{detail}</p> : null}
+          <Link href="/app/status" className="mt-2 inline-flex min-h-[44px] items-center text-sm font-bold text-sky-200 hover:text-white">
+            Full status →
+          </Link>
+        </div>
+      </details>
+    );
+  }
 
   return (
     <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 sm:flex sm:items-center sm:justify-between sm:gap-4">

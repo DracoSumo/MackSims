@@ -48,7 +48,7 @@ function formatTime(iso: string | null) {
 export function CrewScreen() {
   const [state, setState] = useState<CrewState>(() => loadCrewState());
   const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState<"create" | "join" | null>(null);
   const userId = useMemo(() => localUserId(), []);
 
   useEffect(() => {
@@ -75,39 +75,51 @@ export function CrewScreen() {
     setMessage(okMessage);
   }
 
-  function handleCreate(event: FormEvent<HTMLFormElement>) {
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const name = String(form.get("crewName") || "").trim();
     const displayName = String(form.get("displayName") || "").trim() || "You";
     if (!name) {
       setMessage("Crew name is required.");
       return;
     }
-    setBusy(true);
-    const next = createCrewLocal(name, userId, displayName);
-    apply(
-      next,
-      isSupabaseConfigured
-        ? "Crew saved on this device. Sign in on Profile to sync crews to Supabase when connected."
-        : "Crew saved on this device (local-only until Supabase env is configured).",
-    );
-    setBusy(false);
-    event.currentTarget.reset();
+    setBusyAction("create");
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    try {
+      const next = createCrewLocal(name, userId, displayName);
+      apply(
+        next,
+        isSupabaseConfigured
+          ? "Crew saved on this device. Sign in on Profile to sync crews to Supabase when connected."
+          : "Crew saved on this device (local-only until Supabase env is configured).",
+      );
+      formElement.reset();
+    } finally {
+      setBusyAction(null);
+    }
   }
 
-  function handleJoin(event: FormEvent<HTMLFormElement>) {
+  async function handleJoin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const code = String(form.get("inviteCode") || "");
     const displayName = String(form.get("joinName") || "").trim() || "Rider";
-    const result = joinCrewByCodeLocal(code, userId, displayName);
-    if (!result.ok) {
-      setMessage(result.error);
-      return;
+    setBusyAction("join");
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    try {
+      const result = joinCrewByCodeLocal(code, userId, displayName);
+      if (!result.ok) {
+        setMessage(result.error);
+        return;
+      }
+      apply(result.state, "Joined crew on this device.");
+      formElement.reset();
+    } finally {
+      setBusyAction(null);
     }
-    apply(result.state, "Joined crew on this device.");
-    event.currentTarget.reset();
   }
 
   function handleStartSession(event: FormEvent<HTMLFormElement>) {
@@ -226,30 +238,30 @@ export function CrewScreen() {
             <h2>Start a circle</h2>
           </div>
         </div>
-        <form className="stack-form" onSubmit={handleCreate}>
+        <form className="stack-form" onSubmit={handleCreate} aria-busy={busyAction === "create"}>
           <label>
             Crew name
-            <input name="crewName" maxLength={80} placeholder="Saturday canyon crew" required disabled={busy} />
+            <input name="crewName" maxLength={80} placeholder="Saturday canyon crew" required disabled={busyAction !== null} />
           </label>
           <label>
             Your display name
-            <input name="displayName" maxLength={40} placeholder="Alex" disabled={busy} />
+            <input name="displayName" maxLength={40} placeholder="Alex" disabled={busyAction !== null} />
           </label>
-          <button type="submit" className="primary-action" disabled={busy}>
-            Create crew
+          <button type="submit" className="primary-action" disabled={busyAction !== null}>
+            {busyAction === "create" ? "Creating…" : "Create crew on this device"}
           </button>
         </form>
-        <form className="stack-form" onSubmit={handleJoin}>
+        <form className="stack-form" onSubmit={handleJoin} aria-busy={busyAction === "join"}>
           <label>
             Invite code
-            <input name="inviteCode" maxLength={8} placeholder="ABC123" required />
+            <input name="inviteCode" maxLength={8} placeholder="ABC123" required disabled={busyAction !== null} />
           </label>
           <label>
             Your display name
-            <input name="joinName" maxLength={40} placeholder="Blake" />
+            <input name="joinName" maxLength={40} placeholder="Blake" disabled={busyAction !== null} />
           </label>
-          <button type="submit" className="text-action">
-            Join with code
+          <button type="submit" className="text-action" disabled={busyAction !== null}>
+            {busyAction === "join" ? "Joining…" : "Join on this device with code"}
           </button>
           <p className="future-note">
             Join-by-code works for crews created on this device. Cross-device invites require sign-in + synced
@@ -336,11 +348,11 @@ export function CrewScreen() {
             <h2>Sharing consent</h2>
           </div>
         </div>
-        <p className="danger-note">
+        <p className="danger-note" role="note">
           Exact location is private by default. This PWA does not run background GPS. Precise mode records
           consent only unless you later add an explicit one-tap share — never expose home pins publicly.
         </p>
-        <p className="future-note">
+        <p className="future-note" role="note">
           Every rider must consent before location status is shared. “Need help” is a manual caution flag for
           crew coordination only; it is not live-location SOS, crash detection, or emergency dispatch.
         </p>
@@ -355,14 +367,22 @@ export function CrewScreen() {
           </label>
           <label>
             Presence
-            <select name="presenceStatus" defaultValue={location?.presenceStatus ?? "available"}>
+            <select
+              name="presenceStatus"
+              defaultValue={location?.presenceStatus ?? "available"}
+              aria-describedby="presence-caution"
+            >
               <option value="available">Available</option>
               <option value="riding">Riding</option>
               <option value="delayed">Delayed</option>
-              <option value="need_help">Need help</option>
+              <option value="need_help">Need help (crew caution only)</option>
               <option value="off">Hidden</option>
             </select>
           </label>
+          <p id="presence-caution" className="future-note">
+            Choosing “Need help” only notifies your crew in-app. It does not call emergency services or share
+            live GPS.
+          </p>
           <label>
             Approximate label (optional)
             <input

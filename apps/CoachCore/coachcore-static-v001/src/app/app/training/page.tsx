@@ -14,7 +14,7 @@ export default function TrainingPage() {
 
       <div className="mb-6 flex flex-wrap gap-3">
         <Link href="/app/training/new" className="rounded-2xl bg-sky-400 px-5 py-3 font-black text-slate-950">
-          Create Mock Workout
+          Open workout preview
         </Link>
         <Link href="/app/actions/ai-workout" className="rounded-2xl border border-white/10 px-5 py-3 font-bold text-white hover:bg-white/10">
           AI workout draft (mock)

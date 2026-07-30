@@ -11,6 +11,11 @@
   SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_ANON_KEY"
 
 [[redirects]]
+  from = "/login"
+  to = "/"
+  status = 302
+
+[[redirects]]
   from = "/*"
   to = "/.netlify/functions/___netlify-server-handler"
   status = 200

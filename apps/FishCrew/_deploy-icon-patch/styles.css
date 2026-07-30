@@ -2439,3 +2439,313 @@ body.screenshot-mode .app-shell{min-height:auto}
 .feed-overflow-menu button:hover{background:rgba(45,212,191,.18)}
 .feed-card.is-saved{outline:1px solid rgba(45,212,191,.35)}
 .feed-room[data-feed-refreshing="true"] .feed-list{opacity:.86;transition:opacity .2s ease}
+
+/* Path-to-90 milestone: five-stop dock + readable secondary navigation */
+:root{--muted:#bad1dc}
+.bottom-nav{grid-template-columns:repeat(5,minmax(0,1fr))}
+.nav-btn{min-height:48px;font-weight:800}
+.nav-btn b{font-size:12px!important;font-weight:800;letter-spacing:.01em}
+.nav-more:before{left:2px;top:9px;width:4px;height:4px;border-radius:50%;background:currentColor;box-shadow:8px 0 currentColor,16px 0 currentColor}
+.nav-more:after{display:none}
+.more-room .page-title{max-width:12ch}
+.more-destination-grid{display:grid;gap:12px}
+.more-destination{width:100%;min-height:88px;display:grid;grid-template-columns:42px minmax(0,1fr) 24px;align-items:center;gap:12px;padding:16px;border:1px solid rgba(255,255,255,.16);border-radius:22px;background:linear-gradient(145deg,rgba(12,59,84,.95),rgba(7,31,48,.96));color:var(--ink);text-align:left;box-shadow:0 12px 30px rgba(0,0,0,.22)}
+.more-destination.more-profile{background:linear-gradient(145deg,rgba(10,73,79,.94),rgba(7,31,48,.97))}
+.more-destination>.nav-icon{width:28px;height:28px;margin:0;color:#95fff7}
+.more-destination>span:nth-child(2){display:grid;gap:5px}
+.more-destination strong{font-size:18px;line-height:1.15;font-weight:800}
+.more-destination small{color:var(--muted);font-size:13px;line-height:1.4;font-weight:600}
+.more-destination>b{font-size:30px;line-height:1;color:#95fff7;font-weight:500}
+.more-settings{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.more-settings h2{margin:.2rem 0 .35rem;font-size:clamp(22px,6vw,30px)}
+.more-settings p{margin:0;color:var(--muted);font-size:14px}
+@media(max-width:560px){
+  .bottom-nav{min-height:68px;height:var(--nav-h);padding:6px}
+  .nav-btn b{font-size:12px!important}
+  .more-destination{min-height:92px;padding:14px;border-radius:20px}
+  .more-settings{align-items:stretch;flex-direction:column}
+  .more-settings .btn{width:100%}
+}
+
+/* Path-to-90 milestone: card typography + secondary-copy contrast */
+:root{
+  --muted:#c7dbe4;
+  --text-secondary:#d7e7ee;
+  --text-small:14px;
+  --text-caption:13px;
+  --card-title:clamp(18px,4.6vw,22px);
+}
+body{line-height:1.5}
+.lead,
+.muted,
+.tiny,
+.trip-card p,
+.feed-card p,
+.admin-card p,
+.panel p{
+  color:var(--text-secondary);
+  line-height:1.5;
+}
+.muted{font-size:var(--text-small);font-weight:500}
+.tiny{font-size:var(--text-caption);font-weight:500}
+.trip-card h3,
+.feed-card h3,
+.admin-card h3,
+.panel h3,
+.tool-card h3,
+.guide-preview-card h3{
+  font-size:var(--card-title);
+  line-height:1.18;
+  letter-spacing:-.025em;
+  font-weight:800;
+}
+.trip-card .muted,
+.feed-card .muted,
+.admin-card .muted,
+.panel .muted,
+.tool-card .muted,
+.guide-preview-card .muted{color:var(--text-secondary)}
+.eyebrow{
+  font-size:12px;
+  line-height:1.25;
+  font-weight:750;
+  letter-spacing:.09em;
+}
+.meta{font-size:var(--text-caption);line-height:1.35}
+.chip,
+.badge{
+  font-size:12px;
+  line-height:1.2;
+  font-weight:750;
+  letter-spacing:.01em;
+}
+.feed-byline{
+  color:var(--muted);
+  font-size:var(--text-caption);
+  line-height:1.4;
+  font-weight:650;
+}
+.home-command span,
+.tools-switch button span{
+  color:var(--muted);
+  font-size:var(--text-small);
+  line-height:1.4;
+  font-weight:600;
+}
+.condition-mini-grid b,
+.port-condition-grid span{
+  color:#bde1e9;
+  font-size:12px;
+  line-height:1.25;
+  font-weight:750;
+  letter-spacing:.06em;
+}
+.port-condition-grid small,
+.port-footer>span{
+  color:var(--text-secondary);
+  font-size:var(--text-caption);
+  line-height:1.4;
+  font-weight:550;
+}
+.water-news-card span,
+.photo-news-card span{
+  color:#bffff8;
+  font-size:12px;
+  line-height:1.25;
+  font-weight:750;
+  letter-spacing:.08em;
+}
+.water-news-card b,
+.photo-news-card b{
+  color:var(--text-secondary);
+  font-size:var(--text-small);
+  line-height:1.45;
+  font-weight:600;
+}
+.activity-row strong{font-size:15px;line-height:1.35;font-weight:750}
+.activity-row p{color:#3b5964;font-size:14px;line-height:1.5}
+.inline-actions button{font-size:13px;font-weight:750}
+.profile-stats small{color:var(--muted);font-size:var(--text-caption);font-weight:650}
+.beta-banner p{color:var(--text-secondary);font-size:var(--text-caption);line-height:1.45}
+.beta-badge,
+.auth-divider{font-size:12px;font-weight:750}
+.auth-compact-access>span{color:var(--muted);font-size:var(--text-caption);font-weight:650}
+@media(max-width:560px){
+  .home-hero p,
+  .hero p,
+  .lead{font-size:15px;line-height:1.5}
+  .trip-card h3,
+  .feed-card h3{font-size:20px;line-height:1.2}
+  .quick-card small,
+  .ribbon-main span:last-child{font-size:var(--text-caption)}
+}
+
+/* Path-to-90 milestone: canonical component tokens
+   Keep component geometry and elevation here; decorative/photo artwork retains
+   its own shape and marine color treatments. */
+:root{
+  --component-surface:rgba(8,31,48,.94);
+  --component-surface-soft:rgba(255,255,255,.07);
+  --component-surface-hover:rgba(255,255,255,.11);
+  --component-border:rgba(191,214,223,.18);
+  --component-border-active:rgba(45,212,191,.38);
+  --radius-control:10px;
+  --radius-card:12px;
+  --radius-feature:14px;
+  --elevation-flat:none;
+  --elevation-card:0 8px 22px rgba(0,0,0,.20);
+  --elevation-feature:0 14px 34px rgba(0,0,0,.28);
+  --button-primary:linear-gradient(135deg,var(--teal),var(--ocean));
+  --button-secondary:var(--component-surface-soft);
+}
+
+.panel,
+.trip-card,
+.feed-card,
+.mini-card,
+.admin-card,
+.business-card,
+.plugin-card,
+.profile-signal,
+.profile-info-card,
+.notification-card,
+.home-command,
+.tool-card,
+.guide-preview-card,
+.quick-card,
+.water-news-card,
+.photo-news-card,
+.share-port,
+.qa-note,
+.check-row,
+.conditions-card,
+.more-destination,
+.feed-composer-lite,
+.home-activity-card{
+  border:1px solid var(--component-border)!important;
+  border-radius:var(--radius-card)!important;
+  box-shadow:var(--elevation-card)!important;
+}
+.panel,
+.trip-card,
+.feed-card,
+.mini-card,
+.admin-card,
+.business-card,
+.plugin-card,
+.profile-signal,
+.profile-info-card,
+.notification-card,
+.tool-card,
+.guide-preview-card,
+.feed-composer-lite{
+  background:var(--component-surface)!important;
+}
+.hero,
+.home-hero,
+.app-header,
+.bottom-nav,
+.modal,
+.profile-pass,
+.profile-cover,
+.profile-map-band,
+.port-window-card,
+.boot-card{
+  border-radius:var(--radius-feature)!important;
+  box-shadow:var(--elevation-feature)!important;
+}
+.btn,
+.filter-btn,
+.header-account,
+.header-gear,
+.nav-btn,
+.x-btn,
+.field,
+.select,
+textarea.field,
+.file-box,
+.flow-step,
+.tools-switch button,
+.conditions-ribbon,
+.toast,
+.debug-pill,
+.auth-compact-access,
+.beta-dismiss,
+.feed-overflow-menu,
+.feed-overflow-menu button{
+  border-radius:var(--radius-control)!important;
+}
+.btn{
+  min-height:44px;
+  border:1px solid var(--component-border);
+  background:var(--button-secondary);
+  box-shadow:var(--elevation-flat)!important;
+  color:var(--ink);
+  font-weight:750;
+}
+.btn.primary,
+.filter-btn.active{
+  border-color:transparent;
+  background:var(--button-primary);
+  color:#031522;
+}
+.btn.dark,
+.btn.soft,
+.filter-btn{
+  border-color:var(--component-border);
+  background:var(--button-secondary);
+  color:var(--ink);
+}
+.btn.text{
+  min-height:44px;
+  border-color:transparent;
+  background:transparent;
+  color:#9ef4ef;
+}
+.btn:hover,
+.filter-btn:hover{
+  background:var(--component-surface-hover);
+}
+.btn.primary:hover,
+.filter-btn.active:hover{
+  background:var(--button-primary);
+  filter:brightness(1.06);
+}
+.trip-card:hover,
+.feed-card:hover,
+.admin-card:hover,
+.business-card:hover,
+.panel:hover{
+  border-color:var(--component-border-active)!important;
+  box-shadow:var(--elevation-card)!important;
+}
+.card-media,
+.feed-card.clean-card .card-media,
+.trip-card .media,
+.feed-card .media,
+video{
+  border-radius:var(--radius-control)!important;
+}
+.badge,
+.chip,
+.spot-pill{
+  border-radius:999px!important;
+}
+@media(max-width:560px){
+  .panel,
+  .trip-card,
+  .feed-card,
+  .mini-card,
+  .admin-card,
+  .business-card,
+  .plugin-card,
+  .home-command,
+  .tool-card,
+  .guide-preview-card,
+  .water-news-card,
+  .photo-news-card,
+  .more-destination{
+    border-radius:var(--radius-card)!important;
+    box-shadow:var(--elevation-card)!important;
+  }
+}
