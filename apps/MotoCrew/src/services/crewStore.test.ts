@@ -3,7 +3,6 @@ import {
   activeSessionForCrew,
   addCheckInLocal,
   createCrewLocal,
-  emptyCrewState,
   endSessionLocal,
   isSessionStale,
   joinCrewByCodeLocal,
@@ -40,8 +39,7 @@ describe("crewStore", () => {
   });
 
   it("keeps precise coords off when precision is approximate/off", () => {
-    let state = emptyCrewState();
-    state = updateLocationLocal("user-1", {
+    let state = updateLocationLocal("user-1", {
       precisionMode: "precise",
       shareWithCrew: true,
       lat: 35.1,
