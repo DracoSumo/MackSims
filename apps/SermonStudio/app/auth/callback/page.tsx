@@ -3,7 +3,11 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ensureSupabaseClient, exchangeAuthCallbackCode } from '@/lib/supabaseClient'
+import {
+  consumeAuthReturnTo,
+  ensureSupabaseClient,
+  exchangeAuthCallbackCode,
+} from '@/lib/supabaseClient'
 
 export default function AuthCallbackPage() {
   const router = useRouter()
@@ -25,7 +29,7 @@ export default function AuthCallbackPage() {
           setError(message)
           return
         }
-        router.replace('/')
+        router.replace(consumeAuthReturnTo())
       })
     })
 

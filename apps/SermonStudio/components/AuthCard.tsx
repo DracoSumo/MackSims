@@ -2,18 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { signInWithOAuth, useSupabase, type OAuthProvider } from '@/lib/supabaseClient'
+import {
+  isOAuthProviderEnabled,
+  OAUTH_PROVIDERS,
+  signInWithOAuth,
+  useSupabase,
+  type OAuthProvider,
+} from '@/lib/supabaseClient'
 
 type Props = {
   className?: string
   onSignedIn?: (user: User) => void
   onSignedOut?: () => void
 }
-
-const oauthProviders: { id: OAuthProvider; label: string }[] = [
-  { id: 'google', label: 'Google' },
-  { id: 'github', label: 'GitHub' },
-]
 
 export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Props) {
   const { supabase, ready } = useSupabase()
@@ -73,7 +74,7 @@ export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Pr
   }
 
   async function oauthSignIn(provider: OAuthProvider) {
-    if (!supabase) return
+    if (!supabase || !isOAuthProviderEnabled(provider)) return
     setOauthBusy(provider)
     setMsg('')
     const error = await signInWithOAuth(supabase, provider)
@@ -108,18 +109,25 @@ export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Pr
         </>
       ) : (
         <>
-          {oauthProviders.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              className="btn btn-outline"
-              disabled={busy || oauthBusy !== null}
-              title={`Continue with ${label}`}
-              onClick={() => oauthSignIn(id)}
-            >
-              {oauthBusy === id ? '…' : label}
-            </button>
-          ))}
+          {OAUTH_PROVIDERS.map(({ id, label }) => {
+            const providerReady = isOAuthProviderEnabled(id)
+            return (
+              <button
+                key={id}
+                type="button"
+                className="btn btn-outline"
+                disabled={busy || oauthBusy !== null || !providerReady}
+                title={
+                  providerReady
+                    ? `Continue with ${label}`
+                    : 'Facebook login pending Meta + Supabase setup'
+                }
+                onClick={() => oauthSignIn(id)}
+              >
+                {oauthBusy === id ? '…' : providerReady ? label : `${label} (soon)`}
+              </button>
+            )
+          })}
           <input
             className="input"
             placeholder="email"
