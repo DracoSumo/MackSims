@@ -2429,3 +2429,13 @@ body.screenshot-mode .app-main::before,
 body.screenshot-mode .app-main::after{display:none!important}
 body.screenshot-mode #bootScreen{display:none!important}
 body.screenshot-mode .app-shell{min-height:auto}
+
+/* v0.7.5 safety overflow + refresh affordances */
+.feed-overflow{position:relative;display:inline-block}
+.feed-overflow>summary{list-style:none}
+.feed-overflow>summary::-webkit-details-marker{display:none}
+.feed-overflow-menu{position:absolute;right:0;bottom:calc(100% + 8px);min-width:180px;padding:8px;border-radius:14px;background:rgba(6,24,38,.96);border:1px solid rgba(255,255,255,.16);box-shadow:0 14px 34px rgba(0,0,0,.35);display:grid;gap:6px;z-index:20}
+.feed-overflow-menu button{width:100%;text-align:left;border:0;border-radius:10px;padding:10px 12px;background:rgba(255,255,255,.06);color:var(--ink)}
+.feed-overflow-menu button:hover{background:rgba(45,212,191,.18)}
+.feed-card.is-saved{outline:1px solid rgba(45,212,191,.35)}
+.feed-room[data-feed-refreshing="true"] .feed-list{opacity:.86;transition:opacity .2s ease}

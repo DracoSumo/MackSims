@@ -1,5 +1,5 @@
 window.FISHCREW_CONFIG = {
-  VERSION: '0.7.3',
+  VERSION: '0.7.5',
   // Demo/sample content (fake users, trips, feed posts) only loads when this
   // is explicitly true. Production/beta builds must keep it false.
   DEMO_MODE: false,
@@ -19,7 +19,7 @@ window.FISHCREW_CONFIG = {
   ENABLE_MEDIA_MODERATION: true,
   ENABLE_SUPABASE_LIVE_CORE: true,
   ENABLE_REALTIME_SYNC: true,
-  LIVE_CORE_VERSION: '0.7.3',
+  LIVE_CORE_VERSION: '0.7.5',
   SUPPORT_EMAIL: 'support@fishcrew.app',
   MAX_LOCAL_UPLOAD_MB: 6,
   MAX_IMAGE_UPLOAD_MB: 10,
@@ -31,10 +31,13 @@ window.FISHCREW_CONFIG = {
   ENABLE_OAUTH_COMPLETION: false,
   ENABLE_GOOGLE_AUTH: false,
   ENABLE_FACEBOOK_AUTH: false,
-  // Meta Instagram Graph connect (NOT a login lane). Set META_APP_ID and flip
-  // ENABLE_INSTAGRAM_OAUTH once the Meta app + Valid OAuth Redirect URI match.
-  // Static SPA uses client-side response_type=token; production with a secret
-  // should prefer a server callback that exchanges code → long-lived token.
+  // Meta Instagram Graph connect (NOT a login lane). App ID 956207094120610 is
+  // the console app currently labeled "Shutterbid" — do not rename, rotate,
+  // delete, or repurpose it for Facebook Login. A separate Meta app named
+  // "Fishcrew" (1709471443573822) exists but was not remapped in this pass.
+  // Flip ENABLE_FACEBOOK_AUTH only after a dedicated Facebook Login product +
+  // Supabase Facebook provider use callback:
+  // https://kkyuychvitrmtehvzqfd.supabase.co/auth/v1/callback
   META_APP_ID: '956207094120610',
   ENABLE_INSTAGRAM_OAUTH: true,
   META_INSTAGRAM_REDIRECT_URI: 'https://fishcrew.macksims.com/',
