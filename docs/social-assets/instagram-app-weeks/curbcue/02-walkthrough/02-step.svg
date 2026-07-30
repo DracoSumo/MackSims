@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+  <defs>
+    <radialGradient id="glowA" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(120 80) rotate(40) scale(720 620)">
+      <stop stop-color="#86efac" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#86efac" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(980 1240) rotate(-140) scale(680 560)">
+      <stop stop-color="#d4a24c" stop-opacity=".16"/>
+      <stop offset="1" stop-color="#d4a24c" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="msFill" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#7c3aed"/>
+      <stop offset="1" stop-color="#3b1578"/>
+    </linearGradient>
+  </defs>
+  <rect width="1080" height="1350" fill="#0b0a10"/>
+  <rect width="1080" height="1350" fill="url(#glowA)"/>
+  <rect width="1080" height="1350" fill="url(#glowB)"/>
+  <g transform="translate(72 58)">
+    <rect width="52" height="52" rx="14" fill="url(#msFill)" stroke="rgba(212,162,76,.5)"/>
+    <text x="26" y="34" fill="#f0cb7d" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="900" text-anchor="middle">MS</text>
+    <text x="68" y="34" fill="#8f859e" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">MackSims</text>
+  </g>
+  <g transform="translate(72 140)">
+    <rect width="170" height="48" rx="24" fill="rgba(134,239,172,.14)" stroke="rgba(134,239,172,.42)"/>
+    <text x="85" y="31" fill="#86efac" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="800" text-anchor="middle" letter-spacing="1.4">STEP 1</text>
+  </g>
+       <text x="72" y="250" fill="#f6f1fb" font-family="Segoe UI, Arial, sans-serif" font-size="54" font-weight="800">Enter a simple trip</text>
+       <text x="72" y="520" fill="#b7adc7" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="550">Every number in this preview is</text><text x="72" y="558" fill="#b7adc7" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="550">simulated. No booking happens</text><text x="72" y="596" fill="#b7adc7" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="550">here.</text>
+       <g>
+    <line x1="72" y1="1248" x2="1008" y2="1248" stroke="rgba(255,255,255,.10)"/>
+    <text x="72" y="1294" fill="#8f859e" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="650">CurbCue</text>
+    <text x="1008" y="1294" fill="#8f859e" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700" text-anchor="end">2 / 5</text>
+  </g>
+</svg>

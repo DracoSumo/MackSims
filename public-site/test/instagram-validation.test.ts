@@ -37,11 +37,13 @@ describe("Instagram queue validation", () => {
 describe("queue state and idempotency rules", () => {
   it("allows only the approval-gated state path", () => {
     expect(canTransition("draft", "approved")).toBe(true);
+    expect(canTransition("draft", "archived")).toBe(true);
     expect(canTransition("approved", "processing")).toBe(true);
     expect(canTransition("processing", "published")).toBe(true);
     expect(canTransition("processing", "failed")).toBe(true);
     expect(canTransition("draft", "processing")).toBe(false);
     expect(canTransition("published", "processing")).toBe(false);
+    expect(canTransition("archived", "approved")).toBe(false);
   });
 
   it("accepts a duplicate key only for the same normalized payload", () => {

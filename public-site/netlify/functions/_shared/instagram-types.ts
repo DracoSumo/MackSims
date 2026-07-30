@@ -1,4 +1,4 @@
-export const QUEUE_STATES = ["draft", "approved", "processing", "published", "failed"] as const;
+export const QUEUE_STATES = ["draft", "approved", "processing", "published", "failed", "archived"] as const;
 export type QueueState = (typeof QUEUE_STATES)[number];
 
 export const CONTENT_TYPES = ["IMAGE", "CAROUSEL", "REELS"] as const;
@@ -117,7 +117,7 @@ export function validateQueueInput(value: unknown): QueueInput {
 
 export function canTransition(from: QueueState, to: QueueState): boolean {
   return (
-    (from === "draft" && to === "approved") ||
+    (from === "draft" && (to === "approved" || to === "archived")) ||
     (from === "approved" && to === "processing") ||
     (from === "processing" && (to === "published" || to === "failed"))
   );
