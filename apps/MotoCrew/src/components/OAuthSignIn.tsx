@@ -2,19 +2,17 @@ import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
   authAvailable,
+  consumeAuthReturnTo,
   exchangeAuthCallbackCode,
   getCurrentUser,
+  isOAuthProviderEnabled,
+  OAUTH_PROVIDERS,
   signInWithOAuth,
   signOut,
   type OAuthProvider,
 } from "../services/auth";
 import { getSupabaseClient } from "../services/supabaseClient";
 import { mergeOnSignIn } from "../services/supabaseSync";
-
-const providers: { id: OAuthProvider; label: string }[] = [
-  { id: "google", label: "Continue with Google" },
-  { id: "github", label: "Continue with GitHub" },
-];
 
 export function OAuthSignIn() {
   const [user, setUser] = useState<User | null>(null);
@@ -41,6 +39,7 @@ export function OAuthSignIn() {
   }, []);
 
   async function handleSignIn(provider: OAuthProvider) {
+    if (!isOAuthProviderEnabled(provider)) return;
     setBusy(provider);
     setMessage(null);
     const err = await signInWithOAuth(provider);
@@ -72,20 +71,33 @@ export function OAuthSignIn() {
 
   return (
     <div className="oauth-panel">
-      <p className="future-note">Sign in with Google or GitHub when Supabase is configured.</p>
+      <p className="future-note">Sign in with Google, GitHub, or Facebook when Supabase is configured.</p>
       <div className="profile-actions">
-        {providers.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            className="compact-action"
-            disabled={!configured || busy !== null}
-            title={configured ? label : "Supabase not configured"}
-            onClick={() => handleSignIn(id)}
-          >
-            {busy === id ? "Redirecting…" : label}
-          </button>
-        ))}
+        {OAUTH_PROVIDERS.map(({ id, label }) => {
+          const providerReady = configured && isOAuthProviderEnabled(id);
+          return (
+            <button
+              key={id}
+              type="button"
+              className="compact-action"
+              disabled={!providerReady || busy !== null}
+              title={
+                !configured
+                  ? "Supabase not configured"
+                  : !isOAuthProviderEnabled(id)
+                    ? "Facebook login pending Meta + Supabase setup"
+                    : label
+              }
+              onClick={() => handleSignIn(id)}
+            >
+              {busy === id
+                ? "Redirecting…"
+                : !isOAuthProviderEnabled(id)
+                  ? `${label} (coming soon)`
+                  : label}
+            </button>
+          );
+        })}
       </div>
       {!configured && (
         <p className="future-note">OAuth unavailable until URL + anon key are set at build time.</p>
@@ -112,7 +124,8 @@ export function AuthCallbackHandler({ onComplete }: { onComplete: () => void }) 
           return;
         }
       }
-      window.history.replaceState({}, "", "/");
+      const returnTo = consumeAuthReturnTo();
+      window.history.replaceState({}, "", returnTo);
       onComplete();
     });
   }, [onComplete]);
