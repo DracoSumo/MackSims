@@ -40,21 +40,14 @@ Allow list includes staging, `coachcore.macksims.com`, and localhost `/auth/call
 
 ### Facebook / Meta
 
-Facebook Login is implemented in the app UI but **gated off** until Meta + Supabase
-are configured and tested. Do not set `NEXT_PUBLIC_ENABLE_FACEBOOK_AUTH=true` until
-the checklist below is complete.
+Configured and enabled in Supabase with dedicated Meta app `1732171628101176`.
+The UI is enabled by default; `NEXT_PUBLIC_ENABLE_FACEBOOK_AUTH=false` is an
+emergency kill switch. The exact provider callback is:
 
-1. Create a dedicated Meta app for CoachCore (do not reuse FishCrew/Shutterbid apps).
-2. Add **Facebook Login** product. Keep the app in **Development** mode.
-3. Valid OAuth Redirect URI (exact):
-   `https://bfqfbkldxbojrrxeidcc.supabase.co/auth/v1/callback`
-4. App domain: `coachcore.macksims.com`
-5. Privacy Policy URL: `https://macksims-public-site.netlify.app/privacy/`
-6. Data deletion URL: `https://macksims-public-site.netlify.app/account-deletion/`
-7. Use Cases → Authentication and Account Creation: ensure `email` + `public_profile`.
-8. Supabase → Authentication → Providers → Facebook: enable and paste App ID + App Secret.
-9. Add yourself as a Meta app tester/admin, then test login.
-10. Only then set Netlify `NEXT_PUBLIC_ENABLE_FACEBOOK_AUTH=true` and redeploy.
+`https://bfqfbkldxbojrrxeidcc.supabase.co/auth/v1/callback`
+
+The Meta app remains in Development mode, so only app-role users can complete login
+until the owner finishes role-user testing and deliberately moves it Live.
 
 ## 3. Netlify env (build time)
 
@@ -76,7 +69,7 @@ CoachCore uses Supabase PKCE OAuth:
 
 1. Confirm the provider is enabled in Supabase and credentials are saved.
 2. Open `/login` on production.
-3. Click **Continue with Google** or **Continue with GitHub** (buttons must be enabled).
+3. Click **Continue with Google**, **GitHub**, or **Facebook** (buttons must be enabled).
 4. Complete provider login → should land on `/app` with session in browser storage.
 5. If it fails, check the callback page error text and Supabase Auth logs.
 
