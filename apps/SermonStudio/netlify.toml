@@ -8,8 +8,12 @@
 
 [build.environment]
   NODE_VERSION = "20"
-  # Supabase anon key is public by design; must not be scrubbed from Next client bundles.
   SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_ANON_KEY"
+
+[[redirects]]
+  from = "/login"
+  to = "/"
+  status = 302
 
 [[redirects]]
   from = "/*"

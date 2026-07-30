@@ -55,6 +55,15 @@ export type DraftRide = {
   savedAt: string
 }
 
+export type RideLogEntry = {
+  id: string
+  title: string
+  riddenOn: string
+  miles: number | null
+  note: string
+  loggedAt: string
+}
+
 export type PackMember = {
   id: string
   rideId: string

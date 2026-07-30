@@ -9,8 +9,9 @@ export default function PrivacyPage() {
         </Link>
         <h1 className="mt-6 text-4xl font-black">Privacy (placeholder)</h1>
         <p className="mt-4 text-slate-300 leading-7">
-          CoachCore may handle team rosters, training logs, and athlete-adjacent data. This static demo stores nothing on a server.
-          A full privacy policy will ship before any production athlete data collection.
+          CoachCore&apos;s current scope is team operations: roster, schedule, RSVP, and chat. It does not collect
+          medical or health data. Training, fueling, and readiness screens are demos only—do not enter real youth
+          or health records. Any expanded data scope requires owner privacy review and a published policy first.
         </p>
         <ul className="mt-6 list-disc space-y-2 pl-5 text-slate-400">
           <li>Demo mode: mock athletes only — no real minors or health records.</li>

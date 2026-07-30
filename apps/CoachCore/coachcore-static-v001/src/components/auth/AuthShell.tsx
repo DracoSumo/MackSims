@@ -1,4 +1,6 @@
 ﻿import Link from "next/link";
+import { isSupabaseConfigured } from "@/config/backend";
+import { coachCoreConfig } from "@/config/coachcore";
 
 export function AuthShell({
   eyebrow,
@@ -11,6 +13,8 @@ export function AuthShell({
   description: string;
   children: React.ReactNode;
 }) {
+  const live = isSupabaseConfigured;
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.22),_transparent_34%),linear-gradient(135deg,#020617,#0f172a_55%,#020617)] px-6 py-10 text-white">
       <div className="mx-auto grid min-h-[calc(100vh-5rem)] max-w-6xl items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
@@ -26,10 +30,20 @@ export function AuthShell({
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-300">{description}</p>
           </div>
 
-          <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.06] p-5">
-            <p className="font-black text-sky-100">Demo mode only</p>
+          <div
+            className={`mt-8 rounded-3xl border p-5 ${
+              live
+                ? "border-emerald-300/25 bg-emerald-300/10"
+                : "border-white/10 bg-white/[0.06]"
+            }`}
+          >
+            <p className={`font-black ${live ? "text-emerald-100" : "text-sky-100"}`}>
+              {live ? `${coachCoreConfig.version} live beta` : "Config required"}
+            </p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
-              v0.1 does not connect real auth, team data, payments, Hudl, wearables, or external APIs.
+              {live
+                ? "Sign in with Google or GitHub to sync check-ins and coach actions. Sample roster data remains until your team is imported. No payments, Hudl, or wearables yet."
+                : "Supabase URL + anon key must be set at build time for OAuth. You can still explore the sample dashboard."}
             </p>
           </div>
         </section>

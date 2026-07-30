@@ -1,8 +1,11 @@
 ﻿import Link from "next/link";
-import { AuthShell, Field } from "@/components/auth/AuthShell";
+import { AuthShell } from "@/components/auth/AuthShell";
 import { OAuthButtons } from "@/components/auth/OAuthButtons";
+import { isSupabaseConfigured } from "@/config/backend";
 
 export default function LoginPage() {
+  const live = isSupabaseConfigured;
+
   return (
     <AuthShell
       eyebrow="Coach access"
@@ -12,25 +15,26 @@ export default function LoginPage() {
       <div>
         <h2 className="text-3xl font-black">Sign in</h2>
         <p className="mt-2 text-sm text-slate-400">
-          Use Google or GitHub when Supabase is configured, or enter the demo dashboard below.
+          {live
+            ? "Continue with Google or GitHub, or open the sample dashboard while you explore."
+            : "OAuth needs Supabase at build time. You can still open the sample dashboard below."}
         </p>
 
-        <div className="mt-6 space-y-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Demo credentials (not connected)</p>
-          <Field label="Email" placeholder="coach@example.com" type="email" />
-          <Field label="Password" placeholder="••••••••" type="password" />
-        </div>
-
         <div className="mt-6 grid gap-3">
+          <OAuthButtons />
+
           <Link
             href="/app"
-            className="rounded-2xl bg-sky-400 px-5 py-3 text-center font-black text-slate-950 hover:bg-sky-300"
+            className="rounded-2xl border border-white/15 px-5 py-3 text-center font-bold text-white hover:bg-white/5"
           >
-            Enter Demo Dashboard
+            {live ? "Explore sample dashboard" : "Enter sample dashboard"}
           </Link>
-
-          <OAuthButtons className="mt-1" />
         </div>
+
+        <p className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm leading-6 text-slate-400">
+          Email/password sign-in is not available in this build. Use Google or GitHub once Supabase is configured, or
+          continue in the sample dashboard.
+        </p>
 
         <p className="mt-6 text-sm text-slate-400">
           New to CoachCore?{" "}

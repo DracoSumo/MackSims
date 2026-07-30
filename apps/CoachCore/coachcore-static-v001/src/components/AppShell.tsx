@@ -27,30 +27,36 @@ const mobileNavItems = [
 
 function navClass(active: boolean) {
   return active
-    ? "block rounded-[10px] bg-gradient-to-br from-teal-400/25 to-sky-500/20 px-4 py-3 text-sm font-bold text-white ring-1 ring-teal-300/30"
-    : "block rounded-[10px] px-4 py-3 text-sm text-slate-300 transition hover:bg-white/10 hover:text-white";
+    ? "block rounded-[var(--ms-radius-ui)] border-l-2 border-teal-300 bg-gradient-to-br from-teal-400/25 to-sky-500/20 px-4 py-3 text-sm font-bold text-white ring-1 ring-teal-300/30"
+    : "block rounded-[var(--ms-radius-ui)] border-l-2 border-transparent px-4 py-3 text-sm text-slate-300 transition hover:bg-white/10 hover:text-white";
 }
 
 function mobileNavClass(active: boolean) {
   return active
-    ? "rounded-[10px] bg-gradient-to-br from-teal-400/25 to-sky-500/20 px-2 py-2 text-center text-xs font-bold text-white ring-1 ring-teal-300/30"
-    : "rounded-[10px] px-2 py-2 text-center text-xs text-slate-300 hover:bg-white/10 hover:text-white";
+    ? "rounded-[var(--ms-radius-ui)] border-t-2 border-teal-300 bg-gradient-to-br from-teal-400/25 to-sky-500/20 px-2 py-2 text-center text-xs font-bold text-white ring-1 ring-teal-300/30"
+    : "rounded-[var(--ms-radius-ui)] border-t-2 border-transparent px-2 py-2 text-center text-xs text-slate-300 hover:bg-white/10 hover:text-white";
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  showStatusBanner = true,
+}: {
+  children: React.ReactNode;
+  showStatusBanner?: boolean;
+}) {
   const pathname = usePathname();
 
   return (
-    <div className="min-h-screen text-white">
+    <div className="min-h-screen overflow-x-hidden text-white">
       <div className="mx-auto flex min-h-screen max-w-7xl">
-        <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-white/10 bg-[rgba(4,18,30,0.92)] p-6 backdrop-blur-xl lg:flex">
+        <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-white/10 bg-[rgba(4,18,30,0.92)] px-5 py-6 backdrop-blur-xl lg:flex xl:px-6">
           <Link href="/" className="block">
             <p className="text-xs font-bold uppercase tracking-[0.35em] text-teal-300">MackSims</p>
             <h1 className="mt-2 text-2xl font-black tracking-tight">CoachCore</h1>
             <p className="mt-1 text-xs text-slate-400">No more guessing who is locked in.</p>
           </Link>
 
-          <nav className="mt-10 flex-1 space-y-1 overflow-y-auto">
+          <nav className="mt-8 flex-1 space-y-1 overflow-y-auto xl:mt-10">
             {navItems.map((item) => {
               const active =
                 item.href === "/app"
@@ -66,18 +72,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </aside>
 
         <main className="min-w-0 flex-1 pb-[calc(var(--ms-nav-h)+env(safe-area-inset-bottom)+12px)] lg:pb-0">
-          <DemoWalkthroughBanner />
+          {showStatusBanner ? <DemoWalkthroughBanner /> : null}
           {children}
         </main>
 
         <nav
-          className="fixed inset-x-0 bottom-0 z-50 mx-auto grid max-w-lg grid-cols-5 gap-1 border border-white/10 bg-[rgba(5,25,39,0.96)] px-2 py-2 backdrop-blur-xl lg:hidden"
+          className="fixed bottom-0 left-2 right-2 z-50 mx-auto grid max-w-lg grid-cols-5 gap-1 border border-white/10 bg-[rgba(5,25,39,0.96)] p-2 backdrop-blur-xl lg:hidden"
           style={{
             marginBottom: "max(8px, env(safe-area-inset-bottom))",
             borderRadius: "14px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "min(760px, calc(100% - 16px))",
+            width: "auto",
             boxShadow: "0 20px 58px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)",
           }}
         >

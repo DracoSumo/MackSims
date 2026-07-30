@@ -16,7 +16,11 @@ export function listActionLog(): CoachActionLog[] {
   }
 }
 
-export function logCoachAction(label: string, detail = ""): CoachActionLog {
+export function logCoachAction(
+  label: string,
+  detail = "",
+  options: { sync?: boolean } = {},
+): CoachActionLog {
   const record: CoachActionLog = {
     id: crypto.randomUUID(),
     label,
@@ -26,7 +30,9 @@ export function logCoachAction(label: string, detail = ""): CoachActionLog {
   const existing = listActionLog();
   localStorage.setItem(STORAGE_KEY, JSON.stringify([record, ...existing].slice(0, 40)));
   void import("./localDataEvents").then(({ notifyLocalDataChanged }) => notifyLocalDataChanged("actionLog"));
-  void import("./supabaseSync").then(({ pushActionLog }) => pushActionLog(record));
+  if (options.sync !== false) {
+    void import("./supabaseSync").then(({ pushActionLog }) => pushActionLog(record));
+  }
   return record;
 }
 

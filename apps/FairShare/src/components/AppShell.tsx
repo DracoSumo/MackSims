@@ -1,8 +1,6 @@
 import type { ReactNode } from "react";
 import { APP_NAME, APP_TAGLINE } from "../config";
-import { marketConfigs } from "../data/mockData";
 import { DemoDataBanner } from "./DemoDataBanner";
-import { MarketModeBadge } from "./MarketModeBadge";
 
 const navItems = [
   { href: "/", label: "Home", short: "Home", icon: "home" as const },
@@ -41,8 +39,6 @@ interface AppShellProps {
 }
 
 export function AppShell({ children, currentPath, onNavigate }: AppShellProps) {
-  const bermudaMarket = marketConfigs.find((market) => market.id === "bermuda") ?? marketConfigs[0];
-
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -55,7 +51,6 @@ export function AppShell({ children, currentPath, onNavigate }: AppShellProps) {
         </button>
 
         <div className="topbar-actions">
-          <MarketModeBadge market={bermudaMarket} />
           <button className="account-button" type="button" onClick={() => onNavigate("/settings")}>
             Account
           </button>

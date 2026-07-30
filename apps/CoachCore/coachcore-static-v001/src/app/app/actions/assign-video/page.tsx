@@ -9,13 +9,13 @@ export default function AssignVideoPage() {
       description="Mock flow for assigning a clip, drill example, technique correction, or movement standard."
       resultTitle="Video assignment staged"
       resultBody="CoachCore would assign the clip, track open rate, track watch percentage, and show completion in the accountability dashboard."
-      buttonLabel="Assign Mock Video"
-      successTitle="Video assignment simulated"
-      successBody="The selected group now has a fake film assignment with watch tracking staged in the demo."
+      buttonLabel="Record video preview"
+      successTitle="Video preview recorded"
+      successBody="A generic activity marker was stored locally; video field values were not saved. No film assignment, tracking, or athlete notification was made."
       timelineItems={[
-        "Video moment assigned.",
-        "Watch tracking simulation started.",
-        "Film room accountability event created locally.",
+        "Generic video preview activity recorded locally.",
+        "Video and group field values left unsaved.",
+        "No backend or watch-tracking API was used.",
       ]}
     >
       <MockField label="Video title" placeholder="Route stem correction" />

@@ -101,10 +101,18 @@ Potential features:
 - Simulate meal log submission
 - Add fake activity timeline
 
+## v0.7.2 — Plugin layer (live beta)
+
+- Honest Integrations center: connect / disconnect / request-access
+- Supabase `user_integrations` + `integration_access_requests` with RLS
+- Google Calendar OAuth link via existing Google provider (scopes; no event sync yet)
+- Strava authorize path when client id is configured (token exchange still needs server secret)
+- Partner APIs (Hudl, WHOOP, etc.) waitlist only — never fake Connected
+
 ## v0.4 Deployment Note
 
 Mobile demo URL:
 
 https://coachcore7.netlify.app
 
-This is a static mobile demo. It is not production and does not include real auth, real data, payments, Hudl integration, wearable integrations, or external credentials.
+Live beta staging. Auth + local-first sync + plugin connection state. No payments; partner APIs require real credentials.

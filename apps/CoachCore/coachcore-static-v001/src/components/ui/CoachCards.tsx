@@ -1,4 +1,5 @@
 ﻿import Link from "next/link";
+import { isSupabaseConfigured } from "@/config/backend";
 import { coachCoreConfig, connectedSurfaceLinks } from "@/config/coachcore";
 
 export function MetricCard({
@@ -11,7 +12,7 @@ export function MetricCard({
   note: string;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-[14px] border border-[var(--ms-line-warm)] bg-[var(--ms-card)] p-5 shadow-[var(--ms-shadow)] ms-glass-panel">
+    <div className="relative overflow-hidden rounded-[14px] border border-[var(--ms-line-warm)] bg-[var(--ms-card)] p-[var(--ms-card-pad)] shadow-[var(--ms-shadow)] ms-glass-panel">
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),transparent_36%)]" />
       <p className="relative text-sm text-slate-400">{label}</p>
       <p className="relative mt-3 text-4xl font-black tracking-tight">{value}</p>
@@ -34,9 +35,11 @@ export function StatusPill({
     red: "border-red-300/25 bg-red-300/10 text-red-100",
     slate: "border-white/10 bg-white/10 text-slate-200",
   };
+  const cues = { sky: "◆", green: "✓", amber: "!", red: "×", slate: "•" };
 
   return (
-    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${tones[tone]}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${tones[tone]}`}>
+      <span aria-hidden="true">{cues[tone]}</span>
       {children}
     </span>
   );
@@ -56,7 +59,7 @@ export function CommandCard({
   return (
     <Link
       href={href}
-      className="group relative block overflow-hidden rounded-[14px] border border-[var(--ms-line-warm)] bg-[var(--ms-card)] p-6 shadow-[var(--ms-shadow)] transition hover:-translate-y-0.5 hover:border-emerald-400/35 ms-glass-panel"
+      className="group relative block overflow-hidden rounded-[14px] border border-[var(--ms-line-warm)] bg-[var(--ms-card)] p-[var(--ms-card-pad)] shadow-[var(--ms-shadow)] transition hover:-translate-y-0.5 hover:border-emerald-400/35 ms-glass-panel"
     >
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),transparent_36%)]" />
       <StatusPill>{tag}</StatusPill>
@@ -88,17 +91,29 @@ export function CrossLinkStrip({ current }: { current?: string }) {
 }
 
 export function DemoDisclaimerStrip() {
+  const live = isSupabaseConfigured;
   return (
-    <p className="rounded-[12px] border border-amber-300/25 bg-[rgba(249,115,22,0.12)] px-4 py-3 text-sm leading-6 text-amber-50/95 backdrop-blur-sm">
-      <span className="font-bold">Static demo.</span> {coachCoreConfig.safetyNote}
-    </p>
+    <div
+      role="note"
+      className={`rounded-[12px] border px-4 py-3 text-sm leading-6 backdrop-blur-sm ${
+        live
+          ? "border-emerald-300/25 bg-[rgba(16,185,129,0.12)] text-emerald-50/95"
+          : "border-amber-300/25 bg-[rgba(249,115,22,0.12)] text-amber-50/95"
+      }`}
+    >
+      <p>
+        <span className="font-bold">{live ? "Live beta." : "Setup needed."}</span>{" "}
+        {coachCoreConfig.privacyScope}
+      </p>
+      <p className="mt-2 text-xs leading-5 opacity-90">{coachCoreConfig.coachingSupportDisclaimer}</p>
+    </div>
   );
 }
 
 export function FoundationNote() {
   return (
-    <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 text-sm leading-6 text-slate-400">
-      <span className="font-bold text-slate-200">{coachCoreConfig.version} static demo:</span>{" "}
+    <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-[var(--ms-card-pad)] text-sm leading-6 text-slate-400">
+      <span className="font-bold text-slate-200">{coachCoreConfig.version} live beta:</span>{" "}
       {coachCoreConfig.safetyNote}
     </div>
   );

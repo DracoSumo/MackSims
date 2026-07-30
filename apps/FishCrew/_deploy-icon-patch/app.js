@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  // FishCrew app shell v0.7.4 — UGC moderation + refresh/load hardening
+  // FishCrew app shell v0.7.5 — block/report/delete + moderation safety
   const CONFIG = window.FISHCREW_CONFIG || {};
   const VERSION = CONFIG.VERSION || '0.7.4';
   const STORE = `fishcrew:${VERSION}:state`;
@@ -165,8 +165,8 @@
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
   }
 
-  // Demo/sample content pack. Only used when CONFIG.DEMO_MODE is true (default
-  // OFF) or when an operator explicitly loads the sample pack from Tools.
+  // Development fixture pack. Only used when CONFIG.DEMO_MODE is explicitly
+  // true in a non-production build. Production config keeps it false.
   // Demo accounts carry no passwords and cannot be logged into.
   function demoSeedContent() {
     const admin = { id: 'u_admin', name: 'Chris', username: 'chris', email: 'admin@fishcrew.local', role: 'Admin', area: 'Tampa Bay', avatar: '', bio: 'FishCrew dock operator keeping crews moving.', fishingStyles: 'Inshore, offshore, app ops', profileTheme: 'Harbor Blue', createdAt: now(), demo: true };
@@ -230,8 +230,7 @@
 
   const defaultState = () => {
     // Production default ships clean: no fake users, trips, feed posts, or
-    // business revenue. Demo content requires CONFIG.DEMO_MODE (default OFF)
-    // or an explicit operator "load sample pack" action.
+    // business revenue. Fixtures require CONFIG.DEMO_MODE (default OFF).
     const demoMode = CONFIG.DEMO_MODE === true;
     const seed = demoMode ? demoSeedContent() : emptySeedContent();
     return {
@@ -267,6 +266,7 @@
       toolsPanel: 'tools',
       demoContentLoaded: demoMode,
       blockedUsers: [],
+      savedFeedIds: [],
       accountDeletionRequests: [],
       session: null,
       users: seed.users,
@@ -501,6 +501,7 @@
     };
     state.deviceHub.log = Array.isArray(state.deviceHub.log) ? state.deviceHub.log.slice(0, 8) : [];
     state.blockedUsers = Array.isArray(state.blockedUsers) ? state.blockedUsers : [];
+    state.savedFeedIds = Array.isArray(state.savedFeedIds) ? state.savedFeedIds : [];
     state.accountDeletionRequests = Array.isArray(state.accountDeletionRequests) ? state.accountDeletionRequests : [];
   }
 
@@ -718,11 +719,17 @@
   }
 
   function nav(screen) {
-    const allowed = ['home', 'explore', 'crew', 'feed', 'tools', 'profile'];
+    const allowed = ['home', 'explore', 'crew', 'feed', 'more', 'tools', 'profile'];
     if (!allowed.includes(screen)) screen = 'home';
     state.activeScreen = screen;
     $$('.screen').forEach((s) => s.classList.toggle('active', s.id === `screen-${screen}`));
-    $$('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.screen === screen));
+    const primaryDestination = ['tools', 'profile'].includes(screen) ? 'more' : screen;
+    $$('.nav-btn').forEach((b) => {
+      const isActive = b.dataset.screen === primaryDestination;
+      b.classList.toggle('active', isActive);
+      if (isActive) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    });
     save();
     render();
     setDebug(`Screen: ${screen}`);
@@ -804,7 +811,7 @@
       if (String(type).startsWith('video')) {
         return `<div class="card-media has-video"><video src="${safe(url)}" muted playsinline loop controls preload="metadata"></video></div>`;
       }
-      return `<div class="card-media photo user-photo" style="background-image:url('${safe(url)}')"><span class="media-location-label">${safe(item?.area || 'FishCrew media')}</span></div>`;
+      return `<div class="card-media photo user-photo"><img src="${safe(url)}" alt="${safe(item?.area || 'FishCrew media')}" loading="lazy" decoding="async" /><span class="media-location-label">${safe(item?.area || 'FishCrew media')}</span></div>`;
     }
     if (hasUserMedia && mediaModerationEnabled()) {
       const viewer = currentUser();
@@ -854,19 +861,26 @@
     const showAdminMeta = isAdmin();
     const viewer = currentUser();
     const canBlock = viewer && author && author.id !== viewer.id && !isBlocked(author.id);
+    const canDeleteOwn = viewer && post.authorId === viewer.id && !removed;
+    const saved = isFeedSaved(post.id);
+    const safetyItems = [
+      !removed ? `<button type="button" data-action="report-feed" data-feed-id="${safe(post.id)}">Report</button>` : '',
+      canBlock ? `<button type="button" data-action="block-user" data-user-id="${safe(author.id)}">Block author</button>` : '',
+      canDeleteOwn ? `<button type="button" data-action="delete-own-feed" data-feed-id="${safe(post.id)}">Delete my post</button>` : '',
+      showAdminMeta ? `<button type="button" data-action="remove-feed" data-feed-id="${safe(post.id)}">Operator remove</button>` : ''
+    ].filter(Boolean).join('');
     return `
-      <article class="feed-card clean-card ${removed ? 'is-removed' : ''}">
+      <article class="feed-card clean-card ${removed ? 'is-removed' : ''}${saved ? ' is-saved' : ''}">
         ${mediaBlock(post, post.artKind || post.type || 'catch')}
-        <div class="feed-topline"><span class="badge ${post.status === 'Sponsored' ? 'orange' : post.status === 'Removed' ? 'red' : post.status === 'Pending review' ? 'orange' : ''}">${safe(post.type)}</span><span class="chip">${safe(post.area)}</span>${(showAdminMeta && review) || post.status === 'Pending review' ? '<span class="chip">Review queued</span>' : ''}</div>
+        <div class="feed-topline"><span class="badge ${post.status === 'Sponsored' ? 'orange' : post.status === 'Removed' ? 'red' : post.status === 'Pending review' ? 'orange' : ''}">${safe(post.type)}</span><span class="chip">${safe(post.area)}</span>${(showAdminMeta && review) || post.status === 'Pending review' ? '<span class="chip">Review queued</span>' : ''}${saved ? '<span class="chip">Saved</span>' : ''}</div>
         <h3>${safe(post.title)}</h3>
         <p class="muted">${safe(post.body)}</p>
         <div class="feed-byline"><span>${safe(author ? usernameFor(author) : post.authorName || 'FishCrew')}</span>${showAdminMeta ? `<span>${safe(post.status || 'Live')}</span>` : ''}</div>
         <div class="row feed-actions">
-          <button class="btn dark small" type="button" data-action="react-feed" data-feed-id="${safe(post.id)}">Like ${safe(post.reactions || 0)}</button>
+          <button class="btn dark small" type="button" data-action="react-feed" data-feed-id="${safe(post.id)}" aria-label="Like post">Like ${safe(post.reactions || 0)}</button>
+          <button class="btn dark small" type="button" data-action="toggle-save-feed" data-feed-id="${safe(post.id)}" aria-pressed="${saved ? 'true' : 'false'}" aria-label="${saved ? 'Unsave post' : 'Save post'}">${saved ? 'Saved' : 'Save'}</button>
           <button class="btn dark small" type="button" data-action="share-feed" data-feed-id="${safe(post.id)}">Share</button>
-          ${!removed ? `<button class="btn dark small" type="button" data-action="report-feed" data-feed-id="${safe(post.id)}">Report</button>` : ''}
-          ${canBlock ? `<button class="btn dark small" type="button" data-action="block-user" data-user-id="${safe(author.id)}">Block</button>` : ''}
-          ${showAdminMeta ? `<button class="btn danger small" type="button" data-action="remove-feed" data-feed-id="${safe(post.id)}">Remove</button>` : ''}
+          ${safetyItems ? `<details class="feed-overflow"><summary class="btn soft small" aria-label="More post actions">More</summary><div class="feed-overflow-menu">${safetyItems}</div></details>` : ''}
         </div>
       </article>`;
   }
@@ -1290,9 +1304,13 @@
   }
 
   function renderFeed() {
-    const types = ['All', 'Crew Recap', 'Catch Log', 'Dock Report', 'Open Water Seat', 'After-Bite Run'];
+    const types = ['All', 'Saved', 'Crew Recap', 'Catch Log', 'Dock Report', 'Open Water Seat', 'After-Bite Run'];
     const posts = visibleFeedPosts()
-      .filter((p) => state.feedFilter === 'All' || p.type === state.feedFilter)
+      .filter((p) => {
+        if (state.feedFilter === 'All') return true;
+        if (state.feedFilter === 'Saved') return isFeedSaved(p.id);
+        return p.type === state.feedFilter;
+      })
       .slice(0, FEED_RENDER_LIMIT);
     const refreshing = Boolean(state.feedRefreshing);
     $('#screen-feed').innerHTML = `
@@ -1311,6 +1329,37 @@
         </div>
         <div class="filters">${types.map((t) => `<button class="filter-btn ${state.feedFilter === t ? 'active' : ''}" type="button" data-action="feed-filter" data-filter="${safe(t)}">${safe(t)}</button>`).join('')}</div>
         <div class="feed-list clean-feed">${posts.map((p) => feedCard(p)).join('') || `<div class="empty">No posts here yet. Share the first useful report.</div>`}</div>
+      </section>`;
+  }
+
+  function renderMore() {
+    const user = currentUser();
+    const unread = unreadNotifications();
+    const profileTitle = user ? `${safe(user.name.split(' ')[0])}'s fishing card` : 'Profile and sign in';
+    const profileDetail = user
+      ? `${safe(user.role || 'Angler')} ${MID} ${safe(user.area || userArea())}`
+      : 'Browse as a guest or sign in when you are ready to join and post.';
+    $('#screen-more').innerHTML = `
+      <section class="section more-room" aria-labelledby="moreTitle">
+        <span class="eyebrow">More</span>
+        <h1 class="page-title" id="moreTitle">Tools, profile, and settings.</h1>
+        <p class="lead">Keep the crew flow close. Open planning tools or manage your FishCrew card here.</p>
+        <div class="more-destination-grid mt">
+          <button class="more-destination more-tools" type="button" data-action="go" data-screen="tools">
+            <span class="nav-icon nav-tools" aria-hidden="true"></span>
+            <span><strong>Fishing tools</strong><small>Bait, gear, fish ID, measuring, guides, and devices.</small></span>
+            <b aria-hidden="true">&rsaquo;</b>
+          </button>
+          <button class="more-destination more-profile" type="button" data-action="go" data-screen="profile">
+            <span class="nav-icon nav-profile" aria-hidden="true"></span>
+            <span><strong>${profileTitle}</strong><small>${profileDetail}${unread ? ` ${safe(unread)} unread alert${unread === 1 ? '' : 's'}.` : ''}</small></span>
+            <b aria-hidden="true">&rsaquo;</b>
+          </button>
+        </div>
+        <div class="panel more-settings mt">
+          <div><span class="eyebrow">Account</span><h2>Preferences and support</h2><p class="muted">Manage alerts, privacy, safety, connected services, and help without crowding the main dock.</p></div>
+          <button class="btn dark" type="button" data-action="open-user-settings">Open settings</button>
+        </div>
       </section>`;
   }
 
@@ -1564,13 +1613,20 @@
       explore: renderExplore,
       crew: renderCrew,
       feed: renderFeed,
+      more: renderMore,
       tools: renderTools,
       profile: renderProfile
     };
     const activeRenderer = renderers[screen] || renderHome;
     activeRenderer();
     $$('.screen').forEach((s) => s.classList.toggle('active', s.id === `screen-${screen}`));
-    $$('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.screen === screen));
+    const primaryDestination = ['tools', 'profile'].includes(screen) ? 'more' : screen;
+    $$('.nav-btn').forEach((b) => {
+      const isActive = b.dataset.screen === primaryDestination;
+      b.classList.toggle('active', isActive);
+      if (isActive) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    });
   }
 
   async function refreshFeed(options = {}) {
@@ -3272,7 +3328,10 @@
       severity: report.severity || 'Low',
       status: report.status || 'Open',
       reporter_id: report.reporterId || currentUser()?.id || null,
-      feed_post_id: report.target?.startsWith('feed') ? report.target : null
+      feed_post_id: report.target?.startsWith('feed') || report.target?.includes('feed') ? report.target : null,
+      reason_code: report.reasonCode || null,
+      details: report.details || report.note || null,
+      target_user_id: report.targetUserId || null
     });
     if (error) throw new Error(`moderation: ${error.message}`);
     return true;
@@ -3887,34 +3946,130 @@ ${url}`).catch(() => {});
     if (!requireLogin('Sign in to report posts and keep the feed clean.')) return;
     const post = state.feed.find((p) => p.id === feedId);
     if (!post) return toast('Post not found.', 'danger');
-    const report = queueModeration('User report', post.id, `Reported feed post: ${post.title}`);
-    await afterLocalWrite('User report', async () => liveInsertModeration(report));
-    toast('Report sent for review.');
+    const reasons = [
+      { code: 'unsafe_content', label: 'Unsafe or inappropriate' },
+      { code: 'harassment', label: 'Harassment or abuse' },
+      { code: 'spam', label: 'Spam or scam' },
+      { code: 'private_spot', label: 'Exposes private fishing spots' },
+      { code: 'stolen_media', label: 'Stolen or misleading media' },
+      { code: 'other', label: 'Other' }
+    ];
+    modal(`<div class="modal-head"><div><span class="eyebrow">Report</span><h2>Help keep the dock clean.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="lead">Your identity stays private from the reported person. Operators review the queue.</p>
+      <label class="label">Reason<select id="reportReason" class="select">${reasons.map((r, i) => `<option value="${safe(r.code)}" ${i === 0 ? 'selected' : ''}>${safe(r.label)}</option>`).join('')}</select></label>
+      <label class="label">Details<textarea id="reportDetails" class="field" rows="4" maxlength="800" placeholder="What should operators review?"></textarea></label>
+      <div class="row mt"><button class="btn primary" type="button" data-action="confirm-report-feed" data-feed-id="${safe(feedId)}">Send report</button><button class="btn soft" type="button" data-action="close-modal">Cancel</button></div>`);
   }
 
-  function blockUser(userId) {
+  async function confirmReportFeed(feedId) {
+    const post = state.feed.find((p) => p.id === feedId);
+    if (!post) return toast('Post not found.', 'danger');
+    const reason = $('#reportReason')?.value || 'other';
+    const details = ($('#reportDetails')?.value || '').trim();
+    if (!details) return toast('Add a short detail for operators.', 'danger');
+    const note = `[${reason}] ${details}`.slice(0, 800);
+    const report = queueModeration('User report', post.id, note);
+    report.reasonCode = reason;
+    report.details = details;
+    report.targetUserId = post.authorId || null;
+    closeModal();
+    try {
+      await afterLocalWrite('User report', async () => liveInsertModeration(report));
+      toast('Report sent. Thanks — your identity stays private.');
+    } catch (error) {
+      toast(`Report saved locally. Sync failed: ${error.message}`, 'danger');
+    }
+  }
+
+  async function blockUser(userId) {
     if (!requireLogin('Sign in to block profiles and personalize the feed.')) return;
     const viewer = currentUser();
     const user = state.users.find((u) => u.id === userId);
     if (!user) return toast('Profile not found.', 'danger');
     if (viewer?.id === user.id) return toast('You cannot block your own profile.', 'danger');
+    if (!window.confirm(`Block ${user.name}? Their posts stay hidden from your feed and explore.`)) return;
     state.blockedUsers = state.blockedUsers || [];
     if (!state.blockedUsers.includes(user.id)) state.blockedUsers.push(user.id);
-    state.opsLog.unshift(`${usernameFor(user)} blocked from this device.`);
-    save(); render(); toast(`${user.name} is hidden from your feed.`);
+    state.opsLog.unshift(`${usernameFor(user)} blocked.`);
+    save(); render();
+    try {
+      if (liveReady() && viewer?.id) {
+        const id = `${viewer.id}_${user.id}`;
+        const { error } = await supabaseClient.from('user_blocks').upsert({
+          id,
+          blocker_id: viewer.id,
+          blocked_id: user.id,
+          updated_at: new Date().toISOString()
+        });
+        if (error) throw error;
+      }
+      toast(`${user.name} is hidden from your feed.`);
+    } catch (error) {
+      toast(`Blocked on this device. Cloud sync failed: ${error.message}`, 'danger');
+    }
   }
 
-  function unblockUser(userId) {
+  async function unblockUser(userId) {
+    const viewer = currentUser();
     const user = state.users.find((u) => u.id === userId);
     state.blockedUsers = (state.blockedUsers || []).filter((id) => id !== userId);
     state.opsLog.unshift(`${user ? usernameFor(user) : 'Profile'} unblocked.`);
-    save(); render(); openBlockedUsers(); toast('Profile unblocked.');
+    save(); render(); openBlockedUsers();
+    try {
+      if (liveReady() && viewer?.id) {
+        const { error } = await supabaseClient.from('user_blocks').delete().eq('id', `${viewer.id}_${userId}`);
+        if (error) throw error;
+      }
+      toast('Profile unblocked.');
+    } catch (error) {
+      toast(`Unblocked locally. Cloud sync failed: ${error.message}`, 'danger');
+    }
+  }
+
+  function isFeedSaved(feedId) {
+    return (state.savedFeedIds || []).includes(feedId);
+  }
+
+  function toggleSaveFeed(feedId) {
+    if (!requireLogin('Sign in to save useful bite-board posts.')) return;
+    const set = new Set(state.savedFeedIds || []);
+    if (set.has(feedId)) set.delete(feedId);
+    else set.add(feedId);
+    state.savedFeedIds = [...set];
+    save();
+    if (state.activeScreen === 'feed') renderFeed();
+    else render();
+    toast(set.has(feedId) ? 'Post saved to your shortlist.' : 'Removed from saved.');
+  }
+
+  async function deleteOwnFeed(feedId) {
+    if (!requireLogin('Sign in to delete your own posts.')) return;
+    const viewer = currentUser();
+    const post = state.feed.find((p) => p.id === feedId);
+    if (!post) return toast('Post not found.', 'danger');
+    if (!viewer || post.authorId !== viewer.id) return toast('You can only delete your own posts.', 'danger');
+    if (!window.confirm('Delete this post? It will be removed from the public bite board.')) return;
+    const previous = { ...post };
+    post.status = 'Removed';
+    state.opsLog.unshift(`Owner deleted feed item ${feedId}.`);
+    save();
+    if (state.activeScreen === 'feed') renderFeed();
+    else render();
+    try {
+      await afterLocalWrite('Delete own post', async () => liveUpdate('feed_posts', { status: 'Removed' }, 'id', feedId, 'owner delete'));
+      toast('Post deleted.');
+    } catch (error) {
+      Object.assign(post, previous);
+      save();
+      if (state.activeScreen === 'feed') renderFeed();
+      toast(`Could not delete post: ${error.message}`, 'danger');
+    }
   }
 
   function openBlockedUsers() {
     const blocked = (state.blockedUsers || []).map((id) => state.users.find((u) => u.id === id)).filter(Boolean);
     modal(`<div class="modal-head"><div><span class="eyebrow">Blocked users</span><h2>Profiles hidden from your view.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
-      <p class="lead">Blocked profiles are hidden from public feed and explore results on this device. Reporting remains separate so unsafe content can still be reviewed.</p>
+      <p class="lead">Blocked profiles are hidden from your feed and explore. Reporting stays separate so unsafe content can still be reviewed. Block lists sync when shared data is connected.</p>
       <div class="stack">${blocked.map((u)=>`<div class="lead-row panel"><div><b>${safe(u.name)}</b><small>${safe(usernameFor(u))} ${MID} ${safe(roleLabel(u.role))}</small></div><button class="btn dark small" type="button" data-action="unblock-user" data-user-id="${safe(u.id)}">Unblock</button></div>`).join('') || '<div class="empty">No blocked profiles.</div>'}</div>`);
   }
 
@@ -4158,7 +4313,7 @@ ${url}`).catch(() => {});
 
     const run = (async () => {
       try {
-        const [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes] = await Promise.all([
+        const [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes, blocksRes] = await Promise.all([
           supabaseClient.from('profiles').select('id, username, full_name, role, home_area, avatar_url, bio, fishing_styles, profile_theme, created_at').limit(LIVE_QUERY_LIMIT),
           supabaseClient.from('trip_posts').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
           supabaseClient.from('trip_private_details').select('*').limit(LIVE_QUERY_LIMIT),
@@ -4169,11 +4324,17 @@ ${url}`).catch(() => {});
           supabaseClient.from('media_assets').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
           supabaseClient.from('moderation_items').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
           supabaseClient.from('businesses').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
-          supabaseClient.from('bookings').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT)
+          supabaseClient.from('bookings').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
+          currentUser()?.id
+            ? supabaseClient.from('user_blocks').select('blocked_id').eq('blocker_id', currentUser().id).limit(200)
+            : Promise.resolve({ data: null, error: null })
         ]);
         if (generation !== pullGeneration) return;
         const errors = [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes].map((r) => r.error).filter(Boolean);
         if (errors.length) throw errors[0];
+        if (!blocksRes.error && Array.isArray(blocksRes.data)) {
+          state.blockedUsers = blocksRes.data.map((row) => row.blocked_id).filter(Boolean);
+        }
         if (profilesRes.data?.length) {
           const sessionUser = currentUser();
           // Privacy: profile rows no longer include email. Keep any email we already
@@ -4275,7 +4436,7 @@ ${url}`).catch(() => {});
         save();
         render();
         if (!options.silent) toast('Live data pulled.');
-        startRealtime();
+        if (!realtimeChannel) startRealtime();
       } catch (error) {
         if (generation !== pullGeneration) return;
         toast(`Live pull failed: ${error.message}`, 'danger');
@@ -4290,6 +4451,7 @@ ${url}`).catch(() => {});
   }
 
   function scheduleLivePull() {
+    if (typeof document !== 'undefined' && document.hidden) return;
     clearTimeout(realtimePullTimer);
     realtimePullTimer = setTimeout(() => pullSupabase({ silent: true, reason: 'realtime' }), 750);
   }
@@ -4705,8 +4867,11 @@ ${url}`).catch(() => {});
     'share-feed': (el) => shareFeed(el.dataset.feedId),
     'share-platform': (el) => sharePlatform(el.dataset.feedId, el.dataset.platform || 'native'),
     'report-feed': (el) => reportFeed(el.dataset.feedId),
+    'confirm-report-feed': (el) => confirmReportFeed(el.dataset.feedId),
     'block-user': (el) => blockUser(el.dataset.userId),
     'unblock-user': (el) => unblockUser(el.dataset.userId),
+    'toggle-save-feed': (el) => toggleSaveFeed(el.dataset.feedId),
+    'delete-own-feed': (el) => deleteOwnFeed(el.dataset.feedId),
     'remove-feed': (el) => removeFeed(el.dataset.feedId),
     'verify-business': (el) => verifyBusiness(el.dataset.businessId),
     'resolve-report': (el) => resolveReport(el.dataset.reportId),
@@ -4772,8 +4937,6 @@ ${url}`).catch(() => {});
     'toggle-qa-note': (el) => toggleQaNote(el.dataset.noteId),
     'toggle-launch-check': (el) => toggleLaunchCheck(el.dataset.checkId),
     'export-data': () => exportData(),
-    'load-sample-pack': () => loadSamplePack(),
-    'clear-sample-pack': () => clearSamplePack(),
     'reset-local': () => resetLocal()
   };
 
@@ -4831,7 +4994,7 @@ ${url}`).catch(() => {});
 
   function screenFromUrl() {
     const screen = new URLSearchParams(location.search).get('screen');
-    return ['home', 'explore', 'crew', 'feed', 'tools', 'profile'].includes(screen) ? screen : '';
+    return ['home', 'explore', 'crew', 'feed', 'more', 'tools', 'profile'].includes(screen) ? screen : '';
   }
 
   function openDeepLinkModal() {
@@ -4871,7 +5034,6 @@ ${url}`).catch(() => {});
       wireEvents();
       setupFluidChrome();
       applyScreenshotMode();
-      applyScreenshotDemoData();
       applyBetaBannerState();
       if (CONFIG.USE_SUPABASE && CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY) {
         setBootStatus('Checking shared data...');

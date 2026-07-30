@@ -13,6 +13,7 @@ export function ProfileAuthPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [remoteCheckIns, setRemoteCheckIns] = useState<number | null>(null);
   const [remoteActions, setRemoteActions] = useState<number | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const configured = authAvailable();
   const [localCheckIns, setLocalCheckIns] = useState(0);
   const [localActions, setLocalActions] = useState(0);
@@ -63,8 +64,13 @@ export function ProfileAuthPanel() {
   }, [user]);
 
   async function handleSignOut() {
-    const err = await signOut();
-    setMessage(err ?? "Signed out.");
+    setSigningOut(true);
+    try {
+      const err = await signOut();
+      setMessage(err ?? "Signed out.");
+    } finally {
+      setSigningOut(false);
+    }
   }
 
   if (!configured) {
@@ -109,9 +115,10 @@ export function ProfileAuthPanel() {
       <button
         type="button"
         onClick={handleSignOut}
-        className="rounded-xl border border-white/15 px-4 py-2 font-semibold text-slate-200 hover:bg-white/5"
+        disabled={signingOut}
+        className="rounded-xl border border-white/15 px-4 py-2 font-semibold text-slate-200 hover:bg-white/5 disabled:opacity-60"
       >
-        Sign out
+        {signingOut ? "Signing out…" : "Sign out"}
       </button>
       {message && <p className="text-xs text-slate-500">{message}</p>}
     </div>

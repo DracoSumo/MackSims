@@ -9,13 +9,13 @@ export default function AssignWorkoutPage() {
       description="Mock flow for team workouts, WODs, strength blocks, recovery work, and position-specific training."
       resultTitle="Workout assignment staged"
       resultBody="CoachCore would push the workout to the group, track completions, and flag missed work."
-      buttonLabel="Assign Mock Workout"
-      successTitle="Workout assignment simulated"
-      successBody="The selected group now has a fake training assignment staged for completion tracking."
+      buttonLabel="Record workout preview"
+      successTitle="Workout preview recorded"
+      successBody="A generic activity marker was stored locally; workout field values were not saved. No assignment, tracking, or athlete notification was made."
       timelineItems={[
-        "Workout assigned to group.",
-        "Completion tracking simulation started.",
-        "Missed-work flag will appear in future static timeline.",
+        "Generic workout preview activity recorded locally.",
+        "Workout and group field values left unsaved.",
+        "No backend or athlete push was used.",
       ]}
     >
       <MockField label="Workout title" placeholder="Acceleration + Top Speed" />

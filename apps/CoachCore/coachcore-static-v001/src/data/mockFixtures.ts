@@ -226,19 +226,7 @@ export const videoMoments = [
   },
 ];
 
-export const integrations = [
-  { name: "Hudl", status: "Requires API access" },
-  { name: "Apple Health", status: "Planned" },
-  { name: "Google Health Connect", status: "Planned" },
-  { name: "Garmin", status: "Plugin-ready" },
-  { name: "Fitbit", status: "Plugin-ready" },
-  { name: "WHOOP", status: "Plugin-ready" },
-  { name: "Oura", status: "Plugin-ready" },
-  { name: "Strava", status: "Planned" },
-  { name: "TeamSnap", status: "Coming soon" },
-  { name: "MaxPreps", status: "Coming soon" },
-  { name: "Google Calendar", status: "Planned" },
-];
+export { integrations } from "@/data/integrationsCatalog";
 
 export const adminCards = [
   { label: "Organizations", value: "3", note: "School, gym, private trainer" },

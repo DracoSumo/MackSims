@@ -1,3 +1,9 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 :root {
   color: #0c2e36;
   background: #eef6f4;
@@ -25,6 +31,17 @@
   --radius-panel: 14px;
   --radius-feature: 18px;
   --nav-h: 72px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --page-gutter: clamp(16px, 3vw, 32px);
+  --page-block: clamp(12px, 2vw, 24px);
+  --section-gap: clamp(18px, 2.4vw, 28px);
+  --card-pad: clamp(16px, 1.8vw, 20px);
 }
 
 body {
@@ -59,7 +76,7 @@ button:disabled {
 .app-shell {
   width: min(1180px, 100%);
   margin: 0 auto;
-  padding: 14px 14px calc(var(--nav-h) + env(safe-area-inset-bottom) + 20px);
+  padding: var(--page-block) var(--page-gutter) calc(var(--nav-h) + env(safe-area-inset-bottom) + var(--space-5));
 }
 
 .topbar {
@@ -161,13 +178,13 @@ button:disabled {
 main,
 .page-stack {
   display: grid;
-  gap: 18px;
+  gap: var(--section-gap);
 }
 
 .hero-section {
   display: grid;
-  gap: 18px;
-  padding: 22px;
+  gap: var(--section-gap);
+  padding: clamp(18px, 3vw, 34px);
   min-height: min(68vh, 520px);
   align-items: end;
   border: 1px solid rgba(0, 122, 110, 0.22);
@@ -181,6 +198,55 @@ main,
   color: #ffffff;
   overflow: hidden;
   position: relative;
+}
+
+.home-intro {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  align-items: end;
+  min-height: 210px;
+  padding: clamp(20px, 3vw, 32px);
+  border-radius: var(--radius-feature);
+  background:
+    linear-gradient(110deg, rgba(7, 52, 59, 0.96), rgba(0, 122, 110, 0.78)),
+    url("https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&w=1500&q=80");
+  background-position: center;
+  background-size: cover;
+  box-shadow: var(--shadow);
+  color: #fff;
+}
+
+.home-intro .eyebrow {
+  color: #d6fff9;
+}
+
+.home-intro .hero-copy p {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.trip-task-panel {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: -44px;
+  padding: var(--card-pad);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow);
+  position: relative;
+  z-index: 2;
+}
+
+.trip-task-panel .trip-form {
+  padding: 0;
+  box-shadow: none;
+}
+
+.trip-task-panel .feature-label {
+  border-color: var(--line);
+  background: var(--teal-soft);
+  color: var(--teal);
 }
 
 .hero-section::before {
@@ -273,8 +339,8 @@ main,
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
-  padding: 28px 0 8px;
+  gap: var(--space-4);
+  padding: var(--section-gap) 0 var(--space-2);
 }
 
 .page-header p {
@@ -369,8 +435,8 @@ main,
 
 .panel {
   display: grid;
-  gap: 14px;
-  padding: 20px 0;
+  gap: var(--space-4);
+  padding: var(--section-gap) 0;
   border-top: 1px solid var(--line);
 }
 
@@ -426,7 +492,7 @@ main,
 .metric-card-grid,
 .recommendation-grid {
   display: grid;
-  gap: 14px;
+  gap: var(--space-4);
 }
 
 .launch-actions {
@@ -609,8 +675,8 @@ main,
 
 .card {
   display: grid;
-  gap: 14px;
-  padding: 16px;
+  gap: var(--space-4);
+  padding: var(--card-pad);
 }
 
 .mini-card,
@@ -1097,13 +1163,12 @@ main,
 
 @media (min-width: 720px) {
   .app-shell {
-    padding: 18px 24px 36px;
+    padding-bottom: 36px;
   }
 
   .hero-section {
     grid-template-columns: minmax(0, 1.2fr) minmax(330px, 0.8fr);
     min-height: 610px;
-    padding: 34px;
   }
 
   .trip-form--compact {
@@ -1214,6 +1279,7 @@ main,
 
 .beta-gate-card {
   width: min(560px, 100%);
+  max-width: 100%;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -1285,19 +1351,33 @@ main,
 }
 
 .demo-banner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
   margin-top: 8px;
   padding: 8px 12px;
-  border: 1px solid rgba(217, 93, 57, 0.4);
-  background: rgba(217, 93, 57, 0.08);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.78);
   border-radius: 10px;
   font-size: 0.85rem;
 }
 
-.demo-banner p {
+.demo-banner summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.demo-banner-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.demo-banner-detail p {
   margin: 0;
   flex: 1 1 220px;
   color: var(--ink);
@@ -1591,6 +1671,25 @@ main,
     min-height: 44px;
     padding-inline: 12px;
   }
+
+  .app-shell {
+    padding-top: var(--space-2);
+  }
+
+  .topbar {
+    min-height: 54px;
+    top: 6px;
+    padding: 6px 8px;
+    border-radius: var(--radius-panel);
+  }
+
+  .brand-button {
+    padding: 4px 6px;
+  }
+
+  .brand-button small {
+    display: none;
+  }
 }
 
 @media (max-width: 430px) {
@@ -1606,7 +1705,15 @@ main,
 
   .hero-section {
     min-height: min(62vh, 480px);
-    padding: 18px;
+  }
+
+  .home-intro {
+    min-height: 190px;
+    padding: var(--space-5) 18px 56px;
+  }
+
+  .trip-task-panel {
+    margin-top: -58px;
   }
 
   .hero-copy h1 {

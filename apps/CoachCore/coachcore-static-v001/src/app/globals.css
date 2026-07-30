@@ -23,6 +23,18 @@
   --ms-radius-feature: 18px;
   --ms-nav-h: 72px;
   --ms-tap: 44px;
+  --ms-space-1: 0.25rem;
+  --ms-space-2: 0.5rem;
+  --ms-space-3: 0.75rem;
+  --ms-space-4: 1rem;
+  --ms-space-5: 1.25rem;
+  --ms-space-6: 1.5rem;
+  --ms-space-8: 2rem;
+  --ms-space-10: 2.5rem;
+  --ms-page-gutter: clamp(1.25rem, 3vw, 2.5rem);
+  --ms-page-block: clamp(1.5rem, 3vw, 2.5rem);
+  --ms-section-gap: clamp(1.25rem, 2.25vw, 2rem);
+  --ms-card-pad: clamp(1rem, 1.5vw, 1.5rem);
   --background: var(--ms-bg);
   --foreground: var(--ms-ink);
 }
@@ -78,4 +90,26 @@ button:focus-visible,
 a:focus-visible {
   outline: 3px solid rgba(45, 212, 191, 0.76);
   outline-offset: 3px;
+}
+
+.ms-page {
+  padding: var(--ms-page-block) var(--ms-page-gutter);
+}
+
+.ms-section-stack {
+  display: grid;
+  gap: var(--ms-section-gap);
+}
+
+.ms-card-pad {
+  padding: var(--ms-card-pad);
+}
+
+@media (max-width: 639px) {
+  :root {
+    --ms-page-gutter: 1rem;
+    --ms-page-block: 1.25rem;
+    --ms-section-gap: 1.25rem;
+    --ms-card-pad: 1rem;
+  }
 }

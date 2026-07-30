@@ -1,4 +1,5 @@
-﻿import { Card, SectionPage } from "@/components/SectionPage";
+﻿import Link from "next/link";
+import { Card, SectionPage } from "@/components/SectionPage";
 import { playbookItems } from "@/data/mock";
 
 export default function PlaybookPage() {
@@ -12,9 +13,9 @@ export default function PlaybookPage() {
         Demo content only — mock playbook items with no live Hudl or team API connection.
       </p>
       <div className="mb-6 flex flex-wrap gap-3">
-        <a href="/app/playbook/new" className="rounded-2xl bg-sky-400 px-5 py-3 font-black text-slate-950">
-          Create Mock Playbook Item
-        </a>
+        <Link href="/app/playbook/new" className="rounded-2xl bg-sky-400 px-5 py-3 font-black text-slate-950">
+          Open playbook preview
+        </Link>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         {playbookItems.map((item) => (

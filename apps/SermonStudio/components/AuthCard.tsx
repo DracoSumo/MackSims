@@ -1,19 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { signInWithOAuth, useSupabase, type OAuthProvider } from '@/lib/supabaseClient'
+import {
+  isOAuthProviderEnabled,
+  OAUTH_PROVIDERS,
+  signInWithOAuth,
+  useSupabase,
+  type OAuthProvider,
+} from '@/lib/supabaseClient'
 
 type Props = {
   className?: string
   onSignedIn?: (user: User) => void
   onSignedOut?: () => void
 }
-
-const oauthProviders: { id: OAuthProvider; label: string }[] = [
-  { id: 'google', label: 'Google' },
-  { id: 'github', label: 'GitHub' },
-]
 
 export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Props) {
   const { supabase, ready } = useSupabase()
@@ -23,29 +24,55 @@ export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Pr
   const [busy, setBusy] = useState(false)
   const [oauthBusy, setOauthBusy] = useState<OAuthProvider | null>(null)
   const [user, setUser] = useState<User | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const lastUserIdRef = useRef<string | null>(null)
+  const onSignedInRef = useRef(onSignedIn)
+  const onSignedOutRef = useRef(onSignedOut)
 
   useEffect(() => {
-    if (!supabase) return
-    let mounted = true
+    onSignedInRef.current = onSignedIn
+    onSignedOutRef.current = onSignedOut
+  }, [onSignedIn, onSignedOut])
 
-    supabase.auth.getUser().then(({ data }) => {
-      if (!mounted) return
-      setUser(data.user ?? null)
-      if (data.user && onSignedIn) onSignedIn(data.user)
-    })
+  useEffect(() => {
+    if (!supabase) {
+      setAuthLoading(false)
+      return
+    }
+    let mounted = true
+    setAuthLoading(true)
+
+    supabase.auth.getUser()
+      .then(({ data }) => {
+        if (!mounted) return
+        const nextUser = data.user ?? null
+        setUser(nextUser)
+        if (nextUser && lastUserIdRef.current !== nextUser.id) {
+          onSignedInRef.current?.(nextUser)
+        }
+        lastUserIdRef.current = nextUser?.id ?? null
+      })
+      .catch(() => {
+        if (mounted) setMsg('❌ Could not check your sign-in status. Try again.')
+      })
+      .finally(() => {
+        if (mounted) setAuthLoading(false)
+      })
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       const u = session?.user ?? null
       setUser(u)
-      if (u && onSignedIn) onSignedIn(u)
-      if (!u && onSignedOut) onSignedOut()
+      if (u && lastUserIdRef.current !== u.id) onSignedInRef.current?.(u)
+      if (!u && lastUserIdRef.current) onSignedOutRef.current?.()
+      lastUserIdRef.current = u?.id ?? null
+      setAuthLoading(false)
     })
 
     return () => {
       mounted = false
       sub.subscription.unsubscribe()
     }
-  }, [supabase, onSignedIn, onSignedOut])
+  }, [supabase])
 
   async function signUp() {
     if (!supabase) return
@@ -73,7 +100,7 @@ export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Pr
   }
 
   async function oauthSignIn(provider: OAuthProvider) {
-    if (!supabase) return
+    if (!supabase || !isOAuthProviderEnabled(provider)) return
     setOauthBusy(provider)
     setMsg('')
     const error = await signInWithOAuth(supabase, provider)
@@ -85,7 +112,7 @@ export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Pr
 
   if (!ready) {
     return (
-      <div className={`text-xs text-gray-500 ${className}`}>
+      <div className={`text-xs text-gray-500 ${className}`} role="status" aria-live="polite">
         Checking cloud sync…
       </div>
     )
@@ -94,56 +121,88 @@ export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Pr
   if (!supabase) {
     return (
       <div className={`text-xs text-gray-500 ${className}`}>
-        Supabase not configured — local demo mode (browser storage only).
+        Supabase not configured — local demo mode (browser storage only). Cloud sign-in controls stay hidden until URL + anon key are set.
+      </div>
+    )
+  }
+
+  if (authLoading) {
+    return (
+      <div className={`text-xs text-gray-500 ${className}`} role="status" aria-live="polite">
+        Checking sign-in status…
       </div>
     )
   }
 
   return (
-    <div className={`flex flex-wrap items-center gap-2 ${className}`}>
+    <div className={`flex flex-wrap items-center gap-2 ${className}`} aria-busy={busy || oauthBusy !== null}>
       {user ? (
         <>
           <span className="text-sm text-gray-600">Signed in as {user.email}</span>
-          <button className="btn btn-outline" onClick={signOut} disabled={busy}>Sign out</button>
+          <button type="button" className="btn btn-outline" onClick={signOut} disabled={busy}>
+            {busy ? 'Signing out…' : 'Sign out'}
+          </button>
         </>
       ) : (
         <>
-          {oauthProviders.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              className="btn btn-outline"
+          {OAUTH_PROVIDERS.map(({ id, label }) => {
+            const providerReady = isOAuthProviderEnabled(id)
+            return (
+              <button
+                key={id}
+                type="button"
+                className="btn btn-outline"
+                disabled={busy || oauthBusy !== null || !providerReady}
+                title={
+                  providerReady
+                    ? `Continue with ${label}`
+                    : 'Facebook login pending Meta + Supabase setup'
+                }
+                onClick={() => oauthSignIn(id)}
+              >
+                {oauthBusy === id ? 'Redirecting…' : providerReady ? label : `${label} (coming soon)`}
+              </button>
+            )
+          })}
+          <form className="flex flex-wrap items-center gap-2" aria-label="Email sign in" onSubmit={e => { e.preventDefault(); void signIn() }}>
+            <label className="sr-only" htmlFor="sermon-auth-email">Email address</label>
+            <input
+              id="sermon-auth-email"
+              className="input"
+              type="email"
+              placeholder="Email"
+              autoComplete="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              style={{ width: 200, maxWidth: '100%' }}
               disabled={busy || oauthBusy !== null}
-              title={`Continue with ${label}`}
-              onClick={() => oauthSignIn(id)}
-            >
-              {oauthBusy === id ? '…' : label}
+            />
+            <label className="sr-only" htmlFor="sermon-auth-password">Password</label>
+            <input
+              id="sermon-auth-password"
+              className="input"
+              type="password"
+              placeholder="Password"
+              autoComplete="current-password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              style={{ width: 160, maxWidth: '100%' }}
+              disabled={busy || oauthBusy !== null}
+            />
+            <button type="submit" className="btn btn-primary" disabled={busy || oauthBusy !== null}>
+              {busy ? 'Working…' : 'Sign in'}
             </button>
-          ))}
-          <input
-            className="input"
-            placeholder="email"
-            autoComplete="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            style={{ width: 200 }}
-            disabled={busy}
-          />
-          <input
-            className="input"
-            type="password"
-            placeholder="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            style={{ width: 160 }}
-            disabled={busy}
-          />
-          <button className="btn btn-primary" onClick={signIn} disabled={busy}>Sign in</button>
-          <button className="btn" onClick={signUp} disabled={busy}>Sign up</button>
+            <button type="button" className="btn" onClick={signUp} disabled={busy || oauthBusy !== null}>
+              {busy ? 'Working…' : 'Sign up'}
+            </button>
+          </form>
         </>
       )}
-      {msg && <span className="text-xs text-gray-500 ml-2">{msg}</span>}
+      {msg && (
+        <span className="text-xs text-gray-500 ml-2" role={msg.startsWith('❌') ? 'alert' : 'status'}>
+          {msg}
+        </span>
+      )}
     </div>
   )
 }

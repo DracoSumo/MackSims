@@ -13,8 +13,8 @@ export function SectionPage({
 }) {
   return (
     <AppShell>
-      <div className="px-5 py-6 lg:px-10 lg:py-10">
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6">
+      <div className="ms-page">
+        <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-[var(--ms-card-pad)] sm:p-6">
           <p className="text-sm font-bold uppercase tracking-[0.3em] text-sky-300">
             {eyebrow}
           </p>
@@ -24,7 +24,7 @@ export function SectionPage({
           <p className="mt-4 max-w-3xl text-slate-300">{description}</p>
         </div>
 
-        <div className="mt-8">{children}</div>
+        <div className="mt-[var(--ms-section-gap)]">{children}</div>
       </div>
     </AppShell>
   );
@@ -40,7 +40,7 @@ export function Card({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.06] p-5">
+    <div className="rounded-3xl border border-white/10 bg-white/[0.06] p-[var(--ms-card-pad)]">
       <h2 className="text-xl font-black">{title}</h2>
       {subtitle ? <p className="mt-2 text-sm text-slate-400">{subtitle}</p> : null}
       {children ? <div className="mt-4 text-sm leading-6 text-slate-300">{children}</div> : null}

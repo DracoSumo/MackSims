@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   APP_NAME,
-  APP_TAGLINE,
   BUILD_TARGET,
   DEFAULT_MARKET,
   DEMO_NOTICE,
@@ -27,6 +26,7 @@ import { getSyncMeta, pushJoinedRide, pushRideDraft } from './services/supabaseS
 import { AuthCallbackHandler, OAuthSignIn } from './components/OAuthSignIn'
 import { SafetyMenu } from './components/SafetyMenu'
 import { CrewScreen } from './components/CrewScreen'
+import { primaryNavigation } from './actionContracts'
 import {
   listBlockedUsers,
   listOpenReports,
@@ -48,6 +48,7 @@ import type {
   RideChat,
   RideDifficulty,
   RideFilter,
+  RideLogEntry,
   RidePace,
   RideStatus,
   RoadAwarenessFeature,
@@ -57,14 +58,22 @@ import './App.css'
 
 type Screen = 'home' | 'rides' | 'crew' | 'comms' | 'safety' | 'profile' | 'create' | 'focus' | 'map' | 'chat'
 
-const navItems: { screen: Exclude<Screen, 'create' | 'focus' | 'map' | 'chat'>; label: string }[] = [
-  { screen: 'home', label: 'Home' },
-  { screen: 'rides', label: 'Rides' },
-  { screen: 'crew', label: 'Crew' },
-  { screen: 'safety', label: 'Safety' },
-  { screen: 'comms', label: 'Comms' },
-  { screen: 'profile', label: 'Profile' },
-]
+type NavIconName = 'home' | 'rides' | 'crew' | 'safety' | 'more'
+
+const navItems: {
+  screen: Exclude<Screen, 'create' | 'focus' | 'map' | 'chat' | 'comms'>
+  label: string
+  icon: NavIconName
+}[] = [...primaryNavigation]
+
+function NavIcon({ name }: { name: NavIconName }) {
+  const props = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  if (name === 'home') return <svg {...props}><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z" /></svg>
+  if (name === 'rides') return <svg {...props}><circle cx="6" cy="17" r="3" /><circle cx="18" cy="17" r="3" /><path d="m6 17 4-8h4l4 8M9 12h6M12 9l-2-3" /></svg>
+  if (name === 'crew') return <svg {...props}><circle cx="9" cy="8" r="3" /><circle cx="17" cy="10" r="2.5" /><path d="M3 20c0-4 2.7-7 6-7s6 3 6 7M15 14c3 0 5 2.4 5 5" /></svg>
+  if (name === 'safety') return <svg {...props}><path d="M12 3 4 6v5c0 5.2 3.4 8.6 8 10 4.6-1.4 8-4.8 8-10V6Z" /><path d="m9 12 2 2 4-5" /></svg>
+  return <svg {...props}><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></svg>
+}
 
 const feedbackMailto = `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(
   `${APP_NAME} ${VERSION_LABEL} beta feedback`,
@@ -109,6 +118,7 @@ function App() {
   const [selectedRideId, setSelectedRideId] = useState(() => rides[0]?.id ?? '')
   const [joinedRideIds, setJoinedRideIds] = useLocalStorageState<string[]>(localStorageKeys.joinedRideIds, rides[0]?.id ? [rides[0].id] : [])
   const [draftRides, setDraftRides] = useLocalStorageState<DraftRide[]>(localStorageKeys.draftRides, [])
+  const [rideLog, setRideLog] = useLocalStorageState<RideLogEntry[]>(localStorageKeys.rideLog, [])
   const [emergencyContacts, setEmergencyContacts] = useLocalStorageState<EmergencyContact[]>(
     localStorageKeys.emergencyContacts,
     [],
@@ -222,6 +232,39 @@ function App() {
     event.currentTarget.reset()
   }
 
+  function handleLogRide(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
+    const milesValue = String(formData.get('miles') || '').trim()
+    const entry: RideLogEntry = {
+      id: `ride-log-${Date.now()}`,
+      title: String(formData.get('title') || 'Completed ride').trim(),
+      riddenOn: String(formData.get('riddenOn') || new Date().toISOString().slice(0, 10)),
+      miles: milesValue ? Number(milesValue) : null,
+      note: String(formData.get('note') || '').trim(),
+      loggedAt: new Date().toISOString(),
+    }
+    setRideLog((current) => [entry, ...current].slice(0, 30))
+    setSaveMessage(`${entry.title} added to the local ride log.`)
+    event.currentTarget.reset()
+  }
+
+  const pathname = typeof window === 'undefined' ? '/' : window.location.pathname
+  if (pathname !== '/' && pathname !== '/auth/callback') {
+    return (
+      <main className="app-shell">
+        <section className="phone-stage">
+          <div className="screen-content">
+            <p className="eyebrow">404</p>
+            <h1>Page not found</h1>
+            <p>This MotoCrew route does not exist.</p>
+            <a className="primary-action" href="/">Return home</a>
+          </div>
+        </section>
+      </main>
+    )
+  }
+
   return (
     <main className="app-shell">
       {authCallback ? (
@@ -260,14 +303,16 @@ function App() {
           </div>
         )}
         <header className="app-header">
-          <div>
-            <p className="eyebrow">{DEFAULT_MARKET}</p>
-            <h1>{APP_NAME}</h1>
-            <p className="tagline">{APP_TAGLINE}</p>
+          <div className="header-brand">
+            <span className="header-mark" aria-hidden="true">MC</span>
+            <div>
+              <p className="eyebrow">{DEFAULT_MARKET}</p>
+              <h1>{APP_NAME}</h1>
+            </div>
           </div>
-          <div className="build-pill">
-            <span>{VERSION_LABEL}</span>
-            <span>{BUILD_TARGET}</span>
+          <div className="header-status" aria-label={`${VERSION_LABEL} ${BUILD_TARGET} beta`}>
+            <span className="status-dot" aria-hidden="true" />
+            Beta
           </div>
         </header>
 
@@ -275,9 +320,15 @@ function App() {
           {activeScreen === 'home' && (
             <HomeScreen
               draftRides={draftRides}
+              rideLog={rideLog}
               rideGroups={rideGroups}
               onNavigate={setActiveScreen}
               onSelectRide={selectRide}
+              onLogRide={handleLogRide}
+              onDeleteLogEntry={(entryId) => {
+                if (!window.confirm('Delete this ride log entry from this device?')) return
+                setRideLog((current) => current.filter((entry) => entry.id !== entryId))
+              }}
               onDeleteDraft={(draftId) => {
                 if (!window.confirm('Delete this ride draft from this device?')) return
                 setDraftRides((current) => current.filter((draft) => draft.id !== draftId))
@@ -308,7 +359,7 @@ function App() {
             <EmptyRideState message="No open rides yet. Create a local draft or wait for live pack listings." onBrowse={() => setActiveScreen('create')} />
           )}
           {activeScreen === 'map' && selectedRide && selectedRoute && (
-            <MapScreen ride={selectedRide} route={selectedRoute} />
+            <MapScreen ride={selectedRide} route={selectedRoute} onBack={() => setActiveScreen('rides')} />
           )}
           {activeScreen === 'map' && (!selectedRide || !selectedRoute) && (
             <EmptyRideState message="Select a ride with a route preview to open the map." onBrowse={() => setActiveScreen('rides')} />
@@ -319,6 +370,7 @@ function App() {
               chat={selectedChat}
               completedChecklistIds={completedChecklistIds}
               onToggleChecklistItem={toggleChecklistItem}
+              onBack={() => setActiveScreen('rides')}
             />
           )}
           {activeScreen === 'crew' && <CrewScreen />}
@@ -361,6 +413,7 @@ function App() {
               draftCount={draftRides.length}
               joinedCount={joinedRideIds.length}
               onCreate={() => setActiveScreen('create')}
+              onOpenComms={() => setActiveScreen('comms')}
             />
           )}
           {activeScreen === 'create' && (
@@ -422,12 +475,16 @@ function DesktopRail({
 
 function HomeScreen({
   draftRides,
+  rideLog,
   rideGroups,
   onNavigate,
   onSelectRide,
+  onLogRide,
+  onDeleteLogEntry,
   onDeleteDraft,
 }: {
   draftRides: DraftRide[]
+  rideLog: RideLogEntry[]
   rideGroups: {
     upcoming: Ride[]
     featured: Ride[]
@@ -435,14 +492,21 @@ function HomeScreen({
   }
   onNavigate: (screen: Screen) => void
   onSelectRide: (rideId: string, nextScreen?: Screen) => void
+  onLogRide: (event: FormEvent<HTMLFormElement>) => void
+  onDeleteLogEntry: (entryId: string) => void
   onDeleteDraft: (draftId: string) => void
 }) {
   const spotlight = rideGroups.upcoming[0]
+  const catalogRideCount =
+    rideGroups.upcoming.length + rideGroups.featured.length + rideGroups.completed.length
 
   return (
-    <div className="screen-content">
-      <section className="hero-panel">
-        <p className="eyebrow">Tonight&apos;s pack</p>
+    <div className="screen-content home-layout">
+      <section className={`hero-panel ${spotlight ? '' : 'hero-panel--empty'}`}>
+        <div className="hero-kicker">
+          <p className="eyebrow">{spotlight ? 'Next ride' : 'Your next ride starts here'}</p>
+          <span className="beta-chip">{spotlight ? 'Pack open' : 'Local beta'}</span>
+        </div>
         {spotlight ? (
           <>
             <h2>{spotlight.name}</h2>
@@ -452,37 +516,50 @@ function HomeScreen({
               <span>{spotlight.estimatedMiles} mi</span>
               <StatusPill status={spotlight.status} />
             </div>
-            <button type="button" className="primary-action" onClick={() => onSelectRide(spotlight.id)}>
-              Open Ride
-            </button>
+            <div className="hero-actions">
+              <button data-action="open-ride" type="button" className="primary-action" onClick={() => onSelectRide(spotlight.id)}>
+                Open ride
+              </button>
+              <button data-action="open-crew" type="button" className="secondary-action" onClick={() => onNavigate('crew')}>
+                Check crew
+              </button>
+            </div>
           </>
         ) : (
           <>
-            <h2>No upcoming rides</h2>
-            <p>Create a local draft or browse open rides to get started.</p>
-            <button type="button" className="primary-action" onClick={() => onNavigate('create')}>
-              Create Ride Draft
-            </button>
+            <h2>Plan it. Rally your crew. Roll prepared.</h2>
+            <p>
+              Live ride discovery is not connected yet. Build a private ride plan on this device,
+              then coordinate check-ins with riders you trust.
+            </p>
+            <div className="hero-actions">
+              <button data-action="plan-ride" type="button" className="primary-action" onClick={() => onNavigate('create')}>
+                Plan a ride
+              </button>
+              <button data-action="open-crew" type="button" className="secondary-action" onClick={() => onNavigate('crew')}>
+                Open crew
+              </button>
+            </div>
+            <div className="availability-note" role="note">
+              <span aria-hidden="true">●</span>
+              Public rides unavailable in this beta. Your plans stay local until you sign in and sync.
+            </div>
           </>
         )}
       </section>
 
-      <section className="quick-actions" aria-label="Quick actions">
-        <button type="button" onClick={() => onNavigate('create')}>
-          Create Ride
-        </button>
-        <button type="button" onClick={() => onNavigate('rides')}>
-          Find Ride
-        </button>
-        <button type="button" onClick={() => onNavigate('crew')}>
-          My Crew
-        </button>
-        <button type="button" onClick={() => onNavigate('safety')}>
-          Safety
-        </button>
+      <section className="home-command-card" aria-label="Ride workflow">
+        <div>
+          <p className="eyebrow">Ride control</p>
+          <h2>Set up before kickstands-up</h2>
+          <p>Plan the route, gather your circle, then use manual check-ins when everyone is safely stopped.</p>
+        </div>
+        <div className="workflow-steps" aria-label="Plan, crew, check in">
+          <span><b>01</b> Plan</span>
+          <span><b>02</b> Crew</span>
+          <span><b>03</b> Check in</span>
+        </div>
       </section>
-
-      <RidePhaseCard />
 
       <DraftRideCollection
         drafts={draftRides}
@@ -490,29 +567,97 @@ function HomeScreen({
         onCreate={() => onNavigate('create')}
         onDeleteDraft={onDeleteDraft}
       />
-      <RideCollection title="Upcoming group rides" rides={rideGroups.upcoming} onSelectRide={onSelectRide} />
-      <RideCollection title="Featured local rides" rides={rideGroups.featured} onSelectRide={onSelectRide} />
-      <RideCollection title="Recently completed" rides={rideGroups.completed} onSelectRide={onSelectRide} />
+      {catalogRideCount > 0 ? (
+        <>
+          <RideCollection title="Upcoming group rides" rides={rideGroups.upcoming} onSelectRide={onSelectRide} />
+          <RideCollection title="Featured local rides" rides={rideGroups.featured} onSelectRide={onSelectRide} />
+          <RideCollection title="Recently completed" rides={rideGroups.completed} onSelectRide={onSelectRide} />
+        </>
+      ) : null}
+      <RideLog entries={rideLog} onSubmit={onLogRide} onDelete={onDeleteLogEntry} />
+      <RidePhaseCard />
     </div>
+  )
+}
+
+function RideLog({
+  entries,
+  onSubmit,
+  onDelete,
+}: {
+  entries: RideLogEntry[]
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onDelete: (entryId: string) => void
+}) {
+  return (
+    <details className="phase-card ride-log-disclosure">
+      <summary>
+        <span>
+          <span className="eyebrow">Ride history</span>
+          Local ride log
+        </span>
+        <span className="summary-meta">{entries.length} entries</span>
+      </summary>
+      <div className="disclosure-body">
+      <p className="subtle-copy">Record completed rides for your own reference. Entries are not GPS tracks and are not shared with your crew.</p>
+      <form className="stack-form" onSubmit={onSubmit}>
+        <label>
+          Ride name
+          <input name="title" maxLength={80} placeholder="Sunday backroads" required />
+        </label>
+        <label>
+          Date
+          <input name="riddenOn" type="date" required />
+        </label>
+        <label>
+          Miles (optional)
+          <input name="miles" type="number" min="0" step="0.1" inputMode="decimal" />
+        </label>
+        <label>
+          Note (optional)
+          <textarea name="note" maxLength={240} rows={2} placeholder="Weather, route, or maintenance reminder" />
+        </label>
+        <button type="submit" className="primary-action">Add completed ride</button>
+      </form>
+      {entries.length === 0 ? (
+        <p className="empty-state" role="status">
+          No completed rides logged on this device yet. Use the form above to add your first entry —
+          logs stay private to this browser.
+        </p>
+      ) : (
+        <div className="draft-grid">
+          {entries.map((entry) => (
+            <article key={entry.id} className="draft-card">
+              <span>{entry.riddenOn}</span>
+              <h3>{entry.title}</h3>
+              <p>{entry.miles === null ? 'Mileage not recorded' : `${entry.miles} miles`}</p>
+              {entry.note ? <p>{entry.note}</p> : null}
+              <button type="button" className="compact-action" onClick={() => onDelete(entry.id)}>Delete entry</button>
+            </article>
+          ))}
+        </div>
+      )}
+      </div>
+    </details>
   )
 }
 
 function RidePhaseCard() {
   return (
-    <section className="phase-card">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Ride status</p>
-          <h2>Crew sessions live under Crew</h2>
-        </div>
-        <span className="offline-pill">Manual check-ins</span>
-      </div>
+    <details className="phase-card compact-disclosure">
+      <summary>
+        <span>
+          <span className="eyebrow">Ride status</span>
+          Crew sessions use manual check-ins
+        </span>
+        <span className="offline-pill">Safety details</span>
+      </summary>
       <p className="subtle-copy">
-        Start a private crew ride session, share opt-in status, and post OK / delayed / need-help check-ins.
-        Automatic crash detection, background GPS, and emergency dispatch are not available in this web build.
+        Start a private crew ride session and post OK, delayed, or need-help check-ins. Automatic crash detection,
+        background GPS, and emergency dispatch are not available.
       </p>
       <p className="future-note">{SAFETY_NOTICE}</p>
-    </section>
+    </details>
   )
 }
 
@@ -696,6 +841,7 @@ function RideScreen({
             <p>Hosted by {selectedRide.host}</p>
           </div>
           <button
+            data-action="join-ride"
             type="button"
             className={isJoined ? 'secondary-action' : 'primary-action'}
             onClick={onToggleJoin}
@@ -757,7 +903,7 @@ function RideScreen({
         </div>
 
         <StatusRail activeStatus={selectedRide.status} />
-        <button type="button" className="secondary-action wide-action" onClick={onOpenMap}>
+        <button data-action="preview-route" type="button" className="secondary-action wide-action" onClick={onOpenMap}>
           Preview Route
         </button>
       </article>
@@ -860,7 +1006,7 @@ function StatusPill({ status }: { status: RideStatus }) {
   return <span className={`status-pill ${statusClassName(status)}`}>{status}</span>
 }
 
-function MapScreen({ ride, route }: { ride: Ride; route: RoutePreview }) {
+function MapScreen({ ride, route, onBack }: { ride: Ride; route: RoutePreview; onBack: () => void }) {
   const preview = mapAdapter.getRoutePreview(ride.id) ?? route
 
   return (
@@ -874,19 +1020,18 @@ function MapScreen({ ride, route }: { ride: Ride; route: RoutePreview }) {
           <div className="map-status-row">
             <span className={`map-status-pill map-status-pill--${mapAdapter.status}`}>{mapAdapter.status}</span>
             <StatusPill status={ride.status} />
+            <button type="button" className="compact-action" onClick={onBack}>Back to ride</button>
           </div>
         </div>
 
         <div className="map-placeholder" role="img" aria-label="Map placeholder">
           <div className="map-placeholder-grid" aria-hidden="true" />
           <div className="map-placeholder-copy">
-            <strong>
-              {mapAdapter.status === "live" ? "Live map tiles" : "Map view not configured"}
-            </strong>
+          <strong>{mapAdapter.status === "live" ? "Live route" : "Route outline available"}</strong>
             <p>
               {mapAdapter.isLiveTrackingAvailable
                 ? "Live GPS and map tiles are available in this build."
-                : "Live maps require a map provider and API key (Mapbox, Google Maps, or an OpenStreetMap stack). No key is bundled with this beta, so the panel below shows the mocked route outline instead."}
+                : "This route is a staged outline, not turn-by-turn navigation. Live maps are not configured."}
             </p>
           </div>
         </div>
@@ -911,7 +1056,7 @@ function MapScreen({ ride, route }: { ride: Ride; route: RoutePreview }) {
 
         <p className="future-note">
           {mapAdapter.status === "mock"
-            ? "Real maps and live route sharing will come later. This panel uses mocked route data from the map adapter seam."
+            ? "Preview only—not navigation or a GPS track. Live route sharing requires a configured provider and rider consent."
             : "Route preview is served by the configured map adapter."}
         </p>
       </section>
@@ -959,12 +1104,12 @@ function InfoTile({ label, value }: { label: string; value: string }) {
 function EmptyRideState({ message, onBrowse }: { message: string; onBrowse: () => void }) {
   return (
     <div className="screen-content">
-      <section className="hero-panel">
-        <p className="eyebrow">Nothing to show</p>
-        <h2>Ride not available</h2>
+      <section className="hero-panel hero-panel--empty">
+        <p className="eyebrow">Ride catalog offline</p>
+        <h2>Plan locally for now.</h2>
         <p>{message}</p>
         <button type="button" className="primary-action" onClick={onBrowse}>
-          Browse rides
+          Create a ride plan
         </button>
       </section>
     </div>
@@ -994,7 +1139,7 @@ function ReadinessPanel({
         <span style={{ width: `${readinessPercent}%` }} />
       </div>
       {readinessPercent < 80 && (
-        <button type="button" className="secondary-action wide-action" onClick={onOpenChat}>
+        <button data-action="open-checklist" type="button" className="secondary-action wide-action" onClick={onOpenChat}>
           Complete checklist in Chat
         </button>
       )}
@@ -1047,11 +1192,13 @@ function ChatScreen({
   chat,
   completedChecklistIds,
   onToggleChecklistItem,
+  onBack,
 }: {
   ride: Ride
   chat?: RideChat
   completedChecklistIds: string[]
   onToggleChecklistItem: (itemId: string) => void
+  onBack: () => void
 }) {
   const [blocked, setBlocked] = useState<string[]>(() => listBlockedUsers())
 
@@ -1074,7 +1221,7 @@ function ChatScreen({
               <p className="eyebrow">Pack chat mock</p>
               <h2>{ride.name}</h2>
             </div>
-            <span className="offline-pill">Not live</span>
+            <button type="button" className="compact-action" onClick={onBack}>Back to ride</button>
           </div>
           <p className="subtle-copy">
             No mock chat thread is loaded for this ride yet. Messaging is simulated only — not connected to a backend.
@@ -1097,7 +1244,7 @@ function ChatScreen({
             <p className="eyebrow">Pack chat mock</p>
             <h2>{ride.name}</h2>
           </div>
-          <span className="offline-pill">Not live</span>
+          <button type="button" className="compact-action" onClick={onBack}>Back to ride</button>
         </div>
 
         <div className="announcement">
@@ -1173,13 +1320,13 @@ function CommsPanel() {
         <span className="offline-pill">Not live</span>
       </div>
       <div className="comms-mock-controls" aria-label="Intercom unavailable controls">
-        <button type="button" disabled title="Voice rooms are not connected">
+        <button data-unavailable-action="voice-room" type="button" disabled title="Voice rooms are not connected">
           Join Voice Room — unavailable
         </button>
-        <button type="button" disabled title="Push-to-talk is not connected">
+        <button data-unavailable-action="push-to-talk" type="button" disabled title="Push-to-talk is not connected">
           Push-to-Talk — unavailable
         </button>
-        <button type="button" disabled title="Calling is not connected">
+        <button data-unavailable-action="call-ride-lead" type="button" disabled title="Calling is not connected">
           Call Ride Lead — unavailable
         </button>
       </div>
@@ -1207,6 +1354,7 @@ function SafetyScreen({
   onContactsChange: (updater: (current: EmergencyContact[]) => EmergencyContact[]) => void
 }) {
   const [formError, setFormError] = useState('')
+  const [contactMessage, setContactMessage] = useState('')
 
   function handleAddContact(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -1228,11 +1376,14 @@ function SafetyScreen({
 
     onContactsChange((current) => [...current, contact].slice(0, 6))
     setFormError('')
+    setContactMessage(`${name} saved on this device.`)
     event.currentTarget.reset()
   }
 
   function removeContact(contactId: string) {
+    if (!window.confirm('Remove this emergency contact from this device?')) return
     onContactsChange((current) => current.filter((contact) => contact.id !== contactId))
+    setContactMessage('Emergency contact removed from this device.')
   }
 
   return (
@@ -1311,11 +1462,12 @@ function SafetyScreen({
             Phone
             <input name="contactPhone" type="tel" placeholder="555-014-2233" required />
           </label>
-          <button type="submit" className="secondary-action full-span">
+          <button data-action="save-contact" type="submit" className="secondary-action full-span">
             Save Contact Locally
           </button>
         </form>
         {formError && <p className="danger-note">{formError}</p>}
+        {contactMessage && <p className="save-message" role="status">{contactMessage}</p>}
       </section>
 
       <section className="feedback-panel">
@@ -1342,11 +1494,13 @@ function ProfileScreen({
   draftCount,
   joinedCount,
   onCreate,
+  onOpenComms,
 }: {
   permissionItems: PermissionModule[]
   draftCount: number
   joinedCount: number
   onCreate: () => void
+  onOpenComms: () => void
 }) {
   const [profile, setProfile] = useState<RiderProfileLocal>(() => loadRiderProfile())
   const [editing, setEditing] = useState(false)
@@ -1455,6 +1609,7 @@ function ProfileScreen({
         <div className="profile-actions">
           {editing ? (
             <button
+              data-action="save-profile"
               type="button"
               className="primary-action"
               onClick={() => {
@@ -1480,6 +1635,9 @@ function ProfileScreen({
           )}
           <button type="button" className="compact-action" onClick={() => downloadMotoCrewLocalData()}>
             Export local data
+          </button>
+          <button type="button" className="compact-action" onClick={onOpenComms}>
+            Comms status
           </button>
         </div>
         {saveNote && <p className="future-note">{saveNote}</p>}
@@ -1708,7 +1866,7 @@ function BottomNav({
           className={activeScreen === item.screen ? 'active' : ''}
           onClick={() => onNavigate(item.screen)}
         >
-          <span aria-hidden="true">{item.label.slice(0, 1)}</span>
+          <span aria-hidden="true"><NavIcon name={item.icon} /></span>
           {item.label}
         </button>
       ))}

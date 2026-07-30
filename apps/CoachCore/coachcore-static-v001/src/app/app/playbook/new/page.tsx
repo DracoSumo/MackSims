@@ -1,35 +1,40 @@
-﻿import Link from "next/link";
-import { SectionPage } from "@/components/SectionPage";
+﻿import { MockActionPage, MockField, MockSelect, MockTextarea } from "@/components/actions/MockActionPage";
 
 export default function NewPlaybookPage() {
   return (
-    <SectionPage
+    <MockActionPage
       eyebrow="Create install"
       title="Add a play, drill, or movement standard"
-      description="Mock form for coach playbooks, sport installs, practice plans, and functional fitness movement standards."
+      description="Interactive preview for coach playbooks, sport installs, practice plans, and functional fitness movement standards."
+      resultTitle="Playbook item published to the selected group"
+      resultBody="CoachCore would publish this install to the assigned group once a live team backend is connected."
+      buttonLabel="Record playbook preview"
+      successTitle="Playbook preview recorded"
+      successBody="A generic activity marker was stored locally; playbook field values were not saved. No Hudl, team API, or athlete notification was used."
+      actionLabel="Playbook draft"
+      timelineItems={[
+        "Generic playbook preview activity recorded locally.",
+        "Playbook and group field values left unsaved.",
+        "No backend, database, or partner API write was made.",
+      ]}
     >
-      <div className="mb-6">
-        <Link href="/app/playbook" className="text-sm font-bold text-sky-300">
-          ← Back to playbook
-        </Link>
-      </div>
-
-      <div className="grid gap-4 rounded-[2rem] border border-white/10 bg-white/[0.05] p-6">
-        <input className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white" placeholder="Title" />
-        <select className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white">
-          <option>Play</option>
-          <option>Drill</option>
-          <option>Game plan</option>
-          <option>Practice plan</option>
-          <option>Movement standard</option>
-          <option>Functional fitness WOD standard</option>
-        </select>
-        <input className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white" placeholder="Assigned group" />
-        <textarea className="min-h-36 rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white" placeholder="Coach notes, responsibilities, standards, or teaching points" />
-        <button className="rounded-2xl bg-sky-400 px-5 py-3 font-black text-slate-950">
-          Save Mock Playbook Item
-        </button>
-      </div>
-    </SectionPage>
+      <MockField label="Title" placeholder="Cover 2 shell / Thruster standard" />
+      <MockSelect
+        label="Type"
+        options={[
+          "Play",
+          "Drill",
+          "Game plan",
+          "Practice plan",
+          "Movement standard",
+          "Functional fitness WOD standard",
+        ]}
+      />
+      <MockField label="Assigned group" placeholder="Varsity defense / Morning class" />
+      <MockTextarea
+        label="Coach notes"
+        placeholder="Responsibilities, standards, or teaching points"
+      />
+    </MockActionPage>
   );
 }

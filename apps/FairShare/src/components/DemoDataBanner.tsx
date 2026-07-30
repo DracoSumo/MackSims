@@ -12,13 +12,18 @@ export function DemoDataBanner() {
   }
 
   return (
-    <div className="demo-banner" role="note">
-      <span className="demo-banner-pill">Demo data</span>
-      <p>
-        External beta — all fares, crowd levels, venues, and events are <strong>simulated estimates</strong>.
-        Not live Uber, Lyft, or taxi quotes. No official partnerships implied.
-      </p>
-      <a href={`mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(APP_FEEDBACK_SUBJECT)}`}>Send feedback</a>
-    </div>
+    <details className="demo-banner">
+      <summary>
+        <span className="demo-banner-pill">Demo</span>
+        Estimates are simulated
+      </summary>
+      <div className="demo-banner-detail" role="note">
+        <p>
+          Fares, crowd levels, venues, and events are simulated—not live Uber, Lyft, or taxi quotes.
+          No official partnerships are implied.
+        </p>
+        <a href={`mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(APP_FEEDBACK_SUBJECT)}`}>Send feedback</a>
+      </div>
+    </details>
   );
 }
