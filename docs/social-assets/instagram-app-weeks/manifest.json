@@ -1,0 +1,324 @@
+[
+  {
+    "app": "FishCrew",
+    "folder": "fishcrew/01-community",
+    "svg": "fishcrew/01-community/01-cover.svg",
+    "jpg": "fishcrew/01-community/01-cover.jpg",
+    "alt": "FishCrew community cover about fishing plans scattered across apps and chats."
+  },
+  {
+    "app": "FishCrew",
+    "folder": "fishcrew/01-community",
+    "svg": "fishcrew/01-community/02-moment.svg",
+    "jpg": "fishcrew/01-community/02-moment.jpg",
+    "alt": "FishCrew slide about changing launch times in group chat."
+  },
+  {
+    "app": "FishCrew",
+    "folder": "fishcrew/01-community",
+    "svg": "fishcrew/01-community/03-calm.svg",
+    "jpg": "fishcrew/01-community/03-calm.jpg",
+    "alt": "FishCrew slide introducing a calmer planning place."
+  },
+  {
+    "app": "FishCrew",
+    "folder": "fishcrew/01-community",
+    "svg": "fishcrew/01-community/04-ask.svg",
+    "jpg": "fishcrew/01-community/04-ask.jpg",
+    "alt": "FishCrew question slide asking what crews forget before launch."
+  },
+  {
+    "app": "FishCrew",
+    "folder": "fishcrew/02-walkthrough",
+    "svg": "fishcrew/02-walkthrough/01-cover.svg",
+    "jpg": "fishcrew/02-walkthrough/01-cover.jpg",
+    "alt": "FishCrew walkthrough cover: A simple trip-planning loop"
+  },
+  {
+    "app": "FishCrew",
+    "folder": "fishcrew/02-walkthrough",
+    "svg": "fishcrew/02-walkthrough/02-step.svg",
+    "jpg": "fishcrew/02-walkthrough/02-step.jpg",
+    "alt": "FishCrew walkthrough step 1: Check the local water window"
+  },
+  {
+    "app": "FishCrew",
+    "folder": "fishcrew/02-walkthrough",
+    "svg": "fishcrew/02-walkthrough/03-step.svg",
+    "jpg": "fishcrew/02-walkthrough/03-step.jpg",
+    "alt": "FishCrew walkthrough step 2: Glance at tools and guides"
+  },
+  {
+    "app": "FishCrew",
+    "folder": "fishcrew/02-walkthrough",
+    "svg": "fishcrew/02-walkthrough/04-step.svg",
+    "jpg": "fishcrew/02-walkthrough/04-step.jpg",
+    "alt": "FishCrew walkthrough step 3: Browse open trips and partners"
+  },
+  {
+    "app": "FishCrew",
+    "folder": "fishcrew/02-walkthrough",
+    "svg": "fishcrew/02-walkthrough/05-close.svg",
+    "jpg": "fishcrew/02-walkthrough/05-close.jpg",
+    "alt": "FishCrew walkthrough closing slide inviting feedback."
+  },
+  {
+    "app": "FishCrew",
+    "folder": "fishcrew/03-conversation",
+    "svg": "fishcrew/03-conversation/01-cover.svg",
+    "jpg": "fishcrew/03-conversation/01-cover.jpg",
+    "alt": "FishCrew conversation cover inviting feedback."
+  },
+  {
+    "app": "FishCrew",
+    "folder": "fishcrew/03-conversation",
+    "svg": "fishcrew/03-conversation/02-question.svg",
+    "jpg": "fishcrew/03-conversation/02-question.jpg",
+    "alt": "FishCrew question slide: Where does the planning still feel messy?"
+  },
+  {
+    "app": "FishCrew",
+    "folder": "fishcrew/03-conversation",
+    "svg": "fishcrew/03-conversation/03-cta.svg",
+    "jpg": "fishcrew/03-conversation/03-cta.jpg",
+    "alt": "FishCrew closing slide pointing to the link in bio."
+  },
+  {
+    "app": "ShutterBid",
+    "folder": "shutterbid/01-community",
+    "svg": "shutterbid/01-community/01-cover.svg",
+    "jpg": "shutterbid/01-community/01-cover.jpg",
+    "alt": "ShutterBid community cover about vague photography job requests."
+  },
+  {
+    "app": "ShutterBid",
+    "folder": "shutterbid/01-community",
+    "svg": "shutterbid/01-community/02-moment.svg",
+    "jpg": "shutterbid/01-community/02-moment.jpg",
+    "alt": "ShutterBid slide about messy quoting between clients and photographers."
+  },
+  {
+    "app": "ShutterBid",
+    "folder": "shutterbid/01-community",
+    "svg": "shutterbid/01-community/03-calm.svg",
+    "jpg": "shutterbid/01-community/03-calm.jpg",
+    "alt": "ShutterBid slide introducing post, compare, book."
+  },
+  {
+    "app": "ShutterBid",
+    "folder": "shutterbid/01-community",
+    "svg": "shutterbid/01-community/04-ask.svg",
+    "jpg": "shutterbid/01-community/04-ask.jpg",
+    "alt": "ShutterBid question slide about quoting friction."
+  },
+  {
+    "app": "ShutterBid",
+    "folder": "shutterbid/02-walkthrough",
+    "svg": "shutterbid/02-walkthrough/01-cover.svg",
+    "jpg": "shutterbid/02-walkthrough/01-cover.jpg",
+    "alt": "ShutterBid walkthrough cover: Inside the public beta"
+  },
+  {
+    "app": "ShutterBid",
+    "folder": "shutterbid/02-walkthrough",
+    "svg": "shutterbid/02-walkthrough/02-step.svg",
+    "jpg": "shutterbid/02-walkthrough/02-step.jpg",
+    "alt": "ShutterBid walkthrough step 1: Post a job with the details that matter"
+  },
+  {
+    "app": "ShutterBid",
+    "folder": "shutterbid/02-walkthrough",
+    "svg": "shutterbid/02-walkthrough/03-step.svg",
+    "jpg": "shutterbid/02-walkthrough/03-step.jpg",
+    "alt": "ShutterBid walkthrough step 2: Compare bids side by side"
+  },
+  {
+    "app": "ShutterBid",
+    "folder": "shutterbid/02-walkthrough",
+    "svg": "shutterbid/02-walkthrough/04-step.svg",
+    "jpg": "shutterbid/02-walkthrough/04-step.jpg",
+    "alt": "ShutterBid walkthrough step 3: Move toward booking without losing the thread"
+  },
+  {
+    "app": "ShutterBid",
+    "folder": "shutterbid/02-walkthrough",
+    "svg": "shutterbid/02-walkthrough/05-close.svg",
+    "jpg": "shutterbid/02-walkthrough/05-close.jpg",
+    "alt": "ShutterBid walkthrough closing slide inviting feedback."
+  },
+  {
+    "app": "ShutterBid",
+    "folder": "shutterbid/03-conversation",
+    "svg": "shutterbid/03-conversation/01-cover.svg",
+    "jpg": "shutterbid/03-conversation/01-cover.jpg",
+    "alt": "ShutterBid conversation cover inviting feedback."
+  },
+  {
+    "app": "ShutterBid",
+    "folder": "shutterbid/03-conversation",
+    "svg": "shutterbid/03-conversation/02-question.svg",
+    "jpg": "shutterbid/03-conversation/02-question.jpg",
+    "alt": "ShutterBid question slide: What would you never want to type twice?"
+  },
+  {
+    "app": "ShutterBid",
+    "folder": "shutterbid/03-conversation",
+    "svg": "shutterbid/03-conversation/03-cta.svg",
+    "jpg": "shutterbid/03-conversation/03-cta.jpg",
+    "alt": "ShutterBid closing slide pointing to the link in bio."
+  },
+  {
+    "app": "CurbCue",
+    "folder": "curbcue/01-community",
+    "svg": "curbcue/01-community/01-cover.svg",
+    "jpg": "curbcue/01-community/01-cover.jpg",
+    "alt": "CurbCue community cover about fare jumps and curb chaos."
+  },
+  {
+    "app": "CurbCue",
+    "folder": "curbcue/01-community",
+    "svg": "curbcue/01-community/02-moment.svg",
+    "jpg": "curbcue/01-community/02-moment.jpg",
+    "alt": "CurbCue slide about ride context beyond a single fare."
+  },
+  {
+    "app": "CurbCue",
+    "folder": "curbcue/01-community",
+    "svg": "curbcue/01-community/03-calm.svg",
+    "jpg": "curbcue/01-community/03-calm.jpg",
+    "alt": "CurbCue slide clarifying simulated demo data."
+  },
+  {
+    "app": "CurbCue",
+    "folder": "curbcue/01-community",
+    "svg": "curbcue/01-community/04-ask.svg",
+    "jpg": "curbcue/01-community/04-ask.jpg",
+    "alt": "CurbCue question slide about price versus pickup pressure."
+  },
+  {
+    "app": "CurbCue",
+    "folder": "curbcue/02-walkthrough",
+    "svg": "curbcue/02-walkthrough/01-cover.svg",
+    "jpg": "curbcue/02-walkthrough/01-cover.jpg",
+    "alt": "CurbCue walkthrough cover: A calm simulated walkthrough"
+  },
+  {
+    "app": "CurbCue",
+    "folder": "curbcue/02-walkthrough",
+    "svg": "curbcue/02-walkthrough/02-step.svg",
+    "jpg": "curbcue/02-walkthrough/02-step.jpg",
+    "alt": "CurbCue walkthrough step 1: Enter a simple trip"
+  },
+  {
+    "app": "CurbCue",
+    "folder": "curbcue/02-walkthrough",
+    "svg": "curbcue/02-walkthrough/03-step.svg",
+    "jpg": "curbcue/02-walkthrough/03-step.jpg",
+    "alt": "CurbCue walkthrough step 2: Compare fare, wait, and pickup cards"
+  },
+  {
+    "app": "CurbCue",
+    "folder": "curbcue/02-walkthrough",
+    "svg": "curbcue/02-walkthrough/04-step.svg",
+    "jpg": "curbcue/02-walkthrough/04-step.jpg",
+    "alt": "CurbCue walkthrough step 3: Check CrowdMeter-style pressure"
+  },
+  {
+    "app": "CurbCue",
+    "folder": "curbcue/02-walkthrough",
+    "svg": "curbcue/02-walkthrough/05-close.svg",
+    "jpg": "curbcue/02-walkthrough/05-close.jpg",
+    "alt": "CurbCue walkthrough closing slide inviting feedback."
+  },
+  {
+    "app": "CurbCue",
+    "folder": "curbcue/03-conversation",
+    "svg": "curbcue/03-conversation/01-cover.svg",
+    "jpg": "curbcue/03-conversation/01-cover.jpg",
+    "alt": "CurbCue conversation cover inviting feedback."
+  },
+  {
+    "app": "CurbCue",
+    "folder": "curbcue/03-conversation",
+    "svg": "curbcue/03-conversation/02-question.svg",
+    "jpg": "curbcue/03-conversation/02-question.jpg",
+    "alt": "CurbCue question slide: What still feels unclear before you book?"
+  },
+  {
+    "app": "CurbCue",
+    "folder": "curbcue/03-conversation",
+    "svg": "curbcue/03-conversation/03-cta.svg",
+    "jpg": "curbcue/03-conversation/03-cta.jpg",
+    "alt": "CurbCue closing slide pointing to the link in bio."
+  },
+  {
+    "app": "MotoCrew",
+    "folder": "motocrew/01-community",
+    "svg": "motocrew/01-community/01-cover.svg",
+    "jpg": "motocrew/01-community/01-cover.jpg",
+    "alt": "MotoCrew community cover about ride details lost in group chat."
+  },
+  {
+    "app": "MotoCrew",
+    "folder": "motocrew/01-community",
+    "svg": "motocrew/01-community/02-moment.svg",
+    "jpg": "motocrew/01-community/02-moment.jpg",
+    "alt": "MotoCrew slide about confused meetup moments before rides."
+  },
+  {
+    "app": "MotoCrew",
+    "folder": "motocrew/01-community",
+    "svg": "motocrew/01-community/03-calm.svg",
+    "jpg": "motocrew/01-community/03-calm.jpg",
+    "alt": "MotoCrew slide clarifying sample data and planning-only use."
+  },
+  {
+    "app": "MotoCrew",
+    "folder": "motocrew/01-community",
+    "svg": "motocrew/01-community/04-ask.svg",
+    "jpg": "motocrew/01-community/04-ask.jpg",
+    "alt": "MotoCrew question slide about lost ride changes."
+  },
+  {
+    "app": "MotoCrew",
+    "folder": "motocrew/02-walkthrough",
+    "svg": "motocrew/02-walkthrough/01-cover.svg",
+    "jpg": "motocrew/02-walkthrough/01-cover.jpg",
+    "alt": "MotoCrew checklist cover for calmer group-ride planning."
+  },
+  {
+    "app": "MotoCrew",
+    "folder": "motocrew/02-walkthrough",
+    "svg": "motocrew/02-walkthrough/02-checklist.svg",
+    "jpg": "motocrew/02-walkthrough/02-checklist.jpg",
+    "alt": "MotoCrew checklist of meetup, route, pace, changes, and safety."
+  },
+  {
+    "app": "MotoCrew",
+    "folder": "motocrew/02-walkthrough",
+    "svg": "motocrew/02-walkthrough/03-safety.svg",
+    "jpg": "motocrew/02-walkthrough/03-safety.jpg",
+    "alt": "MotoCrew safety reminder never to use the app while riding."
+  },
+  {
+    "app": "MotoCrew",
+    "folder": "motocrew/03-conversation",
+    "svg": "motocrew/03-conversation/01-cover.svg",
+    "jpg": "motocrew/03-conversation/01-cover.jpg",
+    "alt": "MotoCrew conversation cover inviting feedback."
+  },
+  {
+    "app": "MotoCrew",
+    "folder": "motocrew/03-conversation",
+    "svg": "motocrew/03-conversation/02-question.svg",
+    "jpg": "motocrew/03-conversation/02-question.jpg",
+    "alt": "MotoCrew question slide: Which detail disappears first?"
+  },
+  {
+    "app": "MotoCrew",
+    "folder": "motocrew/03-conversation",
+    "svg": "motocrew/03-conversation/03-cta.svg",
+    "jpg": "motocrew/03-conversation/03-cta.jpg",
+    "alt": "MotoCrew closing slide pointing to the link in bio."
+  }
+]
