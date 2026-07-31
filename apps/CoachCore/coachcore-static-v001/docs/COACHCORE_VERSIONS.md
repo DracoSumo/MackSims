@@ -53,7 +53,7 @@ Safety:
 
 ## v0.3 — Mock Interaction Layer
 
-Status: Current working version
+Status: Locked
 
 Added:
 
@@ -76,30 +76,47 @@ Safety:
 
 ## v0.4 — Demo Polish + Handoff Docs
 
-Status: In progress
+Status: Locked
 
-Goal:
+Added:
 
-- Add README
-- Add product brief
-- Add version notes
-- Add next steps
-- Add app status page
-- Prepare project for handoff to another AI/dev later
+- README
+- Product brief
+- Version notes
+- Next steps
+- App status page
+- Handoff-ready documentation
 
-## Future v0.5 — Static State Simulation
+## v0.5 — Static State Simulation
+
+Status: Current working version
+
+Goal: Make the static app feel more interactive without a backend.
+
+Added:
+
+- Live activity timeline (device action log + check-ins + mock seed)
+- Simulated assignment status store (`assignmentStore`) with localStorage
+- Film room mark in progress / complete / needs nudge
+- Training board status cycle (Assigned → In progress → Complete)
+- Dashboard and Timeline pages wired to live local data
+- Desktop nav Timeline link
+- Success banners and mock action confirmations from earlier v0.5 polish
+
+Safety:
+
+- Local device simulation only
+- Optional Supabase auth when configured
+- No payments, Hudl, wearable APIs, or production user data
+
+## Future v0.6 — Backend Foundations
 
 Potential features:
 
-- Client-side success banners
-- Mock state changes
-- Mark film complete
-- Mark workout complete
-- Simulate nudge sent
-- Simulate note saved
-- Simulate AI workout output
-- Simulate meal log submission
-- Add fake activity timeline
+- Supabase auth hardening
+- Core database tables
+- Row-level security
+- Organization / team / role model
 
 ## v0.4 Deployment Note
 
@@ -108,3 +125,39 @@ Mobile demo URL:
 https://coachcore7.netlify.app
 
 This is a static mobile demo. It is not production and does not include real auth, real data, payments, Hudl integration, wearable integrations, or external credentials.
+
+## v0.6-bones (local)
+
+- Assignment records (title/kind/status/assignee) in addition to status map
+- Meal log + coach note stores feed LiveTimelinePanel
+- Schema stubs: assignments, meal_logs, coach_notes (+ commented RLS)
+- Cap appId `com.macksims.coachcore`
+
+## v0.7.2 — Live beta honesty
+
+- Empty roster/KPIs unless `NEXT_PUBLIC_ENABLE_DEMO_FIXTURES=true`
+- Supabase auth + check-in / action-log sync when configured
+- No fabricated production athletes
+
+## v0.7.3 — Local roster loop
+
+- Manual athlete roster store (`athleteRosterStore`) + Team add / paste import
+- Check-in, notes, accountability, athlete detail use `resolveAthletes()`
+- Assign video / workout write real `assignmentStore` records (no MockAction gate)
+- Nutrition board shows local meal logs; meal log can attach to roster athletes
+- Local export includes roster, assignments, meals, notes
+
+## v0.7.4 — Coach-scoped cloud sync
+
+- `athlete_roster` + `owner_user_id` columns/policies (migration `20260731210000_coach_scoped_roster_sync.sql`)
+- Push on save for roster, assignments, meals, notes
+- `mergeOnSignIn` pulls/merges those stores (local wins on id collision)
+- Status panel lists local vs Supabase counts
+
+## v0.7.5 — Org / team bootstrap
+
+- Migration `20260731220000_org_team_bootstrap.sql` (organizations, teams, team_members, team_id columns)
+- `ensureDefaultTeamContext` on sign-in; cache primary team locally
+- Assignments / meals / notes / roster upserts include `team_id` when bootstrapped
+- Sync now controls on Profile + Status
+
