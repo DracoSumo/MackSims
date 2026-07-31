@@ -6,6 +6,8 @@ export type MealLog = {
   mealType: string;
   hydration: string;
   notes: string;
+  athleteId?: string;
+  athleteName?: string;
   loggedAt: string;
 };
 

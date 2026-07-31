@@ -34,7 +34,7 @@ Local-first product depth + Cap ID alignment (no live provider keys required):
 
 | App | This pass |
 |-----|-----------|
-| **CoachCore** | **v0.6-bones:** assignment records, meal/note stores, timeline feeds them, schema stubs for `assignments` / `meal_logs` / `coach_notes` |
+| **CoachCore** | **v0.7.3:** local athlete roster (add/paste), check-in/notes/accountability wired to roster, assign film/workout → `assignmentStore`, nutrition meal logs |
 | **CurbCue** | Re-open saved trips, fare snapshot on save, auto-push + remote delete when signed in |
 | **MotoCrew** | **v0.3-map:** typed route stops + SVG static route map behind `mapAdapter` |
 | **Sermon Studio** | Series upsert, series→editor deep link, remote sermon delete, push local series on merge |

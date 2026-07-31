@@ -28,8 +28,14 @@ export function CoachOnboardingCard() {
       </p>
       <div className="mt-5 flex flex-wrap gap-3">
         <Link
-          href="/app/accountability"
+          href="/app/team/add"
           className="rounded-2xl bg-sky-400 px-5 py-2.5 text-sm font-black text-slate-950 hover:bg-sky-300"
+        >
+          Add your roster
+        </Link>
+        <Link
+          href="/app/accountability"
+          className="rounded-2xl border border-white/15 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10"
         >
           Open accountability board
         </Link>

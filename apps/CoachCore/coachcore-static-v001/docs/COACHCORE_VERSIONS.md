@@ -133,3 +133,17 @@ This is a static mobile demo. It is not production and does not include real aut
 - Schema stubs: assignments, meal_logs, coach_notes (+ commented RLS)
 - Cap appId `com.macksims.coachcore`
 
+## v0.7.2 — Live beta honesty
+
+- Empty roster/KPIs unless `NEXT_PUBLIC_ENABLE_DEMO_FIXTURES=true`
+- Supabase auth + check-in / action-log sync when configured
+- No fabricated production athletes
+
+## v0.7.3 — Local roster loop
+
+- Manual athlete roster store (`athleteRosterStore`) + Team add / paste import
+- Check-in, notes, accountability, athlete detail use `resolveAthletes()`
+- Assign video / workout write real `assignmentStore` records (no MockAction gate)
+- Nutrition board shows local meal logs; meal log can attach to roster athletes
+- Local export includes roster, assignments, meals, notes
+

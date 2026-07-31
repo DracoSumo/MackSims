@@ -7,6 +7,7 @@ export type LocalDataScope =
   | "assignments"
   | "mealLogs"
   | "coachNotes"
+  | "roster"
   | "all";
 
 export function notifyLocalDataChanged(scope: LocalDataScope = "all"): void {

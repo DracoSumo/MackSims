@@ -53,4 +53,16 @@ describe("assignmentStore", () => {
     expect(records[0]?.kind).toBe("film");
     expect(records[0]?.status).toBe("Complete");
   });
+
+  it("creates assignment records with generated ids", async () => {
+    const { createAssignment, listAssignmentRecords } = await import("./assignmentStore");
+    const record = createAssignment({
+      title: "Acceleration block",
+      kind: "training",
+      assignee: "Jordan Lee",
+    });
+    expect(record.id.startsWith("asg_")).toBe(true);
+    expect(listAssignmentRecords()[0]?.assignee).toBe("Jordan Lee");
+    expect(getAssignmentStatus(record.id, "Assigned")).toBe("Assigned");
+  });
 });

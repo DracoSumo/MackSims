@@ -81,3 +81,29 @@ export function setAssignmentStatus(
     notifyLocalDataChanged("assignments"),
   );
 }
+
+/** Create a new local assignment record (film / training / etc.). */
+export function createAssignment(input: {
+  title: string;
+  kind: AssignmentKind;
+  assignee?: string;
+  status?: AssignmentStatus;
+}): AssignmentRecord {
+  const id =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? `asg_${crypto.randomUUID()}`
+      : `asg_${Date.now()}`;
+  setAssignmentStatus(id, input.status ?? "Assigned", {
+    title: input.title.trim() || "Untitled assignment",
+    kind: input.kind,
+    assignee: input.assignee,
+  });
+  return listAssignmentRecords().find((row) => row.id === id) ?? {
+    id,
+    title: input.title,
+    kind: input.kind,
+    status: input.status ?? "Assigned",
+    assignee: input.assignee,
+    updatedAt: new Date().toISOString(),
+  };
+}

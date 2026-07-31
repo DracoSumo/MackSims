@@ -59,7 +59,7 @@ function buildTimeline(): TimelineItem[] {
   const mealItems: TimelineItem[] = listMealLogs().map((item) => ({
     key: `meal-${item.id}`,
     time: formatActionTime(item.loggedAt),
-    title: `Meal log · ${item.mealType}`,
+    title: item.athleteName ? `Meal log · ${item.athleteName} · ${item.mealType}` : `Meal log · ${item.mealType}`,
     type: "Fueling",
     body: [item.hydration, item.notes].filter(Boolean).join(" · ") || "Fueling logged on this device.",
     sortKey: Date.parse(item.loggedAt) || 0,
@@ -86,7 +86,15 @@ export function LiveTimelinePanel({ limit = 8 }: { limit?: number }) {
     const onStorage = () => setTick((n) => n + 1);
     window.addEventListener("storage", onStorage);
     const offLocal = onLocalDataChanged((scope) => {
-      if (scope === "all" || scope === "actionLog" || scope === "checkIns" || scope === "assignments" || scope === "mealLogs" || scope === "coachNotes") {
+      if (
+        scope === "all" ||
+        scope === "actionLog" ||
+        scope === "checkIns" ||
+        scope === "assignments" ||
+        scope === "mealLogs" ||
+        scope === "coachNotes" ||
+        scope === "roster"
+      ) {
         setTick((n) => n + 1);
       }
     });

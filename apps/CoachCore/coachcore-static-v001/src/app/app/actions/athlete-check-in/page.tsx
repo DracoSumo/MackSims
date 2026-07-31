@@ -1,22 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SectionPage } from "@/components/SectionPage";
 import { isSupabaseConfigured } from "@/config/backend";
-import { athletes } from "@/data/mock";
+import { useResolvedAthletes } from "@/hooks/useResolvedAthletes";
 import { formatCheckInTime, listCheckIns, saveCheckIn } from "@/services/checkInStore";
 import { getSyncMeta } from "@/services/supabaseSync";
 
 const readinessOptions = ["Locked in", "Showing up — need warmup", "Recovering / limited"];
 
 export default function AthleteCheckInPage() {
-  const [athleteId, setAthleteId] = useState(athletes[0]?.id ?? "");
+  const { athletes, ready } = useResolvedAthletes();
+  const [athleteId, setAthleteId] = useState("");
   const [readiness, setReadiness] = useState(readinessOptions[0]);
   const [phase, setPhase] = useState<"idle" | "submitting" | "saved">("idle");
   const [recentTick, setRecentTick] = useState(0);
   const recent = useMemo(() => listCheckIns().slice(0, 5), [phase, recentTick]);
   const syncMeta = getSyncMeta();
+
+  useEffect(() => {
+    if (!athleteId && athletes[0]?.id) {
+      setAthleteId(athletes[0].id);
+    }
+  }, [athletes, athleteId]);
 
   const selectedAthlete = athletes.find((a) => a.id === athleteId) ?? athletes[0];
 
@@ -41,12 +48,20 @@ export default function AthleteCheckInPage() {
           ? "Saved on this device — sign in on Profile to sync."
           : "Saved on this device.";
 
+  if (!ready) {
+    return (
+      <SectionPage eyebrow="Athlete action" title="Session check-in" description="Loading roster…">
+        <p className="text-sm text-slate-400">Loading…</p>
+      </SectionPage>
+    );
+  }
+
   if (athletes.length === 0) {
     return (
       <SectionPage
         eyebrow="Athlete action"
         title="Session check-in"
-        description="Records check-ins in this browser after your roster is imported."
+        description="Records check-ins in this browser after you add athletes to your roster."
       >
         <div className="mb-6">
           <Link href="/app" className="text-sm font-bold text-sky-300">
@@ -56,8 +71,14 @@ export default function AthleteCheckInPage() {
         <div className="rounded-[2rem] border border-dashed border-white/15 bg-white/[0.03] p-6">
           <p className="text-lg font-black">No athletes to check in</p>
           <p className="mt-2 text-sm text-slate-400">
-            Import your roster before using session check-in. This build does not invent athlete names for testers.
+            Add your roster before using session check-in. This build does not invent athlete names for testers.
           </p>
+          <Link
+            href="/app/team/add"
+            className="mt-4 inline-flex rounded-2xl bg-sky-400 px-5 py-3 text-sm font-black text-slate-950"
+          >
+            Add athletes →
+          </Link>
         </div>
       </SectionPage>
     );
@@ -67,7 +88,7 @@ export default function AthleteCheckInPage() {
     <SectionPage
       eyebrow="Athlete action"
       title="Session check-in"
-      description="Records check-ins in this browser for athletes on your connected roster."
+      description="Records check-ins in this browser for athletes on your roster."
     >
       <div className="mb-6">
         <Link href="/app" className="text-sm font-bold text-sky-300">
@@ -81,7 +102,7 @@ export default function AthleteCheckInPage() {
             Athlete
             <select
               className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:ring-2 focus:ring-sky-400/50"
-              value={athleteId}
+              value={selectedAthlete?.id ?? ""}
               onChange={(e) => {
                 setAthleteId(e.target.value);
                 setPhase("idle");
