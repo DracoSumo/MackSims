@@ -208,6 +208,9 @@ create policy "cc_teams_select"
     or ((organization_id is not null) and private.coachcore_is_org_owner(organization_id))
   );
 
+-- organization_id immutability is enforced by trg_coachcore_guard_team_organization
+-- (see 20260731120000_freeze_team_organization_id.sql). Do not rely on WITH CHECK
+-- alone — is_team_staff(id) remains true after an org reassignment.
 drop policy if exists "cc_teams_update" on public.teams;
 create policy "cc_teams_update"
   on public.teams for update to authenticated
