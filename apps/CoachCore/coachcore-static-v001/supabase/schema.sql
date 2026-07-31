@@ -48,6 +48,7 @@ create table if not exists assignments (
   assignee text not null default '',
   updated_at timestamptz not null default now(),
   owner_user_id uuid,
+  team_id uuid,
   coach_profile_id uuid references coach_profiles(id) on delete set null
 );
 
@@ -60,6 +61,7 @@ create table if not exists meal_logs (
   athlete_name text,
   logged_at timestamptz not null default now(),
   owner_user_id uuid,
+  team_id uuid,
   coach_profile_id uuid references coach_profiles(id) on delete set null
 );
 
@@ -70,6 +72,7 @@ create table if not exists coach_notes (
   body text not null default '',
   logged_at timestamptz not null default now(),
   owner_user_id uuid,
+  team_id uuid,
   coach_profile_id uuid references coach_profiles(id) on delete set null
 );
 
@@ -86,8 +89,33 @@ create table if not exists athlete_roster (
   readiness text not null default '—',
   note text not null default '',
   owner_user_id uuid not null,
+  team_id uuid,
   updated_at timestamptz not null default now(),
   created_at timestamptz not null default now()
+);
+
+-- v0.7.5 org / team bootstrap (see migration 20260731220000_org_team_bootstrap.sql)
+create table if not exists organizations (
+  id uuid primary key default gen_random_uuid(),
+  owner_user_id uuid not null,
+  name text not null default 'My organization',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists teams (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references organizations (id) on delete cascade,
+  name text not null default 'Primary team',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists team_members (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references teams (id) on delete cascade,
+  user_id uuid not null,
+  role text not null default 'coach',
+  created_at timestamptz not null default now(),
+  unique (team_id, user_id)
 );
 
 -- RLS placeholders (enable after Supabase Auth wiring)

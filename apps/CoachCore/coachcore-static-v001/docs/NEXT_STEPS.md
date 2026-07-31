@@ -2,36 +2,37 @@
 
 ## Immediate Next Step
 
-Apply **v0.7.4 migration** (`supabase/migrations/20260731210000_coach_scoped_roster_sync.sql`) on the live Supabase project, redeploy Netlify with anon key, then verify sign-in merge for roster + assignments.
+Apply **both** Supabase migrations on project `bfqfbkldxbojrrxeidcc`, then redeploy Netlify `coachcore7`:
 
-## Completed: v0.7.4 — Cloud sync (coach-scoped)
+1. `supabase/migrations/20260731210000_coach_scoped_roster_sync.sql`
+2. `supabase/migrations/20260731220000_org_team_bootstrap.sql`
+
+Verify: sign in → Status shows team context + cloud roster counts → Sync now.
+
+## Completed: v0.7.5 — Org / team bootstrap
 
 Done:
 
-1. `athlete_roster` table + owner-scoped RLS policies.
-2. `owner_user_id` on assignments / meal_logs / coach_notes (+ meal athlete fields).
-3. Push on save + pull/merge on sign-in for roster, assignments, meals, notes (with check-ins / action log).
-4. Status panel shows local vs cloud counts for each store.
+1. `organizations` / `teams` / `team_members` bootstrap on sign-in (`teamContext.ts`).
+2. Product upserts include `team_id` when context exists (still writes `owner_user_id`).
+3. Soft-fail when org tables are missing — owner-scoped sync keeps working.
+4. Sync now on Profile + Status panels.
 
-Still local-first when signed out. Sync skips cleanly when Supabase is not configured.
+## Completed: v0.7.4 — Coach-scoped cloud sync
+
+- `athlete_roster` + owner RLS
+- Push/pull roster, assignments, meals, notes on sign-in
 
 ## Completed: v0.7.3 — Local roster loop
 
 - Manual athlete roster + Team add / paste import
 - Check-in, notes, accountability, assign film/workout, nutrition on local stores
-- No fabricated production athletes
 
-## Next Build: org / team bootstrap
+## Next Build
 
-Optional hardening once owner-scoped sync is live:
-
-- Ensure default organization + team on first sign-in
-- Also write `team_id` on product rows for staff/athlete membership policies
 - Athlete auth accounts linked into `team_members`
-
-## Future Integrations
-
-Do not connect Hudl / wearables until auth, roster sync, and permissions are stable in beta.
+- Multi-team picker when a coach owns more than one team
+- Live partner integrations only after beta sync is stable
 
 ## Safety Rules
 

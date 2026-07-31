@@ -13,6 +13,12 @@ import type { CoachNote } from "./coachNoteStore";
 import { listCoachNotes, mergeCoachNotes } from "./coachNoteStore";
 import type { MealLog } from "./mealLogStore";
 import { listMealLogs, mergeMealLogs } from "./mealLogStore";
+import {
+  clearCachedTeamContext,
+  ensureDefaultTeamContext,
+  getCachedTeamContext,
+  type TeamContext,
+} from "./teamContext";
 
 export type SyncResult = "skipped" | "ok" | "error";
 
@@ -120,6 +126,13 @@ async function currentUserId(): Promise<string | null> {
   if (!supabase) return null;
   const { data } = await supabase.auth.getUser();
   return data.user?.id ?? null;
+}
+
+async function resolveTeamId(userId: string): Promise<string | undefined> {
+  const cached = getCachedTeamContext();
+  if (cached?.teamId) return cached.teamId;
+  const ctx = await ensureDefaultTeamContext(userId);
+  return ctx?.teamId;
 }
 
 function rowToCheckIn(row: CheckInRow): AthleteCheckIn {
@@ -280,6 +293,7 @@ export async function pushRosterAthlete(record: RosterAthlete): Promise<SyncResu
   const uid = await currentUserId();
   if (!uid) return "skipped";
 
+  const teamId = await resolveTeamId(uid);
   const { error } = await supabase.from("athlete_roster").upsert(
     {
       id: record.id,
@@ -294,6 +308,7 @@ export async function pushRosterAthlete(record: RosterAthlete): Promise<SyncResu
       note: record.note,
       owner_user_id: uid,
       updated_at: new Date().toISOString(),
+      ...(teamId ? { team_id: teamId } : {}),
     },
     { onConflict: "id" },
   );
@@ -329,6 +344,7 @@ export async function pushAssignment(record: AssignmentRecord): Promise<SyncResu
   const uid = await currentUserId();
   if (!uid) return "skipped";
 
+  const teamId = await resolveTeamId(uid);
   const { error } = await supabase.from("assignments").upsert(
     {
       id: record.id,
@@ -338,6 +354,7 @@ export async function pushAssignment(record: AssignmentRecord): Promise<SyncResu
       assignee: record.assignee ?? "",
       updated_at: record.updatedAt,
       owner_user_id: uid,
+      ...(teamId ? { team_id: teamId } : {}),
     },
     { onConflict: "id" },
   );
@@ -354,6 +371,7 @@ export async function pushMealLog(record: MealLog): Promise<SyncResult> {
   const uid = await currentUserId();
   if (!uid) return "skipped";
 
+  const teamId = await resolveTeamId(uid);
   const { error } = await supabase.from("meal_logs").upsert(
     {
       id: record.id,
@@ -364,6 +382,7 @@ export async function pushMealLog(record: MealLog): Promise<SyncResult> {
       athlete_name: record.athleteName ?? null,
       logged_at: record.loggedAt,
       owner_user_id: uid,
+      ...(teamId ? { team_id: teamId } : {}),
     },
     { onConflict: "id" },
   );
@@ -380,6 +399,7 @@ export async function pushCoachNote(record: CoachNote): Promise<SyncResult> {
   const uid = await currentUserId();
   if (!uid) return "skipped";
 
+  const teamId = await resolveTeamId(uid);
   const { error } = await supabase.from("coach_notes").upsert(
     {
       id: record.id,
@@ -388,6 +408,7 @@ export async function pushCoachNote(record: CoachNote): Promise<SyncResult> {
       body: record.body,
       logged_at: record.loggedAt,
       owner_user_id: uid,
+      ...(teamId ? { team_id: teamId } : {}),
     },
     { onConflict: "id" },
   );
@@ -505,6 +526,15 @@ export async function mergeOnSignIn(user: User): Promise<string | null> {
     return msg;
   }
 
+  const displayName =
+    (user.user_metadata?.full_name as string | undefined) ||
+    (user.user_metadata?.name as string | undefined) ||
+    user.email?.split("@")[0] ||
+    "Coach";
+
+  // Soft-fail: owner_user_id sync still works if org/team tables are not applied yet.
+  const teamCtx = await ensureDefaultTeamContext(user.id, displayName);
+
   try {
     const [
       remoteCheckIns,
@@ -554,17 +584,21 @@ export async function mergeOnSignIn(user: User): Promise<string | null> {
     ]);
 
     const hadError = pushResults.some((r) => r === "error");
+    const teamNote = teamCtx
+      ? null
+      : "Org/team bootstrap unavailable — apply v0.7.5 migration for team_id sync.";
     setSyncMeta({
       lastSyncedAt: new Date().toISOString(),
       lastResult: hadError ? "error" : "ok",
       lastError: hadError
-        ? "Some rows failed to push — apply v0.7.4 roster sync migration, or saved locally."
-        : null,
+        ? "Some rows failed to push — apply v0.7.4/v0.7.5 migrations, or saved locally."
+        : teamNote,
     });
 
-    return hadError
-      ? "Some local rows could not sync — apply the coach-scoped roster migration if tables are missing."
-      : null;
+    if (hadError) {
+      return "Some local rows could not sync — apply the coach-scoped roster + org/team migrations if tables are missing.";
+    }
+    return null;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Sync merge failed.";
     setSyncMeta({ lastResult: "error", lastError: msg });
@@ -611,6 +645,7 @@ async function countRemoteTable(table: string): Promise<number | null> {
 export async function getSyncDashboard() {
   const meta = getSyncMeta();
   const uid = await currentUserId();
+  const team: TeamContext | null = uid ? getCachedTeamContext() : null;
   const local = {
     checkIns: listCheckIns().length,
     actionLog: listActionLog().length,
@@ -631,13 +666,26 @@ export async function getSyncDashboard() {
         }
       : null;
 
-  return { meta, local, remote, signedIn: uid !== null };
+  return { meta, local, remote, signedIn: uid !== null, team };
+}
+
+/** Manual re-merge for Status / Profile "Sync now". */
+export async function syncNow(): Promise<string | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return "Supabase is not configured.";
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return "Sign in to sync.";
+  return mergeOnSignIn(data.user);
+}
+
+export function clearSyncSessionState(): void {
+  clearCachedTeamContext();
 }
 
 export function syncStatusLabel(last: SyncResult | null): string {
   if (last === "ok") return "Last save synced to Supabase.";
   if (last === "error") {
-    return "Saved locally; Supabase sync blocked (apply v0.7.4 migration, check RLS, or sign in).";
+    return "Saved locally; Supabase sync blocked (apply v0.7.4–v0.7.5 migrations, check RLS, or sign in).";
   }
   if (last === "skipped") return "Local only — Supabase not configured at build time.";
   return "Local-first; roster, assignments, meals, and notes sync when signed in.";

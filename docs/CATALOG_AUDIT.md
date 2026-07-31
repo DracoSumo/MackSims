@@ -33,7 +33,7 @@ Built on Wave 2 product bones (CoachCore v0.5 timeline/assignments, MotoCrew v0.
 - After workspace session: hide DemoWalkthroughBanner, DemoDisclaimerStrip, FoundationNote inside `/app`
 - Actions: “Save / Sent / Saved on this device” instead of “Mock / demo mode”
 - AuthGate: “Continue into workspace” (not “demo mode”)
-- **v0.7.3–0.7.4:** local roster on Team (add/paste); check-in, notes, accountability, assign film/workout, nutrition on local stores; signed-in sync for roster/assignments/meals/notes (coach-scoped migration) — no fabricated athletes
+- **v0.7.3–0.7.5:** local roster on Team; product stores local-first; signed-in sync + org/team bootstrap (`team_id`); apply roster + org/team migrations — no fabricated athletes
 
 ### CurbCue
 - Signed-in users skip BetaGate and DemoDataBanner

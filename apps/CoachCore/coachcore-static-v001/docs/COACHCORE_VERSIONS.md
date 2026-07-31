@@ -154,3 +154,10 @@ This is a static mobile demo. It is not production and does not include real aut
 - `mergeOnSignIn` pulls/merges those stores (local wins on id collision)
 - Status panel lists local vs Supabase counts
 
+## v0.7.5 — Org / team bootstrap
+
+- Migration `20260731220000_org_team_bootstrap.sql` (organizations, teams, team_members, team_id columns)
+- `ensureDefaultTeamContext` on sign-in; cache primary team locally
+- Assignments / meals / notes / roster upserts include `team_id` when bootstrapped
+- Sync now controls on Profile + Status
+

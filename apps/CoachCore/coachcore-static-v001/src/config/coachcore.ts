@@ -9,10 +9,10 @@
   /** Canonical staging host until custom DNS is fully live. */
   demoUrl: "https://coachcore7.netlify.app",
   productionUrl: "https://coachcore.macksims.com",
-  status: "Live beta — local roster + cloud sync",
-  version: "v0.7.4",
+  status: "Live beta — roster sync + org/team bootstrap",
+  version: "v0.7.5",
   safetyNote:
-    "Live beta. Add athletes on Team. Sign in to sync roster, assignments, meals, notes, and check-ins to Supabase (apply v0.7.4 migration). No fabricated athletes. No payments. Hudl/wearables need real partner access — request from Integrations.",
+    "Live beta. Add athletes on Team. Sign in to sync roster, assignments, meals, notes, and check-ins (apply v0.7.4–v0.7.5 migrations). No fabricated athletes. No payments. Hudl/wearables need real partner access — request from Integrations.",
   coachingSupportDisclaimer:
     "Coaching support only — not medical advice, diagnosis, or treatment. Nutrition and readiness signals help coaches guide training; they are not clinical assessments.",
 };
