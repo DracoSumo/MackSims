@@ -1,0 +1,50 @@
+{
+  "name": "FishCrew",
+  "short_name": "FishCrew",
+  "id": "/?v=0.7.3",
+  "description": "Find your fishing crew, post trips, share catches, and run local fishing operations.",
+  "start_url": "/?v=0.7.3",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#061826",
+  "theme_color": "#061826",
+  "categories": ["sports", "lifestyle", "navigation", "social"],
+  "shortcuts": [
+    {
+      "name": "Find a Trip",
+      "short_name": "Trips",
+      "description": "Open FishCrew trip discovery.",
+      "url": "/?screen=explore",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Post to Feed",
+      "short_name": "Post",
+      "description": "Open the FishCrew bite board.",
+      "url": "/?screen=feed",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Privacy and Support",
+      "short_name": "Support",
+      "description": "Open FishCrew privacy and support information.",
+      "url": "/support.html",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

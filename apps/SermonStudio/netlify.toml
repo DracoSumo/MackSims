@@ -1,6 +1,7 @@
 [build]
   command = "npm run build"
-  publish = ".next"
+  # The Next.js runtime owns the deploy output. Publishing .next directly
+  # omits its generated routes/functions and produces a site-wide 404.
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
@@ -9,6 +10,11 @@
   NODE_VERSION = "20"
   # Supabase anon key is public by design; must not be scrubbed from Next client bundles.
   SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_ANON_KEY"
+
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/___netlify-server-handler"
+  status = 200
 
 [[headers]]
   for = "/*"

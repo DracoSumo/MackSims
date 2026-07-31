@@ -8,6 +8,7 @@ import { RecentCheckInsPanel } from "@/components/RecentCheckInsPanel";
 import { DashboardSyncStrip } from "@/components/DashboardSyncStrip";
 import { actionCards, coachCoreStats, integrations, playbookItems } from "@/data/mock";
 import { coachCoreConfig } from "@/config/coachcore";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { CommandCard, CrossLinkStrip, MetricCard, StatusPill } from "@/components/ui/CoachCards";
 
 const commandModules = [
@@ -73,9 +74,13 @@ export default function CoachDashboard() {
             <p className="text-sm font-bold uppercase tracking-[0.25em] text-amber-200">
               Coach alert
             </p>
-            <h2 className="mt-3 text-3xl font-black">Work is visible now.</h2>
+            <h2 className="mt-3 text-3xl font-black">
+              {coachCoreStats.length ? "Work is visible now." : "Waiting for your roster."}
+            </h2>
             <p className="mt-3 text-sm leading-6 text-amber-50/90">
-              12 of 18 athletes watched assigned film. 5 missed meal logs. 3 have not opened this week&apos;s playbook.
+              {coachCoreStats.length
+                ? "12 of 18 athletes watched assigned film. 5 missed meal logs. 3 have not opened this week's playbook."
+                : "No team metrics yet. After you import athletes and assignments, readiness, film, and fueling signals will show here."}
             </p>
             <p className="mt-4 text-xs leading-5 text-amber-100/70">
               Athlete view: {coachCoreConfig.athleteTodayPrompt}
@@ -84,9 +89,18 @@ export default function CoachDashboard() {
         </div>
 
         <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {coachCoreStats.map((stat) => (
-            <MetricCard key={stat.label} label={stat.label} value={stat.value} note={stat.note} />
-          ))}
+          {coachCoreStats.length ? (
+            coachCoreStats.map((stat) => (
+              <MetricCard key={stat.label} label={stat.label} value={stat.value} note={stat.note} />
+            ))
+          ) : (
+            <div className="md:col-span-2 xl:col-span-4">
+              <EmptyState
+                title="No live team metrics yet"
+                body="Readiness, film completion, workouts, and meal logs appear after your roster and assignments are connected."
+              />
+            </div>
+          )}
         </section>
 
         <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -98,7 +112,7 @@ export default function CoachDashboard() {
         <section className="mt-8">
           <h2 className="text-2xl font-black">Quick coach actions</h2>
           <p className="mt-2 text-sm text-slate-400">
-            Assign film, workouts, fueling checks, and nudges from one place.
+            Assign film, workouts, fueling checks, and nudges from one place. Live delivery stays off until backends are connected.
           </p>
           <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {actionCards.map((card) => (
@@ -126,25 +140,31 @@ export default function CoachDashboard() {
               <h2 className="text-2xl font-black">Playbook install</h2>
 
               <div className="mt-5 space-y-3">
-                {playbookItems.slice(0, 3).map((item) => (
-                  <div key={item.title} className="rounded-3xl bg-slate-950/60 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-black">{item.title}</p>
-                        <p className="mt-1 text-sm text-slate-400">
-                          {item.type} • {item.assigned}
-                        </p>
+                {playbookItems.length ? (
+                  playbookItems.slice(0, 3).map((item) => (
+                    <div key={item.title} className="rounded-3xl bg-slate-950/60 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-black">{item.title}</p>
+                          <p className="mt-1 text-sm text-slate-400">
+                            {item.type} • {item.assigned}
+                          </p>
+                        </div>
+                        <StatusPill tone="sky">{item.status}</StatusPill>
                       </div>
-                      <StatusPill tone="sky">{item.status}</StatusPill>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <EmptyState
+                    title="No playbook installs yet"
+                    body="Assigned plays and drills will list here once your team content is imported."
+                  />
+                )}
               </div>
             </div>
 
             <div className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-5">
               <h2 className="text-2xl font-black">Integration center</h2>
-
               <div className="mt-5 flex flex-wrap gap-2">
                 {integrations.slice(0, 8).map((item) => (
                   <span key={item.name} className="rounded-full bg-white/10 px-3 py-2 text-xs text-slate-200">
@@ -152,9 +172,8 @@ export default function CoachDashboard() {
                   </span>
                 ))}
               </div>
-
               <p className="mt-5 text-sm leading-6 text-slate-400">
-                Connect Hudl, wearables, and calendar when your org is ready — see Integrations.
+                Connect Hudl, wearables, and calendar when your org is ready — see Integrations. No external APIs or credentials are connected yet.
               </p>
             </div>
 
@@ -166,7 +185,7 @@ export default function CoachDashboard() {
                 </Link>
               </div>
               <p className="mt-2 text-sm text-slate-400">
-                Local coach actions and check-ins from this device.
+                Local coach actions and check-ins from this device. Live athlete events appear after film, training, and roster data are connected.
               </p>
               <div className="mt-5">
                 <LiveTimelinePanel limit={4} />

@@ -41,11 +41,33 @@ export default function AthleteCheckInPage() {
           ? "Saved on this device — sign in on Profile to sync."
           : "Saved on this device.";
 
+  if (athletes.length === 0) {
+    return (
+      <SectionPage
+        eyebrow="Athlete action"
+        title="Session check-in"
+        description="Records check-ins in this browser after your roster is imported."
+      >
+        <div className="mb-6">
+          <Link href="/app" className="text-sm font-bold text-sky-300">
+            ← Back to dashboard
+          </Link>
+        </div>
+        <div className="rounded-[2rem] border border-dashed border-white/15 bg-white/[0.03] p-6">
+          <p className="text-lg font-black">No athletes to check in</p>
+          <p className="mt-2 text-sm text-slate-400">
+            Import your roster before using session check-in. This build does not invent athlete names for testers.
+          </p>
+        </div>
+      </SectionPage>
+    );
+  }
+
   return (
     <SectionPage
       eyebrow="Athlete action"
       title="Session check-in"
-      description="Records check-ins in this browser for the selected athlete."
+      description="Records check-ins in this browser for athletes on your connected roster."
     >
       <div className="mb-6">
         <Link href="/app" className="text-sm font-bold text-sky-300">

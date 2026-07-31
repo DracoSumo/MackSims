@@ -2,9 +2,11 @@
 import { notFound } from "next/navigation";
 import { Card, SectionPage } from "@/components/SectionPage";
 import { VideoMomentActions } from "@/components/VideoMomentActions";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { videoMoments } from "@/data/mock";
 
 export function generateStaticParams() {
+  if (videoMoments.length === 0) return [{ id: "none" }];
   return videoMoments.map((moment) => ({
     id: moment.id,
   }));
@@ -16,6 +18,26 @@ export default async function VideoMomentDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  if (id === "none" || videoMoments.length === 0) {
+    return (
+      <SectionPage
+        eyebrow="Video moment"
+        title="No film assignment"
+        description="Film detail pages appear after clips are assigned to your team."
+      >
+        <EmptyState
+          title="No film connected"
+          body="External builds do not ship fabricated video moments or mock player success states."
+        />
+        <div className="mt-6">
+          <Link href="/app/video" className="text-sm font-bold text-sky-300">
+            ← Back to video room
+          </Link>
+        </div>
+      </SectionPage>
+    );
+  }
+
   const moment = videoMoments.find((item) => item.id === id);
 
   if (!moment) {

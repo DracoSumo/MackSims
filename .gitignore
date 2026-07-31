@@ -16,8 +16,17 @@ _archive/
 *.apk
 ios/
 android/
-apps/FishCrew/
+apps/FishCrew/*
+!apps/FishCrew/_deploy-icon-patch/
+!apps/FishCrew/_deploy-icon-patch/**
+apps/FishCrew/_deploy-icon-patch/.netlify/
 apps/ShutterBid/
 apps/momentpick-web/
 *.zip
 *.log
+secrets/
+backups/
+docs/store-launch/DEMO_REVIEW_LOGINS.md
+
+# Local Netlify folder
+.netlify

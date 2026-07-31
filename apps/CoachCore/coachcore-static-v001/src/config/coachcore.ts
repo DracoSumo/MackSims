@@ -6,11 +6,13 @@
     "Locked in means an athlete is completing assigned film, workouts, fueling logs, and playbook work — visible to coaches in one place.",
   athleteTodayPrompt:
     "Check assigned film, today's workout or WOD, meal log, and team messages — then update your status.",
+  /** Canonical staging host until custom DNS is fully live. */
   demoUrl: "https://coachcore7.netlify.app",
-  status: "Coach workspace with local assignment simulation",
-  version: "v0.6-bones",
+  productionUrl: "https://coachcore.macksims.com",
+  status: "Live beta — Supabase auth + plugin layer",
+  version: "v0.7.2",
   safetyNote:
-    "Optional Supabase auth syncs when configured. Assignments, meal logs, and coach notes save on this device. No payments, Hudl, wearable APIs, or production roster data are connected yet.",
+    "Live beta. Sign in with Google or GitHub when configured. Roster screens stay empty until your team is imported — no fabricated athletes in production. No payments. Hudl/wearables need real partner access — request from Integrations.",
   coachingSupportDisclaimer:
     "Coaching support only — not medical advice, diagnosis, or treatment. Nutrition and readiness signals help coaches guide training; they are not clinical assessments.",
 };

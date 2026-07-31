@@ -1,9 +1,11 @@
 ﻿import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card, SectionPage } from "@/components/SectionPage";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { athletes, videoMoments, workouts } from "@/data/mock";
 
 export function generateStaticParams() {
+  if (athletes.length === 0) return [{ id: "none" }];
   return athletes.map((athlete) => ({
     id: athlete.id,
   }));
@@ -15,6 +17,22 @@ export default async function AthleteDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  if (id === "none" || athletes.length === 0) {
+    return (
+      <SectionPage eyebrow="Athlete profile" title="No athlete selected" description="Import your roster to open athlete detail pages.">
+        <EmptyState
+          title="Roster not connected"
+          body="Athlete detail routes stay empty in external builds so testers do not see fabricated profiles."
+        />
+        <div className="mt-6">
+          <Link href="/app/team" className="text-sm font-bold text-sky-300">
+            ← Back to team
+          </Link>
+        </div>
+      </SectionPage>
+    );
+  }
+
   const athlete = athletes.find((item) => item.id === id);
 
   if (!athlete) {

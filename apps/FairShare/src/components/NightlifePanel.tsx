@@ -17,7 +17,7 @@ export function NightlifePanel({ marketId }: { marketId: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    setState("loading");
+    setState((current) => (venues.length > 0 || events.length > 0 ? current : "loading"));
 
     Promise.all([fareDataAdapter.getNightlifeVenues(marketId), fareDataAdapter.getLocalEvents(marketId)])
       .then(([venueResult, eventResult]) => {
@@ -47,7 +47,7 @@ export function NightlifePanel({ marketId }: { marketId: string }) {
         <span className="demo-chip">Simulated</span>
       </div>
 
-      {state === "loading" && (
+      {state === "loading" && venues.length === 0 && events.length === 0 && (
         <div className="loading-block" aria-live="polite">
           <span className="loading-spinner" aria-hidden="true" />
           <p>Loading demo nightlife data…</p>
