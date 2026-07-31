@@ -2,97 +2,41 @@
 
 ## Immediate Next Step
 
-Ship **cloud roster sync** (Supabase `team_members` / athletes) on top of the v0.7.3 local roster loop — keep local-first until signed in.
+Apply **v0.7.4 migration** (`supabase/migrations/20260731210000_coach_scoped_roster_sync.sql`) on the live Supabase project, redeploy Netlify with anon key, then verify sign-in merge for roster + assignments.
 
-## Completed: v0.7.3 — Local roster loop
+## Completed: v0.7.4 — Cloud sync (coach-scoped)
 
 Done:
 
-1. Manual athlete roster (add one + paste list) on `/app/team/add`.
-2. Team, accountability, check-in, notes, athlete detail read `resolveAthletes()`.
-3. Assign video / workout → `assignmentStore` (local records, no fake recipients).
-4. Nutrition board surfaces `mealLogStore`; log-meal can attach to an athlete.
-5. Local data export includes roster, assignments, meals, notes.
-6. Production builds stay empty until the coach adds athletes (fixtures flag only for demos).
+1. `athlete_roster` table + owner-scoped RLS policies.
+2. `owner_user_id` on assignments / meal_logs / coach_notes (+ meal athlete fields).
+3. Push on save + pull/merge on sign-in for roster, assignments, meals, notes (with check-ins / action log).
+4. Status panel shows local vs cloud counts for each store.
 
-## Completed earlier
+Still local-first when signed out. Sync skips cleanly when Supabase is not configured.
 
-- v0.5 static simulation + live local timeline
-- v0.7.x Supabase auth + check-in / action-log sync when configured
-- Assignment / meal / note local stores + schema stubs
+## Completed: v0.7.3 — Local roster loop
 
-## Next Build: cloud roster + assignment sync
+- Manual athlete roster + Team add / paste import
+- Check-in, notes, accountability, assign film/workout, nutrition on local stores
+- No fabricated production athletes
 
-Potential backend work:
+## Next Build: org / team bootstrap
 
-- Persist roster rows to Supabase with RLS (coach owns team)
-- Sync assignments, meal_logs, coach_notes (schema stubs already present)
-- Organization / team / role tables
+Optional hardening once owner-scoped sync is live:
 
-## Future Auth Rules
-
-Roles:
-
-- Coach
-- Athlete
-- Parent / Guardian
-- Organization Admin
-- Gym Owner
-- Trainer
-
-Rules:
-
-- Coaches can manage assigned teams.
-- Athletes can only see their teams and assignments.
-- Parents can only see approved youth-athlete information.
-- Admins can manage organization-level teams and settings.
-- Coach notes should be private to authorized staff.
+- Ensure default organization + team on first sign-in
+- Also write `team_id` on product rows for staff/athlete membership policies
+- Athlete auth accounts linked into `team_members`
 
 ## Future Integrations
 
-Important: Do not connect real integrations until auth, database, and permissions are stable.
-
-Potential integrations:
-
-- Hudl
-- Apple Health
-- Google Health Connect
-- Garmin
-- Fitbit
-- WHOOP
-- Oura
-- Strava
-- TeamSnap
-- MaxPreps
-- Google Calendar
-
-Hudl language must stay careful:
-
-"Supported where API, export, embed, or licensed integration access is available."
-
-## Future Payments
-
-Do not add payments until legal pages, terms/privacy, auth/database stability, and beta feedback confirm value.
+Do not connect Hudl / wearables until auth, roster sync, and permissions are stable in beta.
 
 ## Safety Rules
 
-Do not touch:
-
-- FishCrew
-- ShutterBid
-- MackSims public-site
-
-Do not add:
-
-- Real credentials
-- Real API keys
-- Real payments
-- Fabricated production athletes
-
-until explicitly approved.
+Do not add real credentials, payments, or fabricated production athletes.
 
 ## Current Demo URL
 
 https://coachcore7.netlify.app
-
-Label as live beta. Roster is coach-entered local data until cloud sync ships.

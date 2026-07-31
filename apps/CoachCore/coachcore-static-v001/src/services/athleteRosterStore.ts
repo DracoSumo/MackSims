@@ -114,6 +114,7 @@ export function addRosterAthlete(input: { name: string; role?: string; note?: st
   void import("./actionLogStore").then(({ logCoachAction }) =>
     logCoachAction("Roster", `Added ${record.name}`),
   );
+  void import("./supabaseSync").then(({ pushRosterAthlete }) => pushRosterAthlete(record));
   return record;
 }
 
@@ -149,9 +150,22 @@ export function removeRosterAthlete(id: string): void {
     void import("./actionLogStore").then(({ logCoachAction }) =>
       logCoachAction("Roster", `Removed ${removed.name}`),
     );
+    void import("./supabaseSync").then(({ deleteRosterAthleteRemote }) =>
+      deleteRosterAthleteRemote(removed.id),
+    );
   }
 }
 
 export function replaceRoster(athletes: RosterAthlete[]): RosterAthlete[] {
-  return persist(athletes);
+  const next = persist(athletes);
+  void import("./supabaseSync").then(({ pushRosterAthletes }) => pushRosterAthletes(next));
+  return next;
+}
+
+/** Merge remote roster rows; local wins when ids collide. */
+export function mergeRosterAthletes(remote: RosterAthlete[]): RosterAthlete[] {
+  const local = listRosterAthletes();
+  const localIds = new Set(local.map((row) => row.id));
+  const merged = [...local, ...remote.filter((row) => !localIds.has(row.id))].slice(0, 120);
+  return persist(merged);
 }

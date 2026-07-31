@@ -64,4 +64,26 @@ describe("athleteRosterStore", () => {
   it("rejects blank names", () => {
     expect(() => addRosterAthlete({ name: "   " })).toThrow(/required/i);
   });
+
+  it("merges remote roster without overwriting local ids", async () => {
+    const { mergeRosterAthletes } = await import("./athleteRosterStore");
+    const local = addRosterAthlete({ name: "Local Athlete" });
+    const merged = mergeRosterAthletes([
+      local,
+      {
+        id: "ath_remote_1",
+        name: "Remote Athlete",
+        role: "RB",
+        status: "Locked in",
+        lastActive: "Today",
+        film: "—",
+        workouts: "—",
+        meals: "—",
+        readiness: "—",
+        note: "",
+      },
+    ]);
+    expect(merged.map((a) => a.name).sort()).toEqual(["Local Athlete", "Remote Athlete"]);
+    expect(merged.find((a) => a.id === local.id)?.name).toBe("Local Athlete");
+  });
 });

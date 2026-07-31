@@ -147,3 +147,10 @@ This is a static mobile demo. It is not production and does not include real aut
 - Nutrition board shows local meal logs; meal log can attach to roster athletes
 - Local export includes roster, assignments, meals, notes
 
+## v0.7.4 — Coach-scoped cloud sync
+
+- `athlete_roster` + `owner_user_id` columns/policies (migration `20260731210000_coach_scoped_roster_sync.sql`)
+- Push on save for roster, assignments, meals, notes
+- `mergeOnSignIn` pulls/merges those stores (local wins on id collision)
+- Status panel lists local vs Supabase counts
+

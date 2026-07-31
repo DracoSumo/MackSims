@@ -43,8 +43,8 @@ export function DemoWalkthroughBanner() {
         {enableDemoFixtures
           ? "Example roster fixtures are enabled for this build only."
           : live
-            ? "Sign in from Profile to sync check-ins and coach actions. Empty states mean your team data is not imported yet — not fake athletes."
-            : "Set Supabase env vars to enable sign-in. Roster screens stay empty until real team data is connected."}
+            ? "Add athletes on Team, then sign in from Profile to sync roster, check-ins, assignments, meals, and notes. Empty states are not fake athletes."
+            : "Set Supabase env vars to enable sign-in. Add athletes on Team — data stays local until sync is connected."}
       </p>
       <div className="mt-3 flex flex-wrap gap-3 text-xs">
         <Link href={live ? "/login" : "/beta"} className="font-bold text-sky-200 underline">

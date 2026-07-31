@@ -47,6 +47,7 @@ create table if not exists assignments (
   status text not null default 'Assigned',
   assignee text not null default '',
   updated_at timestamptz not null default now(),
+  owner_user_id uuid,
   coach_profile_id uuid references coach_profiles(id) on delete set null
 );
 
@@ -55,7 +56,10 @@ create table if not exists meal_logs (
   meal_type text not null default '',
   hydration text not null default '',
   notes text not null default '',
+  athlete_id text,
+  athlete_name text,
   logged_at timestamptz not null default now(),
+  owner_user_id uuid,
   coach_profile_id uuid references coach_profiles(id) on delete set null
 );
 
@@ -65,7 +69,25 @@ create table if not exists coach_notes (
   note_type text not null default '',
   body text not null default '',
   logged_at timestamptz not null default now(),
+  owner_user_id uuid,
   coach_profile_id uuid references coach_profiles(id) on delete set null
+);
+
+-- v0.7.4 coach-owned manual roster (local athleteRosterStore mirror)
+create table if not exists athlete_roster (
+  id text primary key,
+  name text not null,
+  role text not null default 'Athlete',
+  status text not null default 'Needs nudge',
+  last_active text not null default 'Not yet',
+  film text not null default '—',
+  workouts text not null default '—',
+  meals text not null default '—',
+  readiness text not null default '—',
+  note text not null default '',
+  owner_user_id uuid not null,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
 );
 
 -- RLS placeholders (enable after Supabase Auth wiring)
@@ -76,6 +98,7 @@ alter table beta_requests enable row level security;
 alter table assignments enable row level security;
 alter table meal_logs enable row level security;
 alter table coach_notes enable row level security;
+alter table athlete_roster enable row level security;
 
 -- Optional policies (run in SQL editor after enabling Google/GitHub Auth):
 -- create policy "auth insert checkins" on athlete_check_ins for insert to authenticated with check (true);

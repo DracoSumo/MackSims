@@ -39,5 +39,18 @@ export function saveMealLog(input: Omit<MealLog, "id" | "loggedAt">): MealLog {
   void import("./localDataEvents").then(({ notifyLocalDataChanged }) =>
     notifyLocalDataChanged("mealLogs"),
   );
+  void import("./supabaseSync").then(({ pushMealLog }) => pushMealLog(record));
   return record;
+}
+
+/** Merge remote meal logs; local wins when ids collide. */
+export function mergeMealLogs(remote: MealLog[]): MealLog[] {
+  const local = listMealLogs();
+  const localIds = new Set(local.map((row) => row.id));
+  const merged = [...local, ...remote.filter((row) => !localIds.has(row.id))].slice(0, 40);
+  localSet(STORAGE_KEY, JSON.stringify(merged));
+  void import("./localDataEvents").then(({ notifyLocalDataChanged }) =>
+    notifyLocalDataChanged("mealLogs"),
+  );
+  return merged;
 }

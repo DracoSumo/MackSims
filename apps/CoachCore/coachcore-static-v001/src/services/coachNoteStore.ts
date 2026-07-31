@@ -37,5 +37,18 @@ export function saveCoachNote(input: Omit<CoachNote, "id" | "loggedAt">): CoachN
   void import("./localDataEvents").then(({ notifyLocalDataChanged }) =>
     notifyLocalDataChanged("coachNotes"),
   );
+  void import("./supabaseSync").then(({ pushCoachNote }) => pushCoachNote(record));
   return record;
+}
+
+/** Merge remote coach notes; local wins when ids collide. */
+export function mergeCoachNotes(remote: CoachNote[]): CoachNote[] {
+  const local = listCoachNotes();
+  const localIds = new Set(local.map((row) => row.id));
+  const merged = [...local, ...remote.filter((row) => !localIds.has(row.id))].slice(0, 40);
+  localSet(STORAGE_KEY, JSON.stringify(merged));
+  void import("./localDataEvents").then(({ notifyLocalDataChanged }) =>
+    notifyLocalDataChanged("coachNotes"),
+  );
+  return merged;
 }

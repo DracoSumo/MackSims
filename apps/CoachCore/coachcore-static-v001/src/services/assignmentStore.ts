@@ -80,6 +80,7 @@ export function setAssignmentStatus(
   void import("./localDataEvents").then(({ notifyLocalDataChanged }) =>
     notifyLocalDataChanged("assignments"),
   );
+  void import("./supabaseSync").then(({ pushAssignment }) => pushAssignment(next));
 }
 
 /** Create a new local assignment record (film / training / etc.). */
@@ -106,4 +107,24 @@ export function createAssignment(input: {
     assignee: input.assignee,
     updatedAt: new Date().toISOString(),
   };
+}
+
+/** Merge remote assignment records; local wins when ids collide. */
+export function mergeAssignmentRecords(remote: AssignmentRecord[]): AssignmentRecord[] {
+  if (typeof window === "undefined") return [];
+  const local = listAssignmentRecords();
+  const localIds = new Set(local.map((row) => row.id));
+  const merged = [...local, ...remote.filter((row) => !localIds.has(row.id))].slice(0, 80);
+  localSet(RECORDS_KEY, JSON.stringify(merged));
+
+  const statuses = listAssignmentStatuses();
+  for (const row of merged) {
+    statuses[row.id] = row.status;
+  }
+  localSet(STORAGE_KEY, JSON.stringify(statuses));
+
+  void import("./localDataEvents").then(({ notifyLocalDataChanged }) =>
+    notifyLocalDataChanged("assignments"),
+  );
+  return merged;
 }
