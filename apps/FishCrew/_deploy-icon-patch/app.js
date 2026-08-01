@@ -532,6 +532,15 @@
     return user?.role === 'Admin';
   }
 
+  // Operator/Admin must never be self-assigned from the client. Captain/Business
+  // remain user-selectable; Admin is only preserved when the session is already Admin.
+  function sanitizeAssignableRole(role, { allowAdmin = false } = {}) {
+    const normalized = String(role || 'Angler').trim();
+    if (normalized === 'Admin') return allowAdmin ? 'Admin' : 'Angler';
+    if (normalized === 'Captain' || normalized === 'Business' || normalized === 'Angler') return normalized;
+    return 'Angler';
+  }
+
   function isBusinessRole() {
     const role = currentUser()?.role;
     return role === 'Admin' || role === 'Business' || role === 'Captain';
@@ -1780,15 +1789,18 @@
   function openEditProfile() {
     if (!requireLogin()) return;
     const u = currentUser();
+    const adminOption = isAdmin()
+      ? `<option value="Admin" ${u.role === 'Admin' ? 'selected' : ''}>Operator</option>`
+      : '';
     modal(`
       <div class="modal-head"><div><span class="eyebrow">Profile</span><h2>Edit your fishing card.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       <div class="forms">
         <div class="form-grid"><label class="label">Name<input id="editName" name="name" class="field" autocomplete="name" value="${safe(u.name)}" /></label><label class="label">Username<input id="editUsername" name="username" class="field" autocomplete="username" autocapitalize="none" spellcheck="false" value="${safe(u.username || normalizeUsername(u.name))}" /></label></div>
-        <div class="form-grid"><label class="label">Role<select id="editRole" class="select"><option ${u.role==='Angler'?'selected':''}>Angler</option><option ${u.role==='Captain'?'selected':''}>Captain</option><option ${u.role==='Business'?'selected':''}>Business</option><option value="Admin" ${u.role==='Admin'?'selected':''}>Operator</option></select></label><label class="label">Home water<input id="editArea" name="address-level2" class="field" autocomplete="address-level2" value="${safe(u.area)}" /></label></div>
+        <div class="form-grid"><label class="label">Role<select id="editRole" class="select"><option ${u.role==='Angler'?'selected':''}>Angler</option><option ${u.role==='Captain'?'selected':''}>Captain</option><option ${u.role==='Business'?'selected':''}>Business</option>${adminOption}</select></label><label class="label">Home water<input id="editArea" name="address-level2" class="field" autocomplete="address-level2" value="${safe(u.area)}" /></label></div>
         <label class="label">Bio<textarea id="editBio" name="profile-bio" class="field" autocomplete="off" placeholder="Tell crews how you fish.">${safe(u.bio || '')}</textarea></label>
         <label class="label">Fishing style<input id="editStyles" name="fishing-style" class="field" autocomplete="off" placeholder="Inshore, pier, kayak, charter" value="${safe(u.fishingStyles || '')}" /></label>
         <label class="label">Profile theme<select id="editTheme" class="select"><option ${u.profileTheme==='Harbor Blue'?'selected':''}>Harbor Blue</option><option ${u.profileTheme==='Seafoam'?'selected':''}>Seafoam</option><option ${u.profileTheme==='Sunrise'?'selected':''}>Sunrise</option><option ${u.profileTheme==='Dockside'?'selected':''}>Dockside</option><option ${u.profileTheme==='Mangrove'?'selected':''}>Mangrove</option></select></label>
-        <div class="safe-note"><strong>Verification note:</strong> Role changes are allowed, and captain, business, or operator visibility may require review before public display.</div>
+        <div class="safe-note"><strong>Verification note:</strong> Captain and business roles are available on your card. Operator access cannot be self-assigned.</div>
         <button class="btn primary full" type="button" data-action="save-profile">Save profile</button>
       </div>`);
   }
@@ -2530,7 +2542,7 @@
           const { data, error } = await client.auth.signUp({ email, password, options: { data: { full_name: name, first_name: firstName, last_name: lastName, username, role, home_area: area } } });
           if (error) return showAuthError(signupErrorMessage(error, password, confirmPassword));
           if (data.session?.user) {
-            await ensureUserFromSupabase(data.session.user, { name, username, role, area, firstName, lastName, email }, { persistSession: true, syncProfile: true });
+            await ensureUserFromSupabase(data.session.user, { name, username, role, area, firstName, lastName, email }, { persistSession: true, syncProfile: true, seedRole: role });
             closeModal();
             toast(SIGNUP_WELCOME_MESSAGE);
             return;
@@ -2969,6 +2981,13 @@
     const persistSession = opts.persistSession !== false;
     const syncProfile = opts.syncProfile !== false;
     const meta = authUser.user_metadata || {};
+    const prior = state.users.find((u) => u.id === authUser.id || (Boolean(authUser.email) && u.email === authUser.email));
+    // Never trust client/metadata for Operator. Preserve an already-Admin local row
+    // until a live pull refreshes roles from the server.
+    const role = sanitizeAssignableRole(
+      opts.seedRole || prior?.role || meta.role || fallback.role || 'Angler',
+      { allowAdmin: prior?.role === 'Admin' }
+    );
     const user = {
       id: authUser.id,
       name: meta.full_name || fallback.name || authUser.email?.split('@')[0] || 'FishCrew user',
@@ -2978,7 +2997,7 @@
       bio: meta.bio || fallback.bio || 'Here to find crew, share useful reports, and fish more.',
       fishingStyles: meta.fishing_styles || fallback.fishingStyles || 'Inshore, pier, weekend trips',
       profileTheme: meta.profile_theme || fallback.profileTheme || 'Harbor Blue',
-      role: meta.role || fallback.role || 'Angler',
+      role,
       area: meta.home_area || fallback.area || 'Tampa Bay',
       avatar: meta.avatar_url || '',
       createdAt: authUser.created_at || now(),
@@ -3009,19 +3028,26 @@
     }
     if (syncProfile && persistSession && supabaseClient) {
       try {
-        const profileRow = () => ({
-          id: user.id,
-          email: user.email,
-          username: user.username,
-          full_name: user.name,
-          bio: user.bio,
-          fishing_styles: user.fishingStyles,
-          profile_theme: user.profileTheme,
-          role: user.role,
-          home_area: user.area,
-          avatar_url: user.avatar,
-          updated_at: now()
-        });
+        const profileRow = () => {
+          const row = {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            full_name: user.name,
+            bio: user.bio,
+            fishing_styles: user.fishingStyles,
+            profile_theme: user.profileTheme,
+            home_area: user.area,
+            avatar_url: user.avatar,
+            updated_at: now()
+          };
+          // Only seed role on explicit account creation. Sign-in/bootstrap must not
+          // overwrite Operator (or any server role) with client fallback metadata.
+          if (opts.seedRole) {
+            row.role = sanitizeAssignableRole(opts.seedRole, { allowAdmin: false });
+          }
+          return row;
+        };
         let { error } = await supabaseClient.from('profiles').upsert(profileRow());
         // Backstop for the unique username index: if this auth user's metadata
         // username collides with an existing profile, retry once with a
@@ -3426,7 +3452,7 @@
     }
     user.name = $('#editName')?.value.trim() || user.name;
     user.username = nextUsername;
-    user.role = $('#editRole')?.value || user.role;
+    user.role = sanitizeAssignableRole($('#editRole')?.value || user.role, { allowAdmin: isAdmin() });
     user.area = $('#editArea')?.value.trim() || user.area;
     user.bio = $('#editBio')?.value.trim() || user.bio || 'Here to find crew, share useful reports, and fish more.';
     user.fishingStyles = $('#editStyles')?.value.trim() || user.fishingStyles || 'Inshore, pier, weekend trips';
@@ -4118,7 +4144,7 @@ ${url}`).catch(() => {});
     if (!(await canWriteLive())) return toast('Sign in with a connected account before pushing shared data.', 'danger');
     try {
       const user = currentUser();
-      if (user) await liveUpsert('profiles', { id: user.id, email: user.email, username: user.username, full_name: user.name, bio: user.bio, fishing_styles: user.fishingStyles, profile_theme: user.profileTheme, role: user.role, home_area: user.area, avatar_url: user.avatar, updated_at: now() }, 'profile');
+      if (user) await liveUpsert('profiles', { id: user.id, email: user.email, username: user.username, full_name: user.name, bio: user.bio, fishing_styles: user.fishingStyles, profile_theme: user.profileTheme, role: sanitizeAssignableRole(user.role, { allowAdmin: isAdmin() }), home_area: user.area, avatar_url: user.avatar, updated_at: now() }, 'profile');
       for (const trip of state.trips) {
         await liveUpsert('trip_posts', tripRow(trip), 'trip');
         await liveUpsert('trip_private_details', tripPrivateRow(trip), 'private meetup details');
