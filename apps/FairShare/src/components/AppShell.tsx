@@ -1,37 +1,19 @@
 import type { ReactNode } from "react";
-import { APP_NAME, APP_TAGLINE } from "../config";
 import { marketConfigs } from "../data/mockData";
-import { DemoDataBanner } from "./DemoDataBanner";
+import { AlertsStrip } from "./AlertsStrip";
 import { MarketModeBadge } from "./MarketModeBadge";
+import { OnboardingOverlay } from "./OnboardingOverlay";
 
 const navItems = [
-  { href: "/", label: "Home", short: "Home", icon: "home" as const },
-  { href: "/compare", label: "Compare", short: "Compare", icon: "compare" as const },
-  { href: "/crowd-meter", label: "CrowdMeter", short: "Crowd", icon: "crowd" as const },
-  { href: "/settings", label: "Settings", short: "Account", icon: "account" as const },
-];
-
-function NavIcon({ type }: { type: "home" | "compare" | "crowd" | "account" }) {
-  const props = { width: 22, height: 22, viewBox: "0 0 24 24", fill: "none", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-  switch (type) {
-    case "home":
-      return <svg {...props}><path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" stroke="currentColor" /></svg>;
-    case "compare":
-      return <svg {...props}><path d="M4 19h16M7 16V8m5 8V5m5 11v-6" stroke="currentColor" /></svg>;
-    case "crowd":
-      return <svg {...props}><circle cx="12" cy="12" r="9" stroke="currentColor" /><path d="M12 7v5l3 2" stroke="currentColor" /></svg>;
-    case "account":
-      return <svg {...props}><circle cx="12" cy="8" r="4" stroke="currentColor" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" /></svg>;
-  }
-}
-
-/** Operator/internal shells — not in primary beta nav; reachable from Settings. */
-export const internalNavItems = [
-  { href: "/admin", label: "Admin (demo)" },
-  { href: "/admin/bermuda", label: "Bermuda pilot" },
-  { href: "/driver", label: "Driver (demo)" },
-  { href: "/government", label: "Government (demo)" },
-  { href: "/canyon", label: "Canyon (planned)" },
+  { href: "/", label: "Home" },
+  { href: "/compare", label: "Compare" },
+  { href: "/crowd-meter", label: "CrowdMeter" },
+  { href: "/admin", label: "Admin" },
+  { href: "/admin/bermuda", label: "Bermuda" },
+  { href: "/driver", label: "Driver" },
+  { href: "/government", label: "Government" },
+  { href: "/canyon", label: "Canyon" },
+  { href: "/settings", label: "Settings" }
 ];
 
 interface AppShellProps {
@@ -45,12 +27,15 @@ export function AppShell({ children, currentPath, onNavigate }: AppShellProps) {
 
   return (
     <div className="app-shell">
+      <div className="demo-banner" role="note">
+        Demo data — fares, ETAs, and crowd signals are sample placeholders, not live provider APIs.
+      </div>
       <header className="topbar">
         <button className="brand-button" type="button" onClick={() => onNavigate("/")}>
-          <span className="brand-mark">CC</span>
+          <span className="brand-mark">CB</span>
           <span>
-            <strong>{APP_NAME}</strong>
-            <small>{APP_TAGLINE}</small>
+            <strong>Curbcue</strong>
+            <small>Know the ride before you book</small>
           </span>
         </button>
 
@@ -62,12 +47,13 @@ export function AppShell({ children, currentPath, onNavigate }: AppShellProps) {
         </div>
       </header>
 
-      <DemoDataBanner />
+      <AlertsStrip onOpenCrowdMeter={() => onNavigate("/crowd-meter")} />
 
       <nav className="main-nav" aria-label="Primary">
         {navItems.map((item) => (
           <button
             className={currentPath === item.href ? "active" : ""}
+            aria-current={currentPath === item.href ? "page" : undefined}
             key={item.href}
             type="button"
             onClick={() => onNavigate(item.href)}
@@ -78,20 +64,19 @@ export function AppShell({ children, currentPath, onNavigate }: AppShellProps) {
       </nav>
 
       <main>{children}</main>
-
-      <nav className="bottom-nav" aria-label="Primary mobile">
-        {navItems.map((item) => (
-          <button
-            className={currentPath === item.href ? "active" : ""}
-            key={`mobile-${item.href}`}
-            type="button"
-            onClick={() => onNavigate(item.href)}
-          >
-            <span aria-hidden="true"><NavIcon type={item.icon} /></span>
-            {item.short}
-          </button>
-        ))}
-      </nav>
+      <footer className="site-footer">
+        <span>Curbcue demo</span>
+        <a
+          href="/settings#privacy-support"
+          onClick={(event: { preventDefault: () => void }) => {
+            event.preventDefault();
+            onNavigate("/settings#privacy-support");
+          }}
+        >
+          Privacy and support
+        </a>
+      </footer>
+      <OnboardingOverlay onNavigateCompare={() => onNavigate("/compare")} />
     </div>
   );
 }
