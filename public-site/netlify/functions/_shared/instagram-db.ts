@@ -223,3 +223,36 @@ export async function markFailed(id: string, lockToken: string, error: string): 
     });
   }
 }
+
+/**
+ * Return a claimed job to `approved` when the background worker was never
+ * successfully invoked. `failed` is terminal (no auto retry), so a transient
+ * dispatch/transport error must not permanently drop an approved post.
+ */
+export async function releaseDispatchClaim(
+  id: string,
+  lockToken: string,
+  error: string,
+): Promise<boolean> {
+  const result = await queryable().query(
+    `UPDATE instagram_publish_queue
+     SET state = 'approved',
+         last_error = $3,
+         lock_token = NULL,
+         processing_started_at = NULL,
+         updated_at = now()
+     WHERE id = $1
+       AND state = 'processing'
+       AND lock_token = $2
+       AND meta_media_id IS NULL
+     RETURNING id`,
+    [id, lockToken, error.slice(0, 4_000)],
+  );
+  if (result.rowCount) {
+    await audit(id, "dispatch_released", "scheduled-dispatcher", "processing", "approved", {
+      error: error.slice(0, 1_000),
+    });
+    return true;
+  }
+  return false;
+}

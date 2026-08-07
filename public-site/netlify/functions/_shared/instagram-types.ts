@@ -119,7 +119,9 @@ export function canTransition(from: QueueState, to: QueueState): boolean {
   return (
     (from === "draft" && (to === "approved" || to === "archived")) ||
     (from === "approved" && to === "processing") ||
-    (from === "processing" && (to === "published" || to === "failed"))
+    // processing → approved: dispatcher releases the claim when the background
+    // worker was never successfully invoked (transient dispatch failure).
+    (from === "processing" && (to === "published" || to === "failed" || to === "approved"))
   );
 }
 

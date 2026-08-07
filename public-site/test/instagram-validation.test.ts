@@ -41,6 +41,7 @@ describe("queue state and idempotency rules", () => {
     expect(canTransition("approved", "processing")).toBe(true);
     expect(canTransition("processing", "published")).toBe(true);
     expect(canTransition("processing", "failed")).toBe(true);
+    expect(canTransition("processing", "approved")).toBe(true);
     expect(canTransition("draft", "processing")).toBe(false);
     expect(canTransition("published", "processing")).toBe(false);
     expect(canTransition("archived", "approved")).toBe(false);

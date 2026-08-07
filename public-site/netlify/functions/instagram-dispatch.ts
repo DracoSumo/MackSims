@@ -1,6 +1,6 @@
 import type { Config } from "@netlify/functions";
 import { getInstagramAdminSecret } from "./_shared/auth.js";
-import { claimDueApproved, markFailed } from "./_shared/instagram-db.js";
+import { claimDueApproved, releaseDispatchClaim } from "./_shared/instagram-db.js";
 
 export default async (request: Request): Promise<Response> => {
   const secret = getInstagramAdminSecret();
@@ -22,7 +22,9 @@ export default async (request: Request): Promise<Response> => {
         });
         if (!response.ok) throw new Error(`Background dispatch returned HTTP ${response.status}`);
       } catch (error) {
-        await markFailed(
+        // Do not markFailed — failed is terminal and would permanently drop the post
+        // after a transient invoke/network blip before the worker runs.
+        await releaseDispatchClaim(
           job.id,
           job.lockToken!,
           error instanceof Error ? `Dispatch failed: ${error.message}` : "Background dispatch failed",
