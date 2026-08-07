@@ -4158,11 +4158,12 @@ ${url}`).catch(() => {});
 
     const run = (async () => {
       try {
-        const [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes] = await Promise.all([
+        // Pull trip-scoped child tables by the loaded trip ids. A global
+        // unordered .limit() on private_details/members could omit rows for the
+        // newest trips, wipe meetup pins to placeholders, then corrupt DB on full push.
+        const [profilesRes, tripsRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes] = await Promise.all([
           supabaseClient.from('profiles').select('id, username, full_name, role, home_area, avatar_url, bio, fishing_styles, profile_theme, created_at').limit(LIVE_QUERY_LIMIT),
           supabaseClient.from('trip_posts').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
-          supabaseClient.from('trip_private_details').select('*').limit(LIVE_QUERY_LIMIT),
-          supabaseClient.from('trip_members').select('*').limit(LIVE_QUERY_LIMIT * 2),
           supabaseClient.from('join_requests').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
           supabaseClient.from('trip_messages').select('*').order('created_at', { ascending: true }).limit(LIVE_QUERY_LIMIT * 2),
           supabaseClient.from('feed_posts').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
@@ -4172,8 +4173,22 @@ ${url}`).catch(() => {});
           supabaseClient.from('bookings').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT)
         ]);
         if (generation !== pullGeneration) return;
-        const errors = [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes].map((r) => r.error).filter(Boolean);
-        if (errors.length) throw errors[0];
+        const firstErrors = [profilesRes, tripsRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes].map((r) => r.error).filter(Boolean);
+        if (firstErrors.length) throw firstErrors[0];
+
+        const tripIds = (tripsRes.data || []).map((t) => t.id).filter(Boolean);
+        let privateDetailsRes = { data: [], error: null };
+        let membersRes = { data: [], error: null };
+        if (tripIds.length) {
+          [privateDetailsRes, membersRes] = await Promise.all([
+            supabaseClient.from('trip_private_details').select('*').in('trip_id', tripIds),
+            supabaseClient.from('trip_members').select('*').in('trip_id', tripIds)
+          ]);
+          if (generation !== pullGeneration) return;
+          const childErrors = [privateDetailsRes, membersRes].map((r) => r.error).filter(Boolean);
+          if (childErrors.length) throw childErrors[0];
+        }
+
         if (profilesRes.data?.length) {
           const sessionUser = currentUser();
           // Privacy: profile rows no longer include email. Keep any email we already
@@ -4186,13 +4201,22 @@ ${url}`).catch(() => {});
         }
         if (tripsRes.data?.length) {
           const privateByTrip = Object.fromEntries((privateDetailsRes.data || []).map((d) => [d.trip_id, d.private_location]));
+          const prevPrivateByTrip = Object.fromEntries((state.trips || []).filter((t) => t.id && t.privateLocation).map((t) => [t.id, t.privateLocation]));
+          const prevMembersByTrip = Object.fromEntries((state.trips || []).filter((t) => t.id && Array.isArray(t.members) && t.members.length).map((t) => [t.id, t.members]));
+          const memberMap = {};
+          (membersRes.data || []).forEach((m) => {
+            if (!memberMap[m.trip_id]) memberMap[m.trip_id] = [];
+            memberMap[m.trip_id].push(m.user_id);
+          });
           state.trips = tripsRes.data.map((t) => ({
             id: t.id,
             title: t.title,
             type: t.trip_type || 'Boat',
             area: t.area || 'Tampa Bay',
             publicLocation: t.public_location || t.area || 'General area',
-            privateLocation: privateByTrip[t.id] || 'Private details after approval',
+            // Prefer remote pin; keep prior local pin over the placeholder so a
+            // missed child-row fetch cannot wipe meetup details before a full push.
+            privateLocation: privateByTrip[t.id] || prevPrivateByTrip[t.id] || 'Private details after approval',
             hostId: t.host_id,
             hostName: state.users.find((u) => u.id === t.host_id)?.name || 'FishCrew host',
             time: t.start_label || 'Upcoming',
@@ -4207,17 +4231,9 @@ ${url}`).catch(() => {});
             water: 'Live',
             media: t.media_url || '',
             mediaModerationStatus: t.media_moderation_status || (t.media_url ? 'Approved' : 'Approved'),
-            members: [],
+            members: memberMap[t.id] || prevMembersByTrip[t.id] || (t.host_id ? [t.host_id] : []),
             createdAt: t.created_at || now()
           }));
-        }
-        if (membersRes.data?.length) {
-          const memberMap = {};
-          membersRes.data.forEach((m) => {
-            if (!memberMap[m.trip_id]) memberMap[m.trip_id] = [];
-            memberMap[m.trip_id].push(m.user_id);
-          });
-          state.trips.forEach((t) => { t.members = memberMap[t.id] || (t.hostId ? [t.hostId] : []); });
         }
         if (requestsRes.data?.length) {
           state.requests = requestsRes.data.map((r) => ({ id: r.id, tripId: r.trip_id, userId: r.requester_id, userName: r.requester_name || state.users.find((u) => u.id === r.requester_id)?.name || 'FishCrew user', message: r.message || '', status: r.status || 'Pending', createdAt: r.created_at || now() }));
