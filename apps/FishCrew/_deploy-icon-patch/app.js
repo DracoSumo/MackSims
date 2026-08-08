@@ -3711,6 +3711,8 @@
     closeModal();
     await afterLocalWrite('Duplicate trip', async () => {
       await liveUpsert('trip_posts', tripRow(copy), 'duplicated trip');
+      // Same as saveTrip: private meetup pin lives in trip_private_details, not trip_posts.
+      await liveUpsert('trip_private_details', tripPrivateRow(copy), 'duplicated private meetup details');
       await liveUpsert('trip_members', { trip_id: copy.id, user_id: user.id, member_role: 'host', status: 'Approved' }, 'trip member');
       return true;
     });
