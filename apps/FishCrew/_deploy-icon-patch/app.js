@@ -21,6 +21,9 @@
   const FEED_RENDER_LIMIT = 40;
   const TRIP_RENDER_LIMIT = 40;
   const LIVE_QUERY_LIMIT = 120;
+  // Per-trip chat tail. A single global messages limit lets one busy trip starve quieter crews.
+  const MESSAGES_PER_TRIP = 40;
+  const MESSAGE_TRIP_CHUNK = 8;
   const GUEST_SIGN_IN_PROMPT = 'Create an account or sign in to continue.';
   const DEG = '\u00B0';
   const MID = '\u00B7';
@@ -4158,13 +4161,15 @@ ${url}`).catch(() => {});
 
     const run = (async () => {
       try {
-        const [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes] = await Promise.all([
+        // trip_messages are loaded per loaded trip after this batch. A global
+        // messages .limit() + state.messages = {} wipe let one busy trip erase
+        // quieter crew chats on every live/realtime pull (even after newest-first).
+        const [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes] = await Promise.all([
           supabaseClient.from('profiles').select('id, username, full_name, role, home_area, avatar_url, bio, fishing_styles, profile_theme, created_at').limit(LIVE_QUERY_LIMIT),
           supabaseClient.from('trip_posts').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
           supabaseClient.from('trip_private_details').select('*').limit(LIVE_QUERY_LIMIT),
           supabaseClient.from('trip_members').select('*').limit(LIVE_QUERY_LIMIT * 2),
           supabaseClient.from('join_requests').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
-          supabaseClient.from('trip_messages').select('*').order('created_at', { ascending: true }).limit(LIVE_QUERY_LIMIT * 2),
           supabaseClient.from('feed_posts').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
           supabaseClient.from('media_assets').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
           supabaseClient.from('moderation_items').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
@@ -4172,8 +4177,29 @@ ${url}`).catch(() => {});
           supabaseClient.from('bookings').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT)
         ]);
         if (generation !== pullGeneration) return;
-        const errors = [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes].map((r) => r.error).filter(Boolean);
+        const errors = [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes].map((r) => r.error).filter(Boolean);
         if (errors.length) throw errors[0];
+
+        const tripIds = (tripsRes.data || []).map((t) => t.id).filter(Boolean);
+        const messagesData = [];
+        if (tripIds.length) {
+          for (let i = 0; i < tripIds.length; i += MESSAGE_TRIP_CHUNK) {
+            if (generation !== pullGeneration) return;
+            const chunk = tripIds.slice(i, i + MESSAGE_TRIP_CHUNK);
+            const chunkRes = await Promise.all(chunk.map((tripId) => supabaseClient
+              .from('trip_messages')
+              .select('*')
+              .eq('trip_id', tripId)
+              .order('created_at', { ascending: false })
+              .limit(MESSAGES_PER_TRIP)));
+            const messageError = chunkRes.map((r) => r.error).filter(Boolean)[0];
+            if (messageError) throw messageError;
+            chunkRes.forEach((r) => {
+              if (r.data?.length) messagesData.push(...r.data);
+            });
+          }
+        }
+
         if (profilesRes.data?.length) {
           const sessionUser = currentUser();
           // Privacy: profile rows no longer include email. Keep any email we already
@@ -4222,18 +4248,40 @@ ${url}`).catch(() => {});
         if (requestsRes.data?.length) {
           state.requests = requestsRes.data.map((r) => ({ id: r.id, tripId: r.trip_id, userId: r.requester_id, userName: r.requester_name || state.users.find((u) => u.id === r.requester_id)?.name || 'FishCrew user', message: r.message || '', status: r.status || 'Pending', createdAt: r.created_at || now() }));
         }
-        if (messagesRes.data?.length) {
-          state.messages = {};
-          messagesRes.data.forEach((m) => {
-            if (!state.messages[m.trip_id]) state.messages[m.trip_id] = [];
-            state.messages[m.trip_id].push({ id: m.id, senderId: m.sender_id, senderName: m.sender_name || 'FishCrew user', body: m.body || '', createdAt: m.created_at || now() });
+        if (tripIds.length || messagesData.length) {
+          const prevMessages = state.messages || {};
+          const byTrip = {};
+          messagesData.forEach((m) => {
+            if (!byTrip[m.trip_id]) byTrip[m.trip_id] = [];
+            byTrip[m.trip_id].push(m);
           });
+          const nextMessages = {};
+          const mapRow = (m) => ({ id: m.id, senderId: m.sender_id, senderName: m.sender_name || 'FishCrew user', body: m.body || '', createdAt: m.created_at || now() });
+          // Newest-first query → reverse so chat renders oldest → newest.
+          Object.keys(byTrip).forEach((tripId) => {
+            nextMessages[tripId] = [...byTrip[tripId]].reverse().map(mapRow);
+          });
+          // Keep prior local tails when a trip got no remote rows this pull.
+          Object.keys(prevMessages).forEach((tripId) => {
+            if (!nextMessages[tripId] && prevMessages[tripId]?.length) nextMessages[tripId] = prevMessages[tripId];
+          });
+          state.messages = nextMessages;
         }
         if (Array.isArray(feedRes.data) && feedRes.data.length) {
           state.feed = feedRes.data.map((p) => ({ id: p.id, type: p.post_type || 'Catch Log', title: p.title, area: p.area || 'Local water', authorId: p.author_id, authorName: p.author_name || state.users.find((u) => u.id === p.author_id)?.name || 'FishCrew user', body: p.body || '', media: p.media_url || '', mediaType: p.media_type || 'emoji', artKind: p.media_url ? '' : 'catch', reactions: Number(p.reactions || 0), status: p.status || 'Live', createdAt: p.created_at || now() }));
         }
-        if (Array.isArray(mediaRes.data)) {
-          state.mediaAssets = mediaRes.data.map((a) => ({ id: a.id, ownerId: a.owner_id || '', sourceId: a.source_id || '', sourceType: a.source_type || 'feed', mediaType: a.media_type || 'file', storagePath: a.storage_path || '', publicUrl: a.public_url || '', status: a.moderation_status || a.status || 'Review', visibility: a.visibility || 'public', createdAt: a.created_at || now() }));
+        // Newest-120 window must not wipe older pending Review assets (hydrate + approve UI).
+        // Empty remote arrays also must not clear local-only / unsynced trackers.
+        if (Array.isArray(mediaRes.data) && mediaRes.data.length) {
+          const remoteAssets = mediaRes.data.map((a) => ({ id: a.id, ownerId: a.owner_id || '', sourceId: a.source_id || '', sourceType: a.source_type || 'feed', mediaType: a.media_type || 'file', storagePath: a.storage_path || '', publicUrl: a.public_url || '', status: a.moderation_status || a.status || 'Review', visibility: a.visibility || 'public', createdAt: a.created_at || now() }));
+          const remoteIds = new Set(remoteAssets.map((a) => a.id));
+          const retainedLocal = (state.mediaAssets || []).filter((a) => {
+            if (!a?.id || remoteIds.has(a.id)) return false;
+            const status = a.status || '';
+            return ['Review', 'Local preview', 'Pending review'].includes(status)
+              || String(a.storagePath || '').startsWith('local');
+          });
+          state.mediaAssets = [...remoteAssets, ...retainedLocal];
           // Hydrate owner/admin trip + feed + profile media from assets when public rows omit pending URLs.
           (state.trips || []).forEach((trip) => {
             const asset = mediaAssetForItem(trip, 'trip');
