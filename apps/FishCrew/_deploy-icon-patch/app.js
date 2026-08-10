@@ -1758,12 +1758,17 @@
 
   function openBookingForm(businessId = '') {
     if (!requireBusiness('Business, captain, or operator access required to manage booking leads.')) return;
+    const user = currentUser();
+    // Tenancy: captains/partners may only capture leads against their own listings.
+    const listings = (state.businesses || []).filter((b) => isAdmin() || b.ownerId === user?.id);
+    if (!listings.length) return toast('Add your own business listing before capturing leads.', 'danger');
+    const selectedId = listings.some((b) => b.id === businessId) ? businessId : listings[0].id;
     modal(`
       <div class="modal-head"><div><span class="eyebrow">Booking</span><h2>Capture the lead.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       <div class="forms">
         <label class="label">Customer name<input id="bookCustomer" name="customer-name" class="field" autocomplete="name" placeholder="New lead" /></label>
         <div class="form-grid"><label class="label">Type<select id="bookKind" class="select"><option>Charter inquiry</option><option>Cruise inquiry</option><option>Tackle shop deal</option><option>Guide inquiry</option></select></label><label class="label">Date/time<input id="bookDate" name="booking-date" class="field" autocomplete="off" placeholder="Saturday morning" /></label></div>
-        <label class="label">Business<select id="bookBusiness" class="select">${state.businesses.map((b)=>`<option value="${safe(b.id)}" ${businessId===b.id?'selected':''}>${safe(b.name)}</option>`).join('')}</select></label>
+        <label class="label">Business<select id="bookBusiness" class="select">${listings.map((b)=>`<option value="${safe(b.id)}" ${selectedId===b.id?'selected':''}>${safe(b.name)}</option>`).join('')}</select></label>
         <label class="label">Value<input id="bookValue" name="booking-value" class="field" type="number" inputmode="decimal" autocomplete="off" min="0" value="150" /></label>
         <label class="label">Notes<textarea id="bookNotes" name="booking-notes" class="field" autocomplete="off" placeholder="What does the customer want?"></textarea></label>
         <button class="btn primary full" type="button" data-action="save-booking">Save booking lead</button>
@@ -2791,8 +2796,26 @@
     const stateToken = hashParams.get('state') || '';
     let expected = '';
     try { expected = sessionStorage.getItem('fishcrew.ig.oauth.state') || ''; } catch (_) {}
-    if (expected && stateToken && expected !== stateToken) {
+    // Fail closed: implicit-flow tokens must bind only to the Profile→Connect
+    // attempt that minted `fishcrew.ig.oauth.state`. Skipping when either side is
+    // empty allowed CSRF force-link / token replay onto whoever is signed in.
+    if (!expected || !stateToken || expected !== stateToken) {
+      try { sessionStorage.removeItem('fishcrew.ig.oauth.state'); sessionStorage.removeItem('fishcrew.ig.oauth.uid'); } catch (_) {}
       toast('Instagram connect state mismatch. Try again from Profile.', 'danger');
+      history.replaceState(null, '', location.pathname || '/');
+      return;
+    }
+    if (!currentUser()) {
+      try { sessionStorage.removeItem('fishcrew.ig.oauth.state'); sessionStorage.removeItem('fishcrew.ig.oauth.uid'); } catch (_) {}
+      toast('Sign in before connecting Instagram.', 'danger');
+      history.replaceState(null, '', location.pathname || '/');
+      return;
+    }
+    let expectedUid = '';
+    try { expectedUid = sessionStorage.getItem('fishcrew.ig.oauth.uid') || ''; } catch (_) {}
+    if (expectedUid && expectedUid !== currentUser().id) {
+      try { sessionStorage.removeItem('fishcrew.ig.oauth.state'); sessionStorage.removeItem('fishcrew.ig.oauth.uid'); } catch (_) {}
+      toast('Instagram connect was started by a different account. Sign in and try again.', 'danger');
       history.replaceState(null, '', location.pathname || '/');
       return;
     }
@@ -2811,11 +2834,13 @@
         expiresAt: expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null
       };
       await storeInstagramConnection(connection);
+      try { sessionStorage.removeItem('fishcrew.ig.oauth.state'); sessionStorage.removeItem('fishcrew.ig.oauth.uid'); } catch (_) {}
       history.replaceState(null, '', location.pathname || '/');
       state.activeScreen = 'profile';
       render();
       toast(account.username ? `Instagram connected as @${account.username}.` : 'Instagram connected.');
     } catch (error) {
+      try { sessionStorage.removeItem('fishcrew.ig.oauth.state'); sessionStorage.removeItem('fishcrew.ig.oauth.uid'); } catch (_) {}
       history.replaceState(null, '', location.pathname || '/');
       toast(`Instagram connect failed: ${error.message}`, 'danger');
     }
@@ -3595,16 +3620,20 @@
 
   async function saveBooking() {
     if (!requireBusiness()) return;
-    const bizId = $('#bookBusiness')?.value || state.businesses[0]?.id || '';
-    const booking = { id: uid('book'), businessId: bizId, customerId: currentUser()?.id || null, customerName: $('#bookCustomer')?.value.trim() || 'New customer', kind: $('#bookKind')?.value || 'Charter inquiry', status: 'New', date: $('#bookDate')?.value.trim() || 'TBD', value: Number($('#bookValue')?.value || 0), notes: $('#bookNotes')?.value.trim() || 'No notes yet.' };
+    const user = currentUser();
+    const owned = (state.businesses || []).filter((b) => isAdmin() || b.ownerId === user?.id);
+    const bizId = $('#bookBusiness')?.value || owned[0]?.id || '';
+    const biz = owned.find((b) => b.id === bizId) || state.businesses.find((b) => b.id === bizId);
+    if (!bizId || !biz) return toast('Select one of your business listings.', 'danger');
+    if (!isAdmin() && biz.ownerId !== user.id) return toast('That listing belongs to another partner.', 'danger');
+    const booking = { id: uid('book'), businessId: bizId, customerId: user?.id || null, customerName: $('#bookCustomer')?.value.trim() || 'New customer', kind: $('#bookKind')?.value || 'Charter inquiry', status: 'New', date: $('#bookDate')?.value.trim() || 'TBD', value: Number($('#bookValue')?.value || 0), notes: $('#bookNotes')?.value.trim() || 'No notes yet.' };
     state.bookings.unshift(booking);
-    const biz = state.businesses.find((b) => b.id === bizId);
-    if (biz) { biz.leads = Number(biz.leads || 0) + 1; }
+    biz.leads = Number(biz.leads || 0) + 1;
     state.opsLog.unshift(`Booking lead captured: ${booking.customerName} ${MID} ${booking.kind}.`);
     closeModal();
     await afterLocalWrite('Booking lead', async () => {
       await liveUpsert('bookings', bookingRow(booking), 'booking');
-      if (biz) await liveUpdate('businesses', { lead_count: Number(biz.leads || 0) }, 'id', biz.id, 'business lead count');
+      await liveUpdate('businesses', { lead_count: Number(biz.leads || 0) }, 'id', biz.id, 'business lead count');
       return true;
     });
     toast('Booking lead saved.');
@@ -3672,13 +3701,22 @@
     if (!confirm(`Cancel ${trip.title}?`)) return;
     trip.status = 'Cancelled';
     trip.cancelledAt = now();
-    state.requests.filter((r) => r.tripId === trip.id && r.status === 'Pending').forEach((r) => { r.status = 'Declined'; });
+    // Capture pending ids before flipping local status so shared join_requests
+    // are declined too. A local-only decline was wiped by the next live pull,
+    // letting hosts re-approve and unlock private meetup pins on cancelled trips.
+    const pendingRequestIds = state.requests
+      .filter((r) => r.tripId === trip.id && r.status === 'Pending')
+      .map((r) => r.id);
+    state.requests.filter((r) => pendingRequestIds.includes(r.id)).forEach((r) => { r.status = 'Declined'; });
     state.messages[trip.id] = state.messages[trip.id] || [];
     state.messages[trip.id].push({ id: uid('msg'), senderId: 'system', senderName: 'FishCrew', body: 'Trip cancelled by host. Pending requests were closed.', createdAt: now() });
     state.opsLog.unshift(`${trip.title} cancelled by host/operator.`);
     closeModal();
     await afterLocalWrite('Cancel trip', async () => {
       await liveUpdate('trip_posts', { status: 'Cancelled', cancelled_at: trip.cancelledAt }, 'id', trip.id, 'trip cancel');
+      for (const requestId of pendingRequestIds) {
+        await liveUpdate('join_requests', { status: 'Declined' }, 'id', requestId, 'request decline on cancel');
+      }
       return true;
     });
     render(); toast('Trip cancelled.');
@@ -3751,6 +3789,10 @@
     const trip = state.trips.find((t) => t.id === req.tripId);
     if (!trip) return;
     if (!isAdmin() && currentUser()?.id !== trip.hostId) return toast('Only the host or operator can approve this request.', 'danger');
+    if (String(trip.status || 'Open') !== 'Open') {
+      return toast('This trip is closed. Pending requests cannot unlock the private meetup pin.', 'danger');
+    }
+    if (String(req.status || 'Pending') !== 'Pending') return toast('That request is no longer pending.', 'danger');
     req.status = 'Approved';
     if (!trip.members.includes(req.userId)) trip.members.push(req.userId);
     trip.spots = Math.max(0, Number(trip.spots || 0) - 1);
