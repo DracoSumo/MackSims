@@ -502,6 +502,14 @@
     state.deviceHub.log = Array.isArray(state.deviceHub.log) ? state.deviceHub.log.slice(0, 8) : [];
     state.blockedUsers = Array.isArray(state.blockedUsers) ? state.blockedUsers : [];
     state.accountDeletionRequests = Array.isArray(state.accountDeletionRequests) ? state.accountDeletionRequests : [];
+    // Instagram Graph tokens must stay scoped to the active session user. Older
+    // builds left a process-global connection (with accessToken) after logout.
+    if (state.session?.userId) {
+      clearInstagramConnectionState({ exceptUserId: state.session.userId });
+      bindInstagramConnectionState((state.users || []).find((u) => u.id === state.session.userId));
+    } else {
+      clearInstagramConnectionState();
+    }
   }
 
   function cleanupOldCaches() {
@@ -1383,7 +1391,9 @@
       ? `<button class="btn dark small" type="button" data-action="open-edit-profile">Tune card</button>`
       : `<button class="btn dark small" type="button" data-action="open-auth-signin">Sign in to customize</button>`;
     const profileGuestNote = user ? '' : `<div class="safe-note mt"><strong>Guest:</strong> ${safe(GUEST_SIGN_IN_PROMPT)}</div>`;
-    const igConnection = user?.instagramConnection || state.instagramConnection || null;
+    // Never fall back to a process-global Instagram connection: that handle can
+    // still hold the previous account's Graph token after logout/account switch.
+    const igConnection = instagramConnectionFor(user);
     const igConfigured = metaInstagramConfigured();
     const igConnectPanel = user ? `
       <section class="section profile-ig-section">
@@ -2600,6 +2610,27 @@
     return Boolean(CONFIG.META_APP_ID && CONFIG.ENABLE_INSTAGRAM_OAUTH === true);
   }
 
+  // Instagram Graph tokens are account-bound. Only the signed-in user's own
+  // connection may be read or used — never a leftover global handle.
+  function instagramConnectionFor(user = currentUser()) {
+    if (!user?.instagramConnection) return null;
+    return user.instagramConnection;
+  }
+
+  function clearInstagramConnectionState(options = {}) {
+    const exceptUserId = options.exceptUserId || '';
+    state.instagramConnection = null;
+    (state.users || []).forEach((u) => {
+      if (exceptUserId && u?.id === exceptUserId) return;
+      if (u?.instagramConnection?.accessToken) delete u.instagramConnection.accessToken;
+    });
+  }
+
+  function bindInstagramConnectionState(user) {
+    const connection = instagramConnectionFor(user);
+    state.instagramConnection = connection ? { ...connection } : null;
+  }
+
   function instagramRedirectUri() {
     if (CONFIG.META_INSTAGRAM_REDIRECT_URI) return CONFIG.META_INSTAGRAM_REDIRECT_URI;
     const base = (CONFIG.WEB_CANONICAL_URL || `${window.location.origin}/`).replace(/\/+$/, '/');
@@ -2726,7 +2757,8 @@
     const user = currentUser();
     if (!user) return;
     user.instagramConnection = connection;
-    state.instagramConnection = connection;
+    // Keep the global mirror in lockstep with the signed-in user only.
+    bindInstagramConnectionState(user);
     save(true);
     if (supabaseClient) {
       try {
@@ -2823,7 +2855,7 @@
 
   async function importInstagramMedia() {
     if (!requireLogin('Sign in to import Instagram media.')) return;
-    const connection = currentUser()?.instagramConnection || state.instagramConnection;
+    const connection = instagramConnectionFor(currentUser());
     if (!connection?.accessToken || !connection?.igUserId) {
       return toast('Connect Instagram first, then import.', 'danger');
     }
@@ -2993,10 +3025,15 @@
         : undefined
     };
     if (!user.instagramConnection) delete user.instagramConnection;
-    if (user.instagramConnection?.username) state.instagramConnection = { ...(state.instagramConnection || {}), ...user.instagramConnection };
     const idx = state.users.findIndex((u) => u.id === user.id || (Boolean(user.email) && u.email === user.email));
-    if (idx >= 0) state.users[idx] = { ...state.users[idx], ...user };
-    else state.users.push(user);
+    if (idx >= 0) {
+      // Prefer a live token already on this profile over metadata (which has none).
+      const priorToken = state.users[idx]?.instagramConnection?.accessToken || '';
+      state.users[idx] = { ...state.users[idx], ...user };
+      if (priorToken && state.users[idx].instagramConnection && !state.users[idx].instagramConnection.accessToken) {
+        state.users[idx].instagramConnection.accessToken = priorToken;
+      }
+    } else state.users.push(user);
     if (persistSession) {
       const prevUserId = state.session?.userId || '';
       state.session = { userId: user.id, signedInAt: now() };
@@ -3004,7 +3041,11 @@
       if (prevUserId && prevUserId !== user.id) {
         state.notifications = [];
         state.notificationsFetchError = '';
+        // Drop the previous account's Graph token; keep the incoming user's.
+        clearInstagramConnectionState({ exceptUserId: user.id });
       }
+      // Re-bind from the signed-in user only (never merge with a prior account).
+      bindInstagramConnectionState(state.users.find((u) => u.id === user.id) || user);
       save(); render();
     }
     if (syncProfile && persistSession && supabaseClient) {
@@ -3058,6 +3099,8 @@
     state.notifications = [];
     state.notificationsLoading = false;
     state.notificationsFetchError = '';
+    // Scrub Graph tokens so the next browser session cannot import as the prior account.
+    clearInstagramConnectionState();
     authTab = 'signin';
     authBusy = false;
     state.opsLog.unshift('User logged out.');
