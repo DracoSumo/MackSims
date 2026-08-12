@@ -1,7 +1,14 @@
 import { isSupabaseConfigured } from "../config/backend";
 import { getSupabaseClient } from "./supabaseClient";
 import type { RiderProfileLocal } from "./profileStore";
-import { loadRiderProfile } from "./profileStore";
+import {
+  emptyRiderProfile,
+  isBlankRiderProfile,
+  loadRiderProfile,
+  mergeRiderProfileFields,
+  resetRiderProfile,
+  saveRiderProfileLocal,
+} from "./profileStore";
 import type { DraftRide } from "../types";
 
 export type SyncResult = "skipped" | "ok" | "error";
@@ -13,8 +20,11 @@ export type SyncMeta = {
 };
 
 const SYNC_META_KEY = "motocrew.syncMeta";
+const SYNC_OWNER_KEY = "motocrew.syncOwnerUserId";
 const DRAFTS_KEY = "motocrew.draftRides";
 const JOINED_KEY = "motocrew.joinedRideIds";
+
+export const PROFILE_SYNCED_EVENT = "motocrew:profile-synced";
 
 type RideDraftRow = {
   id: string;
@@ -31,6 +41,17 @@ type RideDraftRow = {
 type JoinedRideRow = {
   ride_id: string;
   joined_at: string;
+};
+
+type RiderProfileRow = {
+  user_id: string;
+  display_name: string | null;
+  riding_style: string | null;
+  bike: string | null;
+  home_area: string | null;
+  experience_level: string | null;
+  emergency_contact: string | null;
+  garage: RiderProfileLocal["garage"] | null;
 };
 
 async function userId(): Promise<string | null> {
@@ -119,6 +140,68 @@ function draftToRow(draft: DraftRide, uid: string): Omit<RideDraftRow, "created_
     pace: draft.pace,
     difficulty: draft.routeType,
   };
+}
+
+function rowToRiderProfile(row: RiderProfileRow): RiderProfileLocal {
+  const garage = row.garage && typeof row.garage === "object" ? row.garage : emptyRiderProfile().garage;
+  return {
+    name: row.display_name ?? "",
+    ridingStyle: row.riding_style ?? "",
+    bike: row.bike ?? "",
+    homeArea: row.home_area ?? "",
+    experienceLevel: row.experience_level ?? "",
+    emergencyContact: row.emergency_contact ?? "",
+    garage: {
+      year: garage.year ?? "",
+      make: garage.make ?? "",
+      model: garage.model ?? "",
+      setup: garage.setup ?? "",
+      range: garage.range ?? "",
+    },
+  };
+}
+
+/** Drop prior account's local sync payload before binding a new uid. */
+export function bindSyncOwner(uid: string): boolean {
+  const prev = localStorage.getItem(SYNC_OWNER_KEY);
+  const switched = Boolean(prev && prev !== uid);
+  if (switched) {
+    resetRiderProfile();
+    saveDraftRides([]);
+    saveJoinedRideIds([]);
+  }
+  localStorage.setItem(SYNC_OWNER_KEY, uid);
+  return switched;
+}
+
+/** Scrub syncable local state on sign-out so the next account cannot inherit it. */
+export function clearLocalSyncStateOnSignOut(): void {
+  resetRiderProfile();
+  saveDraftRides([]);
+  saveJoinedRideIds([]);
+  localStorage.removeItem(SYNC_OWNER_KEY);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(PROFILE_SYNCED_EVENT));
+  }
+}
+
+export async function pullRiderProfile(): Promise<RiderProfileLocal | null> {
+  if (!isSupabaseConfigured) return null;
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+  const uid = await userId();
+  if (!uid) return null;
+
+  const { data, error } = await supabase
+    .from("rider_profiles")
+    .select(
+      "user_id, display_name, riding_style, bike, home_area, experience_level, emergency_contact, garage"
+    )
+    .eq("user_id", uid)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return rowToRiderProfile(data as RiderProfileRow);
 }
 
 export async function pushRiderProfile(profile: RiderProfileLocal): Promise<SyncResult> {
@@ -225,17 +308,41 @@ export function mergeJoinedRideIds(remote: string[]): string[] {
   return merged;
 }
 
+/**
+ * On sign-in: bind owner (scrub prior account locals), pull remote profile,
+ * merge without blanking cloud, then merge drafts/joined.
+ */
 export async function mergeOnSignIn(): Promise<string | null> {
   if (!isSupabaseConfigured) return null;
   const supabase = getSupabaseClient();
   if (!supabase) return null;
 
   try {
-    const profileResult = await pushRiderProfile(loadRiderProfile());
-    if (profileResult === "error") {
-      const msg = "Rider profile sync failed — check RLS policies.";
-      setSyncMeta({ lastResult: "error", lastError: msg });
-      return msg;
+    const uid = await userId();
+    if (!uid) return null;
+
+    bindSyncOwner(uid);
+
+    const remoteProfile = await pullRiderProfile();
+    const localProfile = loadRiderProfile();
+    const mergedProfile = mergeRiderProfileFields(localProfile, remoteProfile);
+    saveRiderProfileLocal(mergedProfile);
+
+    // Never upsert a blank profile when we could not read remote — that wiped cloud rows
+    // on fresh-device sign-in before SELECT policies existed (and still if pull fails).
+    const shouldPushProfile =
+      !isBlankRiderProfile(mergedProfile) || remoteProfile !== null;
+    if (shouldPushProfile) {
+      const profileResult = await pushRiderProfile(mergedProfile);
+      if (profileResult === "error") {
+        const msg = "Rider profile sync failed — check RLS policies.";
+        setSyncMeta({ lastResult: "error", lastError: msg });
+        return msg;
+      }
+    }
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event(PROFILE_SYNCED_EVENT));
     }
 
     const [remoteDrafts, remoteJoined] = await Promise.all([pullRideDrafts(), pullJoinedRides()]);
@@ -273,11 +380,11 @@ export async function getSyncDashboard() {
 
   let remote: { drafts: number | null; joined: number | null } | null = null;
   if (uid) {
-    const supabase = getSupabaseClient();
-    if (supabase) {
+    const client = getSupabaseClient();
+    if (client) {
       const [drafts, joined] = await Promise.all([
-        supabase.from("ride_drafts").select("*", { count: "exact", head: true }).eq("user_id", uid),
-        supabase.from("joined_rides").select("*", { count: "exact", head: true }).eq("user_id", uid),
+        client.from("ride_drafts").select("*", { count: "exact", head: true }).eq("user_id", uid),
+        client.from("joined_rides").select("*", { count: "exact", head: true }).eq("user_id", uid),
       ]);
       remote = {
         drafts: drafts.error ? null : drafts.count ?? 0,

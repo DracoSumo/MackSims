@@ -9,7 +9,7 @@ import {
   type OAuthProvider,
 } from "../services/auth";
 import { getSupabaseClient } from "../services/supabaseClient";
-import { mergeOnSignIn } from "../services/supabaseSync";
+import { clearLocalSyncStateOnSignOut, mergeOnSignIn } from "../services/supabaseSync";
 
 const providers: { id: OAuthProvider; label: string }[] = [
   { id: "google", label: "Continue with Google" },
@@ -52,6 +52,7 @@ export function OAuthSignIn() {
 
   async function handleSignOut() {
     const err = await signOut();
+    clearLocalSyncStateOnSignOut();
     setMessage(err ?? "Signed out.");
     setUser(null);
   }
