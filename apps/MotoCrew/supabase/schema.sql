@@ -40,6 +40,24 @@ alter table rider_profiles enable row level security;
 alter table ride_drafts enable row level security;
 alter table joined_rides enable row level security;
 
+drop policy if exists "auth select profiles" on public.rider_profiles;
+create policy "auth select profiles"
+  on public.rider_profiles for select to authenticated
+  using (user_id = (select auth.uid()));
+drop policy if exists "auth insert profiles" on public.rider_profiles;
+create policy "auth insert profiles"
+  on public.rider_profiles for insert to authenticated
+  with check (user_id = (select auth.uid()));
+drop policy if exists "auth update profiles" on public.rider_profiles;
+create policy "auth update profiles"
+  on public.rider_profiles for update to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
+drop policy if exists "auth delete profiles" on public.rider_profiles;
+create policy "auth delete profiles"
+  on public.rider_profiles for delete to authenticated
+  using (user_id = (select auth.uid()));
+
 -- Community safety (apply in SQL editor; do not weaken existing policies)
 create table if not exists user_blocks (
   id uuid primary key default gen_random_uuid(),

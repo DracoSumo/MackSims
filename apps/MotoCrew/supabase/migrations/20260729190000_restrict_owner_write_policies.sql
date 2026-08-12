@@ -1,7 +1,7 @@
 -- MotoCrew: restrict owner writes on user-owned tables (project npmiwnxnqgonnmwvblyi)
 -- Idempotent: drop/recreate policies; revoke anon writes. Service role continues to bypass RLS.
 
--- rider_profiles: insert/update/delete only as self; authenticated can still read profiles
+-- rider_profiles: insert/update/delete only as self; SELECT added in 20260812110000_rider_profiles_select_own.sql
 drop policy if exists "auth insert profiles" on public.rider_profiles;
 create policy "auth insert profiles"
   on public.rider_profiles for insert to authenticated

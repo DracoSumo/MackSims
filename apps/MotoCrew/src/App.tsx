@@ -20,7 +20,7 @@ import {
 import { mapAdapter } from './services/mapAdapter'
 import { downloadMotoCrewLocalData } from './services/localDataExport'
 import { loadRiderProfile, saveRiderProfile, type RiderProfileLocal } from './services/profileStore'
-import { pushRiderProfile } from './services/supabaseSync'
+import { PROFILE_SYNCED_EVENT, pushRiderProfile } from './services/supabaseSync'
 import { supabaseStatusLabel } from './config/backend'
 import { checkSupabaseConnection } from './services/supabaseClient'
 import { getSyncMeta, pushJoinedRide, pushRideDraft } from './services/supabaseSync'
@@ -198,7 +198,7 @@ function App() {
     const formData = new FormData(event.currentTarget)
     const title = String(formData.get('title') || 'Untitled ride draft')
     const draft: DraftRide = {
-      id: `draft-${Date.now()}`,
+      id: crypto.randomUUID(),
       title,
       dateTime: String(formData.get('dateTime') || 'Unscheduled'),
       meetSpot: String(formData.get('meetSpot') || 'Meet spot TBD'),
@@ -1371,6 +1371,12 @@ function ProfileScreen({
     const refresh = () => refreshSafety()
     window.addEventListener('motocrew:safety-changed', refresh)
     return () => window.removeEventListener('motocrew:safety-changed', refresh)
+  }, [])
+
+  useEffect(() => {
+    const refreshProfile = () => setProfile(loadRiderProfile())
+    window.addEventListener(PROFILE_SYNCED_EVENT, refreshProfile)
+    return () => window.removeEventListener(PROFILE_SYNCED_EVENT, refreshProfile)
   }, [])
 
   return (
