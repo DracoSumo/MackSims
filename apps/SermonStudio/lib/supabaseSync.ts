@@ -77,7 +77,7 @@ function removeLocalLibraryKeys(): void {
 
 /** Drop prior account's local library before binding a new uid. */
 export function bindSyncOwner(uid: string): boolean {
-  if (typeof window === "undefined") return false;
+  if (typeof localStorage === "undefined") return false;
   const prev = localStorage.getItem(SYNC_OWNER_KEY);
   const switched = Boolean(prev && prev !== uid);
   if (switched) {
