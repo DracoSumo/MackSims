@@ -13,10 +13,25 @@ const SAVED_COMPARISONS_KEY = "fairshare.savedComparisons.v1";
 const USER_SETTINGS_KEY = "fairshare.userSettings.v1";
 const CROWD_POLLS_KEY = "fairshare.crowdPolls.v1";
 
+/** Account-bound keys cleared on sign-out / account switch. Beta ack stays device-level. */
+const ACCOUNT_SCOPED_KEYS = [
+  SAVED_PLACES_KEY,
+  RECENT_SEARCHES_KEY,
+  SAVED_COMPARISONS_KEY,
+  USER_SETTINGS_KEY,
+  CROWD_POLLS_KEY,
+] as const;
+
 export type UserSettings = {
   name: string;
   role: string;
   homeMarketId: string;
+};
+
+export const DEFAULT_USER_SETTINGS: UserSettings = {
+  name: "CurbCue demo user",
+  role: "rider",
+  homeMarketId: "bermuda",
 };
 
 export type SavedComparison = {
@@ -57,6 +72,17 @@ function writeJson(key: string, value: unknown): void {
     window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
     // Storage may be unavailable (private mode / quota); persistence is best-effort.
+  }
+}
+
+/** Drop account-bound local state so the next signed-in user cannot inherit it. */
+export function clearAccountLocalState(): void {
+  try {
+    for (const key of ACCOUNT_SCOPED_KEYS) {
+      window.localStorage.removeItem(key);
+    }
+  } catch {
+    // best-effort
   }
 }
 
@@ -114,11 +140,7 @@ export function setBetaAcknowledged(): void {
 }
 
 export function loadUserSettings(): UserSettings {
-  const settings = readJson<UserSettings>(USER_SETTINGS_KEY, {
-    name: "CurbCue demo user",
-    role: "rider",
-    homeMarketId: "bermuda",
-  });
+  const settings = readJson<UserSettings>(USER_SETTINGS_KEY, DEFAULT_USER_SETTINGS);
   return settings;
 }
 
