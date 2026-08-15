@@ -9,7 +9,7 @@ import {
   type OAuthProvider,
 } from "../lib/auth";
 import { getSupabaseClient } from "../lib/supabaseClient";
-import { mergeOnSignIn } from "../lib/supabaseSync";
+import { clearLocalSyncStateOnSignOut, mergeOnSignIn } from "../lib/supabaseSync";
 
 const providers: { id: OAuthProvider; label: string }[] = [
   { id: "google", label: "Continue with Google" },
@@ -38,6 +38,7 @@ export function OAuthSignIn() {
         window.dispatchEvent(new Event("fairshare:auth-changed"));
       }
       if (event === "SIGNED_OUT") {
+        clearLocalSyncStateOnSignOut();
         setSyncNote(null);
         window.dispatchEvent(new Event("fairshare:auth-changed"));
       }
@@ -58,8 +59,11 @@ export function OAuthSignIn() {
 
   async function handleSignOut() {
     const err = await signOut();
+    clearLocalSyncStateOnSignOut();
     setMessage(err ?? "Signed out.");
     setUser(null);
+    setSyncNote(null);
+    window.dispatchEvent(new Event("fairshare:auth-changed"));
   }
 
   if (user) {
@@ -114,12 +118,9 @@ export function AuthCallbackScreen({ onDone }: { onDone: (path: string) => void 
       const { getCurrentUser } = await import("../lib/auth");
       const user = await getCurrentUser();
       if (user) {
-        const { mergeOnSignIn } = await import("../lib/supabaseSync");
-        const syncErr = await mergeOnSignIn(user);
-        if (syncErr) {
-          setError(syncErr);
-          return;
-        }
+        // Sync issues are advisory only — never fail the established OAuth session.
+        await mergeOnSignIn(user);
+        window.dispatchEvent(new Event("fairshare:auth-changed"));
       }
       onDone("/settings");
     });

@@ -3,6 +3,7 @@ import { isSupabaseConfigured } from "../config";
 import { getSupabaseClient } from "./supabaseClient";
 import type { CrowdPoll, SavedComparison, UserSettings } from "./storage";
 import {
+  clearAccountLocalState,
   loadCrowdPolls,
   loadSavedComparisons,
   loadUserSettings,
@@ -19,6 +20,7 @@ export type SyncMeta = {
 };
 
 const SYNC_META_KEY = "fairshare.syncMeta";
+const SYNC_OWNER_KEY = "fairshare.syncOwnerUserId";
 
 type SavedComparisonRow = {
   id: string;
@@ -66,6 +68,33 @@ function setSyncMeta(patch: Partial<SyncMeta>): void {
   const next = { ...getSyncMeta(), ...patch };
   try {
     window.localStorage.setItem(SYNC_META_KEY, JSON.stringify(next));
+  } catch {
+    // best-effort
+  }
+}
+
+/** Drop prior account's local sync payload before binding a new uid. */
+export function bindSyncOwner(uid: string): boolean {
+  const prev = window.localStorage.getItem(SYNC_OWNER_KEY);
+  const switched = Boolean(prev && prev !== uid);
+  if (switched) {
+    clearAccountLocalState();
+    try {
+      window.localStorage.removeItem(SYNC_META_KEY);
+    } catch {
+      // best-effort
+    }
+  }
+  window.localStorage.setItem(SYNC_OWNER_KEY, uid);
+  return switched;
+}
+
+/** Scrub syncable local state on sign-out so the next account cannot inherit it. */
+export function clearLocalSyncStateOnSignOut(): void {
+  clearAccountLocalState();
+  try {
+    window.localStorage.removeItem(SYNC_META_KEY);
+    window.localStorage.removeItem(SYNC_OWNER_KEY);
   } catch {
     // best-effort
   }
@@ -207,12 +236,17 @@ export async function mergeOnSignIn(user: User): Promise<string | null> {
   if (!supabase) return null;
 
   try {
+    bindSyncOwner(user.id);
+
     const settings = loadUserSettings();
     const profileResult = await pushUserProfile(settings);
+    // Profile/RLS failures are sync warnings only — never treat as auth failure.
+    // Repo schema enables RLS with no owner policies, so upserts currently fail closed.
     if (profileResult === "error") {
-      const msg = "Profile sync failed — check RLS policies.";
-      setSyncMeta({ lastResult: "error", lastError: msg });
-      return msg;
+      setSyncMeta({
+        lastResult: "error",
+        lastError: "Profile sync failed — check RLS policies.",
+      });
     }
 
     const [remoteComparisons, remotePolls] = await Promise.all([
@@ -232,18 +266,25 @@ export async function mergeOnSignIn(user: User): Promise<string | null> {
         .map((r) => pushSavedComparison(r))
     );
 
-    const hadError = pushResults.some((r) => r === "error");
+    const hadError = profileResult === "error" || pushResults.some((r) => r === "error");
     setSyncMeta({
       lastSyncedAt: new Date().toISOString(),
       lastResult: hadError ? "error" : "ok",
-      lastError: hadError ? "Some comparisons failed to push." : null,
+      lastError: hadError
+        ? profileResult === "error"
+          ? "Profile sync failed — check RLS policies."
+          : "Some comparisons failed to push."
+        : null,
     });
 
-    return hadError ? "Some local comparisons could not sync." : null;
+    // Return advisory sync notes for UI; callers must not fail the OAuth session on these.
+    if (profileResult === "error") return "Signed in. Profile sync needs RLS policies.";
+    if (hadError) return "Signed in. Some local comparisons could not sync.";
+    return null;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Sync merge failed.";
     setSyncMeta({ lastResult: "error", lastError: msg });
-    return msg;
+    return `Signed in. Sync deferred: ${msg}`;
   }
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { RecentSearch, SavedPlace } from "../data/types";
 import {
   clearRecentSearches,
@@ -19,6 +19,15 @@ interface SavedPlacesPanelProps {
 export function SavedPlacesPanel({ onSelectPlace, onSelectSearch }: SavedPlacesPanelProps) {
   const [places, setPlaces] = useState<SavedPlace[]>(() => loadSavedPlaces());
   const [searches, setSearches] = useState<RecentSearch[]>(() => loadRecentSearches());
+
+  useEffect(() => {
+    const onAuth = () => {
+      setPlaces(loadSavedPlaces());
+      setSearches(loadRecentSearches());
+    };
+    window.addEventListener("fairshare:auth-changed", onAuth);
+    return () => window.removeEventListener("fairshare:auth-changed", onAuth);
+  }, []);
 
   return (
     <section className="panel saved-places-panel">

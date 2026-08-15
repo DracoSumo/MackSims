@@ -9,6 +9,12 @@ export function SavedComparisonsHomeBadge({ onOpenCompare }: { onOpenCompare?: (
 
   useEffect(() => {
     getCurrentUser().then((user) => setSignedIn(Boolean(user)));
+    const onAuth = () => {
+      getCurrentUser().then((user) => setSignedIn(Boolean(user)));
+      setSaved(loadSavedComparisons());
+    };
+    window.addEventListener("fairshare:auth-changed", onAuth);
+    return () => window.removeEventListener("fairshare:auth-changed", onAuth);
   }, []);
 
   if (saved.length === 0) return null;

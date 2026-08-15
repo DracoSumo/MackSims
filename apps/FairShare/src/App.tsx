@@ -478,6 +478,14 @@ function ComparePage({ navigate }: { navigate: Navigate }) {
 
   useEffect(() => {
     getCurrentUser().then((user) => setSignedIn(Boolean(user)));
+    const onAuth = () => {
+      getCurrentUser().then((user) => setSignedIn(Boolean(user)));
+      setSavedComparisons(loadSavedComparisons());
+      setPendingCloudRecord(null);
+      setSaveMessage("");
+    };
+    window.addEventListener("fairshare:auth-changed", onAuth);
+    return () => window.removeEventListener("fairshare:auth-changed", onAuth);
   }, []);
 
   const saveComparison = () => {
@@ -813,6 +821,15 @@ function CrowdMeterPage() {
   const [pollNote, setPollNote] = useState("");
   const [localPolls, setLocalPolls] = useState(() => loadCrowdPolls());
   const [pollMessage, setPollMessage] = useState("");
+
+  useEffect(() => {
+    const onAuth = () => {
+      setLocalPolls(loadCrowdPolls());
+      setPollMessage("");
+    };
+    window.addEventListener("fairshare:auth-changed", onAuth);
+    return () => window.removeEventListener("fairshare:auth-changed", onAuth);
+  }, []);
 
   async function handleCrowdPollSubmit(event: { preventDefault(): void }) {
     event.preventDefault();
@@ -1339,7 +1356,10 @@ function SettingsPage({ onNavigate }: { onNavigate: (href: string) => void }) {
   }, [syncTick]);
 
   useEffect(() => {
-    const onAuth = () => setSyncTick((n) => n + 1);
+    const onAuth = () => {
+      setSettings(loadUserSettings());
+      setSyncTick((n) => n + 1);
+    };
     window.addEventListener("fairshare:auth-changed", onAuth);
     return () => window.removeEventListener("fairshare:auth-changed", onAuth);
   }, []);
