@@ -2,9 +2,9 @@ import type { User } from "@supabase/supabase-js";
 import { isSupabaseConfigured } from "@/config/backend";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import type { AthleteCheckIn } from "./checkInStore";
-import { listCheckIns, mergeCheckIns } from "./checkInStore";
+import { clearCheckIns, listCheckIns, mergeCheckIns } from "./checkInStore";
 import type { CoachActionLog } from "./actionLogStore";
-import { listActionLog, mergeActionLog } from "./actionLogStore";
+import { clearActionLog, listActionLog, mergeActionLog } from "./actionLogStore";
 
 export type SyncResult = "skipped" | "ok" | "error";
 
@@ -15,6 +15,7 @@ export type SyncMeta = {
 };
 
 const SYNC_META_KEY = "coachcore.syncMeta";
+const SYNC_OWNER_KEY = "coachcore.syncOwnerUserId";
 
 type CheckInRow = {
   id: string;
@@ -62,6 +63,37 @@ function setSyncMeta(patch: Partial<SyncMeta>): void {
   const next = { ...getSyncMeta(), ...patch };
   try {
     localStorage.setItem(SYNC_META_KEY, JSON.stringify(next));
+  } catch {
+    // best-effort
+  }
+}
+
+/** Drop prior account's local sync payload before binding a new uid. */
+export function bindSyncOwner(uid: string): boolean {
+  if (typeof window === "undefined") return false;
+  const prev = localStorage.getItem(SYNC_OWNER_KEY);
+  const switched = Boolean(prev && prev !== uid);
+  if (switched) {
+    clearCheckIns();
+    clearActionLog();
+    try {
+      localStorage.removeItem(SYNC_META_KEY);
+    } catch {
+      // best-effort
+    }
+  }
+  localStorage.setItem(SYNC_OWNER_KEY, uid);
+  return switched;
+}
+
+/** Scrub syncable local state on sign-out so the next account cannot inherit it. */
+export function clearLocalSyncStateOnSignOut(): void {
+  if (typeof window === "undefined") return;
+  clearCheckIns();
+  clearActionLog();
+  try {
+    localStorage.removeItem(SYNC_META_KEY);
+    localStorage.removeItem(SYNC_OWNER_KEY);
   } catch {
     // best-effort
   }
@@ -214,10 +246,13 @@ export async function mergeOnSignIn(user: User): Promise<string | null> {
   const supabase = getSupabaseClient();
   if (!supabase) return null;
 
+  bindSyncOwner(user.id);
+
   const profileResult = await upsertCoachProfile(user);
   if (profileResult === "error") {
     const msg = "Coach profile sync failed — check RLS policies.";
     setSyncMeta({ lastResult: "error", lastError: msg });
+    // Advisory only: auth already succeeded; zero-policy RLS must not block sign-in.
     return msg;
   }
 

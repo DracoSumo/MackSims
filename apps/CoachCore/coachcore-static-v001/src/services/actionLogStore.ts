@@ -30,6 +30,12 @@ export function logCoachAction(label: string, detail = ""): CoachActionLog {
   return record;
 }
 
+export function clearActionLog(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(STORAGE_KEY);
+  void import("./localDataEvents").then(({ notifyLocalDataChanged }) => notifyLocalDataChanged("actionLog"));
+}
+
 /** Merge remote rows; local wins when ids collide. */
 export function mergeActionLog(remote: CoachActionLog[]): CoachActionLog[] {
   const local = listActionLog();

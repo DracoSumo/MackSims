@@ -40,14 +40,30 @@ export async function getCurrentUser(): Promise<User | null> {
   return data.user ?? null;
 }
 
+/**
+ * Complete the OAuth redirect. Prefer an already-established session (idempotent
+ * remount / accidental double-call). Otherwise exchange the one-time `code`.
+ * Returns an error message, or null on success.
+ */
 export async function exchangeAuthCallbackCode(): Promise<string | null> {
   const supabase = getSupabaseClient();
   if (!supabase) return "Supabase is not configured.";
+
+  const existing = await supabase.auth.getSession();
+  if (existing.data.session) {
+    return null;
+  }
 
   const params = new URLSearchParams(window.location.search);
   const code = params.get("code");
   if (!code) return "Missing OAuth code.";
 
   const { error } = await supabase.auth.exchangeCodeForSession(code);
-  return error?.message ?? null;
+  if (error) {
+    // Race: another caller may have finished the exchange between getSession and here.
+    const retry = await supabase.auth.getSession();
+    if (retry.data.session) return null;
+    return error.message;
+  }
+  return null;
 }
