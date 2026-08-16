@@ -21,11 +21,9 @@ export default function AuthCallbackPage() {
       }
       const user = await getCurrentUser();
       if (user) {
-        const syncErr = await mergeOnSignIn(user);
-        if (syncErr) {
-          setError(syncErr);
-          return;
-        }
+        // Sync/RLS failures are advisory — never fail an established OAuth session.
+        // coach_profiles / check-ins have RLS enabled with no owner policies yet.
+        await mergeOnSignIn(user);
       }
       router.replace("/app");
     });
