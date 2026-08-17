@@ -4186,7 +4186,10 @@ ${url}`).catch(() => {});
         }
         if (tripsRes.data?.length) {
           const privateByTrip = Object.fromEntries((privateDetailsRes.data || []).map((d) => [d.trip_id, d.private_location]));
-          state.trips = tripsRes.data.map((t) => ({
+          // Remote wins for shared ids, but keep local-only trips (incl. meetup pins)
+          // that failed live upsert and have not reached shared data yet. A hard replace
+          // here permanently wiped those rows via save()/localStorage after pull.
+          const remoteTrips = tripsRes.data.map((t) => ({
             id: t.id,
             title: t.title,
             type: t.trip_type || 'Boat',
@@ -4210,6 +4213,7 @@ ${url}`).catch(() => {});
             members: [],
             createdAt: t.created_at || now()
           }));
+          state.trips = preferRemoteKeepLocalOnly(state.trips, remoteTrips);
         }
         if (membersRes.data?.length) {
           const memberMap = {};
@@ -4220,7 +4224,8 @@ ${url}`).catch(() => {});
           state.trips.forEach((t) => { t.members = memberMap[t.id] || (t.hostId ? [t.hostId] : []); });
         }
         if (requestsRes.data?.length) {
-          state.requests = requestsRes.data.map((r) => ({ id: r.id, tripId: r.trip_id, userId: r.requester_id, userName: r.requester_name || state.users.find((u) => u.id === r.requester_id)?.name || 'FishCrew user', message: r.message || '', status: r.status || 'Pending', createdAt: r.created_at || now() }));
+          const remoteRequests = requestsRes.data.map((r) => ({ id: r.id, tripId: r.trip_id, userId: r.requester_id, userName: r.requester_name || state.users.find((u) => u.id === r.requester_id)?.name || 'FishCrew user', message: r.message || '', status: r.status || 'Pending', createdAt: r.created_at || now() }));
+          state.requests = preferRemoteKeepLocalOnly(state.requests, remoteRequests);
         }
         if (messagesRes.data?.length) {
           state.messages = {};
@@ -4230,7 +4235,8 @@ ${url}`).catch(() => {});
           });
         }
         if (Array.isArray(feedRes.data) && feedRes.data.length) {
-          state.feed = feedRes.data.map((p) => ({ id: p.id, type: p.post_type || 'Catch Log', title: p.title, area: p.area || 'Local water', authorId: p.author_id, authorName: p.author_name || state.users.find((u) => u.id === p.author_id)?.name || 'FishCrew user', body: p.body || '', media: p.media_url || '', mediaType: p.media_type || 'emoji', artKind: p.media_url ? '' : 'catch', reactions: Number(p.reactions || 0), status: p.status || 'Live', createdAt: p.created_at || now() }));
+          const remoteFeed = feedRes.data.map((p) => ({ id: p.id, type: p.post_type || 'Catch Log', title: p.title, area: p.area || 'Local water', authorId: p.author_id, authorName: p.author_name || state.users.find((u) => u.id === p.author_id)?.name || 'FishCrew user', body: p.body || '', media: p.media_url || '', mediaType: p.media_type || 'emoji', artKind: p.media_url ? '' : 'catch', reactions: Number(p.reactions || 0), status: p.status || 'Live', createdAt: p.created_at || now() }));
+          state.feed = preferRemoteKeepLocalOnly(state.feed, remoteFeed);
         }
         if (Array.isArray(mediaRes.data)) {
           state.mediaAssets = mediaRes.data.map((a) => ({ id: a.id, ownerId: a.owner_id || '', sourceId: a.source_id || '', sourceType: a.source_type || 'feed', mediaType: a.media_type || 'file', storagePath: a.storage_path || '', publicUrl: a.public_url || '', status: a.moderation_status || a.status || 'Review', visibility: a.visibility || 'public', createdAt: a.created_at || now() }));
@@ -4267,7 +4273,8 @@ ${url}`).catch(() => {});
           state.businesses = businessesRes.data.map((b) => ({ id: b.id, ownerId: b.owner_id || '', name: b.name, kind: b.business_type || 'Business', area: b.area || 'Local', status: b.status || 'Lead', leads: Number(b.lead_count || 0), revenue: Math.round(Number(b.revenue_cents || 0) / 100), campaign: b.campaign || 'Local placement' }));
         }
         if (bookingsRes.data?.length) {
-          state.bookings = bookingsRes.data.map((b) => ({ id: b.id, businessId: b.business_id, customerId: b.customer_id || null, customerName: b.customer_name, kind: b.booking_type || 'Inquiry', status: b.status || 'New', date: b.date_label || 'TBD', value: Math.round(Number(b.value_cents || 0) / 100), notes: b.notes || '' }));
+          const remoteBookings = bookingsRes.data.map((b) => ({ id: b.id, businessId: b.business_id, customerId: b.customer_id || null, customerName: b.customer_name, kind: b.booking_type || 'Inquiry', status: b.status || 'New', date: b.date_label || 'TBD', value: Math.round(Number(b.value_cents || 0) / 100), notes: b.notes || '' }));
+          state.bookings = preferRemoteKeepLocalOnly(state.bookings, remoteBookings);
         }
         await fetchNotifications();
         if (generation !== pullGeneration) return;
@@ -4591,6 +4598,16 @@ ${url}`).catch(() => {});
     const map = new Map((existing || []).map((item) => [item.id, item]));
     (incoming || []).forEach((item) => { if (!map.has(item.id)) map.set(item.id, item); });
     return Array.from(map.values());
+  }
+
+  // Live pull: remote rows win for shared ids; retain local-only rows whose ids
+  // never made it to shared data (failed afterLocalWrite upsert). Distinct from
+  // mergeById, which prefers the local copy on conflict.
+  function preferRemoteKeepLocalOnly(localRows, remoteRows) {
+    const remote = Array.isArray(remoteRows) ? remoteRows : [];
+    const remoteIds = new Set(remote.map((row) => row?.id).filter(Boolean));
+    const localOnly = (localRows || []).filter((row) => row?.id && !remoteIds.has(row.id));
+    return [...remote, ...localOnly];
   }
 
   function exportData() {
