@@ -1251,11 +1251,27 @@
       </section>`;
   }
 
+  function isTripCrewMember(trip, user = currentUser()) {
+    if (!trip || !user) return false;
+    return trip.hostId === user.id || Boolean(trip.members?.includes(user.id)) || isAdmin();
+  }
+
+  function scrubCrewChatLocalState() {
+    // Crew chat often carries meetup pins. Clear local copies on logout /
+    // account switch so the next browser session cannot read them from
+    // Crew → Chat while the private meetup line still says "Locked".
+    state.messages = {};
+    state.activeTripId = '';
+    if (state.crewPanel === 'chat') state.crewPanel = 'upcoming';
+  }
+
   function renderCrew() {
     const user = currentUser();
-    const visibleTrips = user ? state.trips.filter((t) => t.hostId === user.id || t.members?.includes(user.id) || isAdmin()) : state.trips.slice(0, 1);
+    const visibleTrips = user ? state.trips.filter((t) => isTripCrewMember(t, user)) : state.trips.slice(0, 1);
     const reqs = user ? state.requests.filter((r) => isAdmin() || state.trips.some((t) => t.id === r.tripId && t.hostId === user.id) || r.userId === user.id) : [];
-    const trip = state.trips.find((t) => t.id === state.activeTripId) || visibleTrips[0] || state.trips[0];
+    const active = state.trips.find((t) => t.id === state.activeTripId);
+    // Chat (and private meetup) must never select a trip the viewer cannot access.
+    const trip = (active && isTripCrewMember(active, user) ? active : null) || visibleTrips[0] || null;
     $('#screen-crew').innerHTML = `
       <section class="section" aria-labelledby="crewTitle">
         <span class="eyebrow">Crew</span>
@@ -1279,12 +1295,15 @@
     }
     if (state.crewPanel === 'chat') {
       if (!trip) return `<div class="empty">No active trip selected.</div>`;
-      const messages = state.messages[trip.id] || [];
-      const member = currentUser() && (trip.members?.includes(currentUser().id) || trip.hostId === currentUser().id || isAdmin());
+      const member = isTripCrewMember(trip);
+      const messages = member ? (state.messages[trip.id] || []) : [];
+      const chatLog = member
+        ? `<div class="chat-log">${messages.map((m) => `<div class="bubble ${currentUser()?.id === m.senderId ? 'mine' : ''}"><strong>${safe(m.senderName)}</strong>${safe(m.body)}</div>`).join('')}</div>`
+        : `<div class="safe-note mt"><strong>Crew chat locked:</strong> Messages stay private until the host approves you.</div>`;
       const chatComposer = member
         ? `<div class="chat-form"><input id="chatInput" name="chat-message" class="field" autocomplete="off" enterkeyhint="send" placeholder="Message the crew" /><button class="btn primary" type="button" data-action="send-chat" data-trip-id="${safe(trip.id)}">Send</button></div>`
         : `<div class="safe-note mt"><strong>Sign in required:</strong> Crew chat unlocks after approval.</div><div class="row mt"><button class="btn primary" type="button" data-action="open-auth-signin">Sign in to message</button></div>`;
-      return `<div class="panel"><div class="row"><span class="badge">${safe(trip.title)}</span><span class="chip">${safe(trip.area)}</span></div><p class="muted"><strong>Private meetup:</strong> ${member ? safe(trip.privateLocation) : 'Locked until approval.'}</p><div class="chat-log">${messages.map((m) => `<div class="bubble ${currentUser()?.id === m.senderId ? 'mine' : ''}"><strong>${safe(m.senderName)}</strong>${safe(m.body)}</div>`).join('')}</div>${chatComposer}</div>`;
+      return `<div class="panel"><div class="row"><span class="badge">${safe(trip.title)}</span><span class="chip">${safe(trip.area)}</span></div><p class="muted"><strong>Private meetup:</strong> ${member ? safe(trip.privateLocation) : 'Locked until approval.'}</p>${chatLog}${chatComposer}</div>`;
     }
     return `<div class="grid cards">${visibleTrips.map((t) => tripCard(t)).join('') || `<div class="empty">You have no active crew trips yet. Find one in Explore or post your own.${postTripCta('Post a trip')}</div>`}</div>`;
   }
@@ -3004,6 +3023,7 @@
       if (prevUserId && prevUserId !== user.id) {
         state.notifications = [];
         state.notificationsFetchError = '';
+        scrubCrewChatLocalState();
       }
       save(); render();
     }
@@ -3058,6 +3078,7 @@
     state.notifications = [];
     state.notificationsLoading = false;
     state.notificationsFetchError = '';
+    scrubCrewChatLocalState();
     authTab = 'signin';
     authBusy = false;
     state.opsLog.unshift('User logged out.');
@@ -3786,8 +3807,7 @@
     const trip = state.trips.find((t) => t.id === tripId);
     const user = currentUser();
     if (!trip) return;
-    const allowed = trip.members?.includes(user.id) || trip.hostId === user.id || isAdmin();
-    if (!allowed) return toast('You need host approval before chatting.', 'danger');
+    if (!isTripCrewMember(trip, user)) return toast('You need host approval before chatting.', 'danger');
     const input = $('#chatInput');
     const body = input?.value.trim();
     if (!body) return toast('Type a message first.', 'danger');
@@ -3803,7 +3823,7 @@
     const trip = state.trips.find((t) => t.id === tripId);
     if (!trip) return;
     const user = currentUser();
-    const unlocked = user && (trip.members?.includes(user.id) || trip.hostId === user.id || isAdmin());
+    const unlocked = isTripCrewMember(trip, user);
     modal(`
       <div class="modal-head"><div><span class="eyebrow">Trip details</span><h2>${safe(trip.title)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       ${mediaBlock(trip, trip.type === 'Pier' ? 'pier' : 'boat')}
@@ -3815,6 +3835,15 @@
   }
 
   function openTripChat(tripId) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!isTripCrewMember(trip)) {
+      closeModal();
+      state.crewPanel = 'chat';
+      state.activeTripId = '';
+      save();
+      nav('crew');
+      return toast('Crew chat unlocks after the host approves you.', 'danger');
+    }
     state.activeTripId = tripId;
     state.crewPanel = 'chat';
     closeModal(); save(); nav('crew');
