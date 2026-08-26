@@ -3626,6 +3626,32 @@
       </div>`);
   }
 
+  // SECURITY: completion recaps are INSERT'd as Live feed_posts (world-readable).
+  // Trip media is crew-scoped (visibility='crew') and the host may still hold a
+  // pending Review URL in local state while trip_posts.media_url stays stripped.
+  // Copying trip.media onto a Live recap published unreviewed / crew-only bytes
+  // past moderation. Text-only recap; hosts post public photos via saveFeedPost.
+  function buildTripCompletionRecap(trip, user, options = {}) {
+    const id = options.id || uid('feed');
+    const createdAt = options.createdAt || now();
+    return {
+      id,
+      type: 'Crew Recap',
+      title: `Completed: ${trip.title}`,
+      area: trip.area,
+      authorId: user.id,
+      authorName: user.name,
+      body: `Trip wrapped. ${trip.species} ${MID} ${trip.score} window ${MID} ${trip.publicLocation}.`,
+      media: '',
+      mediaType: '',
+      artKind: trip.artKind || 'catch',
+      reactions: 0,
+      status: 'Live',
+      tripId: trip.id,
+      createdAt
+    };
+  }
+
   async function completeTrip(tripId) {
     const trip = state.trips.find((t) => t.id === tripId);
     if (!trip) return;
@@ -3634,22 +3660,7 @@
     trip.status = 'Completed';
     trip.completedAt = now();
     const user = currentUser();
-    const recap = {
-      id: uid('feed'),
-      type: 'Crew Recap',
-      title: `Completed: ${trip.title}`,
-      area: trip.area,
-      authorId: user.id,
-      authorName: user.name,
-      body: `Trip wrapped. ${trip.species} ${MID} ${trip.score} window ${MID} ${trip.publicLocation}.`,
-      media: trip.media || '',
-      mediaType: trip.mediaType || '',
-      artKind: trip.artKind || 'catch',
-      reactions: 0,
-      status: 'Live',
-      tripId: trip.id,
-      createdAt: now()
-    };
+    const recap = buildTripCompletionRecap(trip, user);
     state.feed.unshift(recap);
     state.messages[trip.id] = state.messages[trip.id] || [];
     state.messages[trip.id].push({ id: uid('msg'), senderId: 'system', senderName: 'FishCrew', body: 'Trip marked complete. Recap posted to the bite board.', createdAt: now() });
