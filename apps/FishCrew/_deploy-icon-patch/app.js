@@ -4264,7 +4264,9 @@ ${url}`).catch(() => {});
           state.reports = reportsRes.data.map((r) => ({ id: r.id, type: r.item_type || 'Review', target: r.feed_post_id || r.id, status: r.status || 'Open', severity: r.severity || 'Low', note: r.title || 'Moderation item', reporterId: r.reporter_id || '', createdAt: r.created_at || now() }));
         }
         if (businessesRes.data?.length) {
-          state.businesses = businessesRes.data.map((b) => ({ id: b.id, ownerId: b.owner_id || '', name: b.name, kind: b.business_type || 'Business', area: b.area || 'Local', status: b.status || 'Lead', leads: Number(b.lead_count || 0), revenue: Math.round(Number(b.revenue_cents || 0) / 100), campaign: b.campaign || 'Local placement' }));
+          const remoteBusinesses = businessesRes.data.map((b) => ({ id: b.id, ownerId: b.owner_id || '', name: b.name, kind: b.business_type || 'Business', area: b.area || 'Local', status: b.status || 'Lead', leads: Number(b.lead_count || 0), revenue: Math.round(Number(b.revenue_cents || 0) / 100), campaign: b.campaign || 'Local placement' }));
+          // Keep partner listings that never reached shared data (failed afterLocalWrite upsert).
+          state.businesses = preferRemoteKeepLocalOnly(state.businesses, remoteBusinesses);
         }
         if (bookingsRes.data?.length) {
           state.bookings = bookingsRes.data.map((b) => ({ id: b.id, businessId: b.business_id, customerId: b.customer_id || null, customerName: b.customer_name, kind: b.booking_type || 'Inquiry', status: b.status || 'New', date: b.date_label || 'TBD', value: Math.round(Number(b.value_cents || 0) / 100), notes: b.notes || '' }));
@@ -4591,6 +4593,16 @@ ${url}`).catch(() => {});
     const map = new Map((existing || []).map((item) => [item.id, item]));
     (incoming || []).forEach((item) => { if (!map.has(item.id)) map.set(item.id, item); });
     return Array.from(map.values());
+  }
+
+  // Live pull: remote rows win for shared ids; retain local-only rows whose ids
+  // never made it to shared data (failed afterLocalWrite upsert). Distinct from
+  // mergeById, which prefers the local copy on conflict.
+  function preferRemoteKeepLocalOnly(localRows, remoteRows) {
+    const remote = Array.isArray(remoteRows) ? remoteRows : [];
+    const remoteIds = new Set(remote.map((row) => row?.id).filter(Boolean));
+    const localOnly = (localRows || []).filter((row) => row?.id && !remoteIds.has(row.id));
+    return [...remote, ...localOnly];
   }
 
   function exportData() {
