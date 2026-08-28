@@ -21,7 +21,8 @@ create table if not exists public.crew_members (
   user_id uuid not null,
   role text not null check (role in ('owner', 'admin', 'member')),
   display_name text not null default '',
-  status text not null default 'active' check (status in ('active', 'left')),
+  -- 'invited' = admin nominated; not yet accepted. Location/helpers require 'active'.
+  status text not null default 'active' check (status in ('active', 'left', 'invited')),
   joined_at timestamptz not null default now(),
   unique (crew_id, user_id)
 );
@@ -162,6 +163,9 @@ drop policy if exists "crew_members select" on public.crew_members;
 create policy "crew_members select" on public.crew_members for select to authenticated
   using (private.motocrew_is_crew_member(crew_id) or user_id = (select auth.uid()));
 
+-- Admin may nominate other users, but trg_motocrew_guard_crew_member_invite
+-- (20260828120000_crew_invite_accept_location.sql) forces status='invited' for
+-- cross-user inserts so location mutual-crew SELECT cannot be force-opened.
 drop policy if exists "crew_members insert self or admin" on public.crew_members;
 create policy "crew_members insert self or admin" on public.crew_members for insert to authenticated
   with check (
