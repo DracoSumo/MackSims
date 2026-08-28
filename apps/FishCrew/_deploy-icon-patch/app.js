@@ -3009,9 +3009,11 @@
     }
     if (syncProfile && persistSession && supabaseClient) {
       try {
+        // Never write email into profiles — column is not client-selectable
+        // (PII leak via anon key). Username login resolves via SECURITY DEFINER
+        // RPC against auth.users / legacy profiles.email.
         const profileRow = () => ({
           id: user.id,
-          email: user.email,
           username: user.username,
           full_name: user.name,
           bio: user.bio,
@@ -3436,7 +3438,6 @@
         try {
           const profilePayload = {
             id: user.id,
-            email: user.email,
             username: user.username,
             full_name: user.name,
             bio: user.bio,
@@ -4118,7 +4119,7 @@ ${url}`).catch(() => {});
     if (!(await canWriteLive())) return toast('Sign in with a connected account before pushing shared data.', 'danger');
     try {
       const user = currentUser();
-      if (user) await liveUpsert('profiles', { id: user.id, email: user.email, username: user.username, full_name: user.name, bio: user.bio, fishing_styles: user.fishingStyles, profile_theme: user.profileTheme, role: user.role, home_area: user.area, avatar_url: user.avatar, updated_at: now() }, 'profile');
+      if (user) await liveUpsert('profiles', { id: user.id, username: user.username, full_name: user.name, bio: user.bio, fishing_styles: user.fishingStyles, profile_theme: user.profileTheme, role: user.role, home_area: user.area, avatar_url: user.avatar, updated_at: now() }, 'profile');
       for (const trip of state.trips) {
         await liveUpsert('trip_posts', tripRow(trip), 'trip');
         await liveUpsert('trip_private_details', tripPrivateRow(trip), 'private meetup details');
