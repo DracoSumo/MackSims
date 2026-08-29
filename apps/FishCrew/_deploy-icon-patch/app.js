@@ -1758,12 +1758,18 @@
 
   function openBookingForm(businessId = '') {
     if (!requireBusiness('Business, captain, or operator access required to manage booking leads.')) return;
+    const user = currentUser();
+    // Tenancy: captains/partners may only capture leads against their own listings.
+    // Operators may manage any listing. RLS also enforces owner tenancy server-side.
+    const listings = (state.businesses || []).filter((b) => isAdmin() || b.ownerId === user?.id);
+    if (!listings.length) return toast('Add your own business listing before capturing leads.', 'danger');
+    const selectedId = listings.some((b) => b.id === businessId) ? businessId : listings[0].id;
     modal(`
       <div class="modal-head"><div><span class="eyebrow">Booking</span><h2>Capture the lead.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       <div class="forms">
         <label class="label">Customer name<input id="bookCustomer" name="customer-name" class="field" autocomplete="name" placeholder="New lead" /></label>
         <div class="form-grid"><label class="label">Type<select id="bookKind" class="select"><option>Charter inquiry</option><option>Cruise inquiry</option><option>Tackle shop deal</option><option>Guide inquiry</option></select></label><label class="label">Date/time<input id="bookDate" name="booking-date" class="field" autocomplete="off" placeholder="Saturday morning" /></label></div>
-        <label class="label">Business<select id="bookBusiness" class="select">${state.businesses.map((b)=>`<option value="${safe(b.id)}" ${businessId===b.id?'selected':''}>${safe(b.name)}</option>`).join('')}</select></label>
+        <label class="label">Business<select id="bookBusiness" class="select">${listings.map((b)=>`<option value="${safe(b.id)}" ${selectedId===b.id?'selected':''}>${safe(b.name)}</option>`).join('')}</select></label>
         <label class="label">Value<input id="bookValue" name="booking-value" class="field" type="number" inputmode="decimal" autocomplete="off" min="0" value="150" /></label>
         <label class="label">Notes<textarea id="bookNotes" name="booking-notes" class="field" autocomplete="off" placeholder="What does the customer want?"></textarea></label>
         <button class="btn primary full" type="button" data-action="save-booking">Save booking lead</button>
@@ -3130,7 +3136,12 @@
   }
 
   function businessRow(b) {
-    return { id: b.id, owner_id: b.ownerId || null, name: b.name, business_type: b.kind, area: b.area, status: b.status || 'Lead', lead_count: Number(b.leads || 0), revenue_cents: Math.round(Number(b.revenue || 0) * 100), campaign: b.campaign || '' };
+    // SECURITY: Verified is operator-only. Client isAdmin() is not enough —
+    // businesses_guard_verified_status enforces the same rule server-side.
+    const status = !isAdmin() && String(b.status || '') === 'Verified'
+      ? 'Pending review'
+      : (b.status || 'Lead');
+    return { id: b.id, owner_id: b.ownerId || null, name: b.name, business_type: b.kind, area: b.area, status, lead_count: Number(b.leads || 0), revenue_cents: Math.round(Number(b.revenue || 0) * 100), campaign: b.campaign || '' };
   }
 
   function bookingRow(b) {
@@ -3595,16 +3606,20 @@
 
   async function saveBooking() {
     if (!requireBusiness()) return;
-    const bizId = $('#bookBusiness')?.value || state.businesses[0]?.id || '';
-    const booking = { id: uid('book'), businessId: bizId, customerId: currentUser()?.id || null, customerName: $('#bookCustomer')?.value.trim() || 'New customer', kind: $('#bookKind')?.value || 'Charter inquiry', status: 'New', date: $('#bookDate')?.value.trim() || 'TBD', value: Number($('#bookValue')?.value || 0), notes: $('#bookNotes')?.value.trim() || 'No notes yet.' };
+    const user = currentUser();
+    const owned = (state.businesses || []).filter((b) => isAdmin() || b.ownerId === user?.id);
+    const bizId = $('#bookBusiness')?.value || owned[0]?.id || '';
+    const biz = owned.find((b) => b.id === bizId) || state.businesses.find((b) => b.id === bizId);
+    if (!bizId || !biz) return toast('Select one of your business listings.', 'danger');
+    if (!isAdmin() && biz.ownerId !== user.id) return toast('That listing belongs to another partner.', 'danger');
+    const booking = { id: uid('book'), businessId: bizId, customerId: user?.id || null, customerName: $('#bookCustomer')?.value.trim() || 'New customer', kind: $('#bookKind')?.value || 'Charter inquiry', status: 'New', date: $('#bookDate')?.value.trim() || 'TBD', value: Number($('#bookValue')?.value || 0), notes: $('#bookNotes')?.value.trim() || 'No notes yet.' };
     state.bookings.unshift(booking);
-    const biz = state.businesses.find((b) => b.id === bizId);
-    if (biz) { biz.leads = Number(biz.leads || 0) + 1; }
+    biz.leads = Number(biz.leads || 0) + 1;
     state.opsLog.unshift(`Booking lead captured: ${booking.customerName} ${MID} ${booking.kind}.`);
     closeModal();
     await afterLocalWrite('Booking lead', async () => {
       await liveUpsert('bookings', bookingRow(booking), 'booking');
-      if (biz) await liveUpdate('businesses', { lead_count: Number(biz.leads || 0) }, 'id', biz.id, 'business lead count');
+      await liveUpdate('businesses', { lead_count: Number(biz.leads || 0) }, 'id', biz.id, 'business lead count');
       return true;
     });
     toast('Booking lead saved.');
