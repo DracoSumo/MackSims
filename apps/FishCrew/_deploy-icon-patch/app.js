@@ -3130,7 +3130,12 @@
   }
 
   function businessRow(b) {
-    return { id: b.id, owner_id: b.ownerId || null, name: b.name, business_type: b.kind, area: b.area, status: b.status || 'Lead', lead_count: Number(b.leads || 0), revenue_cents: Math.round(Number(b.revenue || 0) * 100), campaign: b.campaign || '' };
+    // SECURITY: Verified is operator-only. Client isAdmin() is not enough —
+    // businesses_guard_verified_status enforces the same rule server-side.
+    const status = !isAdmin() && String(b.status || '') === 'Verified'
+      ? 'Pending review'
+      : (b.status || 'Lead');
+    return { id: b.id, owner_id: b.ownerId || null, name: b.name, business_type: b.kind, area: b.area, status, lead_count: Number(b.leads || 0), revenue_cents: Math.round(Number(b.revenue || 0) * 100), campaign: b.campaign || '' };
   }
 
   function bookingRow(b) {
