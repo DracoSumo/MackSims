@@ -14,8 +14,8 @@ _archive/
 *.ipa
 *.aab
 *.apk
-ios/
-android/
+# ios/
+# android/
 apps/FishCrew/*
 !apps/FishCrew/_deploy-icon-patch/
 !apps/FishCrew/_deploy-icon-patch/**

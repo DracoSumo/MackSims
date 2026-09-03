@@ -1,0 +1,60 @@
+# PrimFit — Android Release via Codemagic
+# v0.3.2 — marketing version from package.json.
+
+workflows:
+  primfit-android-release:
+    name: PrimFit Android Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      android_signing:
+        - primfit-key
+      groups:
+        - keystore_credentials
+      vars:
+        PACKAGE_NAME: "com.macksims.primfit"
+      node: 22
+      java: 21
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+      cancel_previous_builds: true
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+      - name: Build Next.js app
+        script: npm run build
+      - name: Sync Capacitor
+        script: npx cap sync android
+      - name: Set Android version from package.json
+        script: |
+          #!/bin/bash
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          # Remove dots for version code (e.g., 0.3.2 -> 32)
+          VERSION_CODE=$(echo $VERSION | sed 's/\.//g' | sed 's/^0*//')
+          
+          cd android/app
+          # Update build.gradle using sed (BSD/macOS compatible)
+          sed -i '' "s/versionCode [0-9]*/versionCode $VERSION_CODE/" build.gradle
+          sed -i '' "s/versionName \".*\"/versionName \"$VERSION\"/" build.gradle
+          echo "Android Version: $VERSION ($VERSION_CODE)"
+      - name: Build Android AAB
+        script: |
+          set -e
+          cd android
+          # CM_KEYSTORE_PATH is provided by Codemagic when using the android_signing block
+          ./gradlew bundleRelease \
+            -Pandroid.injected.signing.store.file="$CM_KEYSTORE_PATH" \
+            -Pandroid.injected.signing.store.password="$CM_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$CM_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$CM_KEY_PASSWORD"
+    artifacts:
+      - android/app/build/outputs/bundle/release/*.aab
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com

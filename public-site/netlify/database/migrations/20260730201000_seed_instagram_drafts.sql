@@ -1,0 +1,179 @@
+WITH inserted AS (
+  INSERT INTO instagram_publish_queue (
+    id,
+    state,
+    scheduled_at,
+    caption,
+    content_type,
+    media,
+    idempotency_key
+  )
+  VALUES (
+    'ms-ig-001-welcome',
+    'draft',
+    '2026-08-04T19:00:00.000Z',
+    $caption$Welcome to MackSims.
+
+We build focused, real-world software for communities already in motion — anglers, photographers, riders, coaches, ministry teams, creators, researchers, and local operators.
+
+One app per workflow. Clear status. Direct support.
+
+Follow to see what ships next.
+
+#MackSims #ProductStudio #SoftwareDevelopment$caption$,
+    'CAROUSEL',
+    jsonb_build_array(
+      jsonb_build_object(
+        'url', 'https://www.macksims.com/social/instagram/welcome/01-brand-tile.jpg',
+        'altText', 'Dark purple-and-black MackSims brand tile with the gold MS monogram. Text reads: “Welcome to MackSims. Real-world software for communities already in motion.”',
+        'mediaType', 'IMAGE'
+      ),
+      jsonb_build_object(
+        'url', 'https://www.macksims.com/social/instagram/welcome/02-what-we-do.jpg',
+        'altText', 'MackSims slide with the heading “One app per workflow. Clear status. Direct support.” A card says the studio builds focused tools and uses honest beta labels.',
+        'mediaType', 'IMAGE'
+      ),
+      jsonb_build_object(
+        'url', 'https://www.macksims.com/social/instagram/welcome/03-follow.jpg',
+        'altText', 'MackSims slide reading “Useful software. Clear expectations. Real feedback. Follow to see what ships next.”',
+        'mediaType', 'IMAGE'
+      )
+    ),
+    'ms-ig-001-welcome-carousel-postqa-v2'
+  )
+  ON CONFLICT (idempotency_key) DO NOTHING
+  RETURNING id
+)
+INSERT INTO instagram_publish_audit (queue_id, action, from_state, to_state, actor, details)
+SELECT id, 'created', NULL, 'draft', 'seed-migration', '{"source":"approved-launch-assets"}'::jsonb
+FROM inserted;
+
+WITH inserted AS (
+  INSERT INTO instagram_publish_queue (
+    id,
+    state,
+    scheduled_at,
+    caption,
+    content_type,
+    media,
+    idempotency_key
+  )
+  VALUES (
+    'ms-ig-004-lineup',
+    'draft',
+    '2026-08-11T19:00:00.000Z',
+    $caption$Meet the MackSims lineup: nine focused products for nine real workflows.
+
+FishCrew, ShutterBid, CurbCue, MotoCrew, CoachCore, Sermon Studio, MomentPick, and Content Suite are labeled external beta. Aegis Intel is labeled early access.
+
+These are active demos and testing paths — not a claim that every product is publicly released or production-ready.
+
+Which would you try first?
+
+#MackSims #AppDevelopment #BetaTesting #ProductDesign$caption$,
+    'CAROUSEL',
+    jsonb_build_array(
+      jsonb_build_object(
+        'url', 'https://www.macksims.com/social/instagram/lineup/01-cover.jpg',
+        'altText', 'MackSims carousel cover reading “Meet the MackSims lineup. Nine focused products. One studio. Clear status on every app.”',
+        'mediaType', 'IMAGE'
+      ),
+      jsonb_build_object(
+        'url', 'https://www.macksims.com/social/instagram/lineup/02-fishcrew-shutterbid.jpg',
+        'altText', 'Two product cards: FishCrew for anglers and fishing crews, and ShutterBid for photographers and clients. Both are labeled External beta.',
+        'mediaType', 'IMAGE'
+      ),
+      jsonb_build_object(
+        'url', 'https://www.macksims.com/social/instagram/lineup/03-curbcue-motocrew.jpg',
+        'altText', 'Two product cards: CurbCue for riders and local transport, and MotoCrew for motorcycle communities. Both are labeled External beta.',
+        'mediaType', 'IMAGE'
+      ),
+      jsonb_build_object(
+        'url', 'https://www.macksims.com/social/instagram/lineup/04-coachcore-sermon-studio.jpg',
+        'altText', 'Two product cards: CoachCore for coaches and athletic teams, and Sermon Studio for churches and ministry teams. Both are labeled External beta.',
+        'mediaType', 'IMAGE'
+      ),
+      jsonb_build_object(
+        'url', 'https://www.macksims.com/social/instagram/lineup/05-aegis-intel-momentpick.jpg',
+        'altText', 'Two product cards: Aegis Intel for research and market data, labeled Early access, and MomentPick for everyday creators, labeled External beta.',
+        'mediaType', 'IMAGE'
+      ),
+      jsonb_build_object(
+        'url', 'https://www.macksims.com/social/instagram/lineup/06-content-suite.jpg',
+        'altText', 'Content Suite product card for creators and operators, labeled External beta. A note says web demos and testing paths are available and public production release is not implied.',
+        'mediaType', 'IMAGE'
+      ),
+      jsonb_build_object(
+        'url', 'https://www.macksims.com/social/instagram/lineup/07-question.jpg',
+        'altText', 'Closing slide asks “Which would you try first?” and lists all nine products.',
+        'mediaType', 'IMAGE'
+      )
+    ),
+    'ms-ig-004-lineup-carousel-postqa-v1'
+  )
+  ON CONFLICT (idempotency_key) DO NOTHING
+  RETURNING id
+)
+INSERT INTO instagram_publish_audit (queue_id, action, from_state, to_state, actor, details)
+SELECT id, 'created', NULL, 'draft', 'seed-migration', '{"source":"approved-launch-assets"}'::jsonb
+FROM inserted;
+
+WITH inserted AS (
+  INSERT INTO instagram_publish_queue (
+    id,
+    state,
+    scheduled_at,
+    caption,
+    content_type,
+    media,
+    idempotency_key
+  )
+  VALUES (
+    'ms-ig-009-help-shape-apps',
+    'draft',
+    '2026-08-20T16:30:00.000Z',
+    $caption$Help shape what MackSims builds next.
+
+External testing leads with FishCrew and ShutterBid, with CurbCue, MotoCrew, CoachCore, and Sermon Studio also accepting tester interest.
+
+Web demos are available now. TestFlight and Google Play closed-testing invites follow by product and availability, so joining the list does not guarantee immediate native access.
+
+Tap the link in bio, choose the apps you want to test, and tell us where the workflow needs work.
+
+#MackSims #BetaTesters #BuildInPublic #AppTesting$caption$,
+    'CAROUSEL',
+    jsonb_build_array(
+      jsonb_build_object(
+        'url', 'https://www.macksims.com/social/instagram/help-shape-apps/01-cover.jpg',
+        'altText', 'MackSims slide reading “Help shape the apps.” It says web demos are live today and native invites follow for selected apps.',
+        'mediaType', 'IMAGE'
+      ),
+      jsonb_build_object(
+        'url', 'https://www.macksims.com/social/instagram/help-shape-apps/02-fishcrew.jpg',
+        'altText', 'FishCrew card labeled External beta, followed by “Try the workflow. Find the friction. Tell us what would make it useful.”',
+        'mediaType', 'IMAGE'
+      ),
+      jsonb_build_object(
+        'url', 'https://www.macksims.com/social/instagram/help-shape-apps/03-shutterbid.jpg',
+        'altText', 'ShutterBid card labeled External beta, asking testers to evaluate jobs, bids, bookings, and marketplace clarity.',
+        'mediaType', 'IMAGE'
+      ),
+      jsonb_build_object(
+        'url', 'https://www.macksims.com/social/instagram/help-shape-apps/04-more-betas.jpg',
+        'altText', 'List of four additional external betas: CurbCue, MotoCrew, CoachCore, and Sermon Studio. A note says web demos are available now and native access is not guaranteed.',
+        'mediaType', 'IMAGE'
+      ),
+      jsonb_build_object(
+        'url', 'https://www.macksims.com/social/instagram/help-shape-apps/05-cta.jpg',
+        'altText', 'Closing slide reading “Pick the apps you want to test.” It explains that one signup covers web demos plus TestFlight and Google Play closed testing, with invites based on product and availability.',
+        'mediaType', 'IMAGE'
+      )
+    ),
+    'ms-ig-009-help-shape-apps-carousel-postqa-v1'
+  )
+  ON CONFLICT (idempotency_key) DO NOTHING
+  RETURNING id
+)
+INSERT INTO instagram_publish_audit (queue_id, action, from_state, to_state, actor, details)
+SELECT id, 'created', NULL, 'draft', 'seed-migration', '{"source":"approved-launch-assets"}'::jsonb
+FROM inserted;

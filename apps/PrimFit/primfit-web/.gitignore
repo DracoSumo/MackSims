@@ -1,0 +1,26 @@
+node_modules/
+.next/
+out/
+
+# Secrets
+*.jks
+.env*.local
+.env
+
+.netlify/
+
+# Capacitor / Android local build
+android/.gradle/
+android/.idea/
+android/app/build/
+android/build/
+android/local.properties
+android/captures/
+android/*.iml
+android/app/release/
+*.apk
+*.aab
+*.ap_
+
+# Capacitor / iOS
+ios/
