@@ -38,8 +38,9 @@ export default function PrivacyPage() {
           </p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>
-              <strong>Optional email</strong> on a pro intro request is saved on this device only. It is not sold
-              and is not emailed to a trainer until a later version connects a backend.
+              <strong>Optional email</strong> to remember you after onboarding, or on a pro intro request, is saved
+              on this device only. It is not sold and is not emailed to a trainer until a later version connects a
+              backend.
             </li>
             <li>
               <strong>Optional location</strong> is used only if you turn on location mode, to label a place (home /

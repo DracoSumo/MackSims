@@ -27,6 +27,62 @@ export function getMeasurableGoals(): MeasurableGoals {
 
 export function saveMeasurableGoals(goals: MeasurableGoals) {
   saveJson(GOALS_KEY, { ...goals, updatedAt: new Date().toISOString() });
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("primfit-goals"));
+}
+
+export type HuntStage = "empty" | "hunt" | "boss" | "clear";
+
+export type HuntItem = {
+  id: string;
+  label: string;
+  detail: string;
+  pct: number | null;
+};
+
+export function huntSnapshot(goals: MeasurableGoals): {
+  items: HuntItem[];
+  overall: number | null;
+  featured: HuntItem | null;
+  stage: HuntStage;
+} {
+  const items: HuntItem[] = [];
+  if (goals.weight && (goals.weight.current != null || goals.weight.target != null)) {
+    items.push({
+      id: "scale",
+      label: "Scale",
+      detail: weightCopy(goals.weight),
+      pct: progressPct(goals.weight.current, goals.weight.target, goals.weight.start),
+    });
+  }
+  for (const lift of goals.lifts) {
+    items.push({
+      id: `lift:${lift.liftId}`,
+      label: labelLift(lift.liftId),
+      detail: liftCopy(lift),
+      pct: liftProgressPct(lift),
+    });
+  }
+  for (const ch of goals.challenges) {
+    items.push({
+      id: `ch:${ch.id}`,
+      label: ch.name,
+      detail: challengeCountdown(ch),
+      pct: ch.completed ? 100 : null,
+    });
+  }
+  if (!items.length) {
+    return { items, overall: null, featured: null, stage: "empty" };
+  }
+  const scored = items.filter((i) => i.pct != null) as Array<HuntItem & { pct: number }>;
+  const overall = scored.length
+    ? Math.round(scored.reduce((sum, i) => sum + i.pct, 0) / scored.length)
+    : null;
+  const approaching = scored.filter((i) => i.pct < 100).sort((a, b) => b.pct - a.pct);
+  const featured = approaching[0] ?? scored.find((i) => i.pct >= 100) ?? items[0];
+  const peak = featured?.pct ?? overall;
+  const stage: HuntStage =
+    peak == null ? "hunt" : peak >= 100 ? "clear" : peak >= 80 ? "boss" : "hunt";
+  return { items, overall, featured, stage };
 }
 
 export function progressPct(current?: number, target?: number, start?: number): number | null {

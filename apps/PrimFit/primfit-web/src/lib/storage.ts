@@ -1,5 +1,6 @@
 import type {
   BudgetId,
+  DaysPerWeek,
   EquipmentId,
   FoodStapleId,
   IntroRequest,
@@ -8,6 +9,9 @@ import type {
   WeekPlan,
 } from "@/data/types";
 import { DEFAULT_EQUIPMENT, DEFAULT_FOOD } from "@/data/options";
+import { dietFlags, primaryDietary } from "@/lib/diet";
+import { profileAims } from "@/lib/aims";
+import { isDaysPerWeek, normalizeTrainingDays } from "@/lib/trainingDays";
 
 const PROFILE_KEY = "primfit.profile";
 const PLAN_KEY = "primfit.weekPlan";
@@ -44,13 +48,22 @@ function normalizeProfile(raw: UserProfile | null): UserProfile | null {
   const equipment = loadJson<EquipmentId[]>(EQUIPMENT_KEY, fromProfileEq);
   const foodInventory = loadJson<FoodStapleId[]>(FOOD_KEY, fromProfileFood);
   const budget = (raw.budget ?? loadJson<BudgetId>(BUDGET_KEY, "moderate")) as BudgetId;
+  const flags = dietFlags(raw);
+  const daysPerWeek: DaysPerWeek = isDaysPerWeek(raw.daysPerWeek) ? raw.daysPerWeek : 4;
+  const aims = profileAims(raw);
   return {
     ...raw,
+    goal: aims[0],
+    aims,
     displayName: raw.displayName?.trim() || "Athlete",
     equipment: equipment.length ? equipment : DEFAULT_EQUIPMENT,
     foodInventory: foodInventory.length ? foodInventory : DEFAULT_FOOD,
     locationMode: (raw.locationMode ?? "home") as TrainingLocationMode,
     budget: budget === "tight" || budget === "flexible" ? budget : "moderate",
+    daysPerWeek,
+    trainingDays: normalizeTrainingDays(raw.trainingDays, daysPerWeek),
+    dietaryFlags: flags,
+    dietary: primaryDietary(flags),
   };
 }
 
@@ -149,8 +162,13 @@ export function clearAllPrimFitData() {
     "primfit.activeTheme",
     "primfit.ownedPacks",
     "primfit.packReceipts",
+    "primfit.campaign",
     "primfit.dailyMetrics",
     "primfit.deviceWorkouts",
     "primfit.wearableSettings",
+    "primfit.accountHint",
+    "primfit.justOnboarded",
+    "primfit.loadLog",
+    "primfit.milestones",
   ].forEach((k) => localStorage.removeItem(k));
 }

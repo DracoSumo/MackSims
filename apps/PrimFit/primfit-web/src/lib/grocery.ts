@@ -6,8 +6,10 @@ import type {
   WeekDay,
 } from "@/data/types";
 import { GROCERY_CATALOG, budgetAllows } from "@/data/groceryCatalog";
-import { carbEmphasis, proteinTargetGPerKg } from "@/lib/prescriptions";
+import { catalogFitsDiet, dietFlags, hasDiet } from "@/lib/diet";
+import { carbEmphasis, goalLane, proteinTargetGPerKg } from "@/lib/prescriptions";
 import { nutritionCoachInsight } from "@/data/coachInfluences";
+import { profileAims, representativeGoal } from "@/lib/aims";
 
 const STAPLE_TO_CATALOG: Partial<Record<FoodStapleId, string>> = {
   chicken: "chicken-thighs",
@@ -36,10 +38,8 @@ const STAPLE_TO_CATALOG: Partial<Record<FoodStapleId, string>> = {
   cheese: "cheese",
 };
 
-function fitsDiet(item: { vegetarianOk: boolean; glutenFreeOk: boolean }, profile: UserProfile): boolean {
-  if (profile.dietary === "vegetarian" && !item.vegetarianOk) return false;
-  if (profile.dietary === "gluten-free" && !item.glutenFreeOk) return false;
-  return true;
+function fitsDiet(item: { id: string; name: string; category: string; vegetarianOk: boolean; glutenFreeOk: boolean }, profile: UserProfile): boolean {
+  return catalogFitsDiet(item, profile);
 }
 
 function inventoryCatalogIds(profile: UserProfile): Set<string> {
@@ -75,9 +75,10 @@ function hardDayCount(days: WeekDay[]): number {
 export function buildGroceryList(profile: UserProfile, days: WeekDay[]): GroceryItem[] {
   const budget: BudgetId = profile.budget ?? "moderate";
   const have = inventoryCatalogIds(profile);
-  const veg = profile.dietary === "vegetarian";
+  const veg = hasDiet(profile, "vegetarian") || hasDiet(profile, "vegan");
   const hardDays = hardDayCount(days);
-  const proteinCue = proteinTargetGPerKg(profile.goal);
+  const primary = representativeGoal(profileAims(profile));
+  const proteinCue = proteinTargetGPerKg(primary);
   const items: GroceryItem[] = [];
   const seen = new Set<string>();
 
@@ -106,7 +107,9 @@ export function buildGroceryList(profile: UserProfile, days: WeekDay[]): Grocery
 
     const wantProtein =
       food.tags.includes("protein-spread") &&
-      (profile.goal === "build-muscle" || profile.dietary === "high-protein" || profile.goal === "lose-fat");
+      (goalLane(primary) === "hypertrophy" ||
+        goalLane(primary) === "cut" ||
+        hasDiet(profile, "high-protein"));
     const wantProduce = food.tags.includes("produce-habit");
     const wantCarbs = food.tags.includes("hard-day-carb") && hardDays >= 2;
 
@@ -125,7 +128,7 @@ export function buildGroceryList(profile: UserProfile, days: WeekDay[]): Grocery
         toGrocery(
           food,
           "extra",
-          `${carbEmphasis(profile.goal, true)} You have about ${hardDays} harder sessions this week.`,
+          `${carbEmphasis(primary, true)} You have about ${hardDays} harder sessions this week.`,
         ),
       );
     }
@@ -152,8 +155,9 @@ export type BuiltMeal = {
 
 export function mealsFromInventory(profile: UserProfile): BuiltMeal[] {
   const inv = new Set(profile.foodInventory ?? []);
-  const veg = profile.dietary === "vegetarian";
-  const gf = profile.dietary === "gluten-free";
+  const flags = dietFlags(profile);
+  const veg = flags.includes("vegetarian") || flags.includes("vegan");
+  const gf = flags.includes("gluten-free");
   const budget = profile.budget ?? "moderate";
 
   const protein = veg
@@ -187,19 +191,20 @@ export function mealsFromInventory(profile: UserProfile): BuiltMeal[] {
     {
       name: hardDayTitle(profile),
       items: [p, carbs[1] ? label(carbs[1]) : c, v],
-      note: carbEmphasis(profile.goal, true),
+      note: carbEmphasis(representativeGoal(profileAims(profile)), true),
     },
   ];
 }
 
 function hardDayTitle(profile: UserProfile): string {
-  if (profile.goal === "lose-fat") return "Training-day plate (protein high, carbs near the session)";
-  if (profile.goal === "performance") return "Hard-day fuel plate";
+  const lane = goalLane(representativeGoal(profileAims(profile)));
+  if (lane === "cut") return "Training-day plate (protein high, carbs near the session)";
+  if (lane === "strength") return "Hard-day fuel plate";
   return "Bigger-carb training plate";
 }
 
 export function groceryScienceBlurb(profile: UserProfile, days: WeekDay[]): string {
   const hardDays = hardDayCount(days);
-  const band = proteinTargetGPerKg(profile.goal);
+  const band = proteinTargetGPerKg(representativeGoal(profileAims(profile)));
   return `Bigger on purpose: staples for new meals, cheaper swaps on a ${profile.budget ?? "moderate"} budget, extras for protein (~${band.min}–${band.max} g per kg a day) and carbs on about ${hardDays} harder days. Not medical advice.`;
 }

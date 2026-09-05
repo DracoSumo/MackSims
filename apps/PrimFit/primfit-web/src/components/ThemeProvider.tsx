@@ -23,6 +23,7 @@ type ThemeContextValue = {
   ready: boolean;
   buy: (id: ThemeId) => ThemeReceipt | null;
   equip: (id: ThemeId) => boolean;
+  preview: (id: ThemeId) => void;
   restore: () => void;
 };
 
@@ -35,6 +36,7 @@ const ThemeContext = createContext<ThemeContextValue>({
   ready: false,
   buy: () => null,
   equip: () => false,
+  preview: () => undefined,
   restore: () => undefined,
 });
 
@@ -76,6 +78,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           setTheme(id);
         }
         return ok;
+      },
+      preview: (id) => {
+        applyThemeToDocument(id);
+        setTheme(id);
       },
       restore: () => hydrate(),
     }),

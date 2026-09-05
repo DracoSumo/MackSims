@@ -2,7 +2,6 @@ import type {
   DayMeals,
   DayWorkout,
   EquipmentId,
-  FoodStapleId,
   MealItem,
   MovementCategory,
   SportId,
@@ -16,16 +15,25 @@ import { primfitConfig } from "@/config/primfit";
 import { COACH_INFLUENCES } from "@/data/coachInfluences";
 import { FORM_CUES } from "@/data/formCues";
 import { videoFor } from "@/data/videoLibrary";
+import { mealFamilyOf, pickExerciseOption, pickMealOption } from "@/data/alternatives";
 import { buildGroceryList } from "@/lib/grocery";
 import {
   accessoryRx,
   carbEmphasis,
+  goalLane,
   mainLiftRx,
   powerRx,
   proteinTargetGPerKg,
 } from "@/lib/prescriptions";
+import { dietFlags } from "@/lib/diet";
+import { hasAim, profileAims, representativeGoal } from "@/lib/aims";
+import { isDaysPerWeek, normalizeTrainingDays } from "@/lib/trainingDays";
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+function primaryGoal(profile: UserProfile) {
+  return representativeGoal(profileAims(profile));
+}
 
 type SessionKind = "strength" | "endurance" | "hybrid" | "field" | "mobility" | "rest";
 
@@ -397,10 +405,55 @@ function coachCard(ids: string[]): string {
   return hit?.cardInsight ?? COACH_INFLUENCES[0].cardInsight;
 }
 
-function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlock[] {
+function buildBlocks(session: SessionTemplate, profile: UserProfile, dayIndex: number, usedLifts: Set<string>): WorkoutBlock[] {
+  const used = new Set(usedLifts);
+  const seed = (label: string) =>
+    `${profile.sport}|${profileAims(profile).join(",")}|${profile.locationMode}|d${dayIndex}|${session.theme}|${label}`;
+
+  const named = (
+    category: MovementCategory,
+    label: string,
+    fallbackName: string,
+    fallbackDetail: string,
+    opts: {
+      durationMin?: number;
+      setsReps?: string;
+      restSec?: number;
+      rpe?: string;
+      cues?: string[];
+      coachInsight?: string;
+    } = {},
+  ) => {
+    const opt = pickExerciseOption(category, profile, seed(label), used);
+    if (opt) {
+      used.add(opt.key);
+      usedLifts.add(opt.key);
+    }
+    return block(opt?.name ?? fallbackName, opt?.category ?? category, opt?.detail ?? fallbackDetail, profile, opts);
+  };
+
   if (session.kind === "rest") {
+    const rests = [
+      {
+        name: "Easy walk",
+        detail: "20–30 min easy walk. Sleep 7–9 hours. If sore: protein, carbs, and sleep beat another hard session.",
+      },
+      {
+        name: "Full rest",
+        detail: "Off the training floor. Light stretch only if you want it. Sleep 7–9 hours.",
+      },
+      {
+        name: "Stretch + stroll",
+        detail: "10 min easy stretch, then an optional 15 min walk. Tightness, not pain.",
+      },
+      {
+        name: "Easy mobility",
+        detail: "Hips, hamstrings, and upper back — long easy holds, no straining.",
+      },
+    ];
+    const pick = rests[dayIndex % rests.length];
     return [
-      block("Rest day", "mobility", "Walk, light stretch, or complete rest. Sleep 7–9 hours.", profile, {
+      block(pick.name, "mobility", pick.detail, profile, {
         durationMin: 20,
         cues: ["If sore: protein, carbs, and sleep beat another hard session."],
         coachInsight: coachCard(["sims", "daniels"]),
@@ -408,12 +461,12 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
     ];
   }
 
-  const main = mainLiftRx(profile.goal, profile.experience);
+  const main = mainLiftRx(primaryGoal(profile), profile.experience);
   const acc = accessoryRx(profile.experience);
   const power = powerRx(profile.experience);
   const sets = (rx: typeof main) => `${rx.sets} × ${rx.reps}`;
   const blocks: WorkoutBlock[] = [
-    block("Warm-up", "warm-up", "5–8 min easy cardio + hip, ankle, and upper-back openers.", profile, {
+    named("warm-up", "warmup", "Warm-up", "5–8 min easy cardio + hip, ankle, and upper-back openers.", {
       durationMin: 8,
       cues: ["Raise temperature before power or heavy strength."],
       coachInsight: coachCard(["boyle"]),
@@ -423,7 +476,7 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
   const addStrength = (theme: string) => {
     if (power && (theme.includes("power") || theme === "squat-push" || theme === "lower" || theme === "power-lower")) {
       blocks.push(
-        block("Power primer", "power", "Box jump, med-ball throw, or KB swing — explosive intent.", profile, {
+        named("power", "power", "Box jump / squat jump", "Box jump, med-ball throw, or jump squat — explosive intent.", {
           durationMin: 12,
           setsReps: sets(power),
           restSec: power.restSec,
@@ -436,7 +489,7 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
 
     if (theme === "squat-push" || theme === "lower" || theme === "power-lower" || theme === "legs-hyper") {
       blocks.push(
-        block("Main squat pattern", "squat", "Back squat, goblet squat, or leg press — full ROM.", profile, {
+        named("squat", "main-squat", "Goblet squat", "Sit between the heels; full range you can control.", {
           durationMin: 20,
           setsReps: sets(main),
           restSec: main.restSec,
@@ -447,7 +500,7 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
       );
       if (theme !== "legs-hyper") {
         blocks.push(
-          block("Push pattern", "push", "Bench, DB press, or push-ups.", profile, {
+          named("push", "main-push", "Push-up", "Floor, incline, or dumbbell press — one long line.", {
             durationMin: 15,
             setsReps: sets(main),
             restSec: main.restSec,
@@ -458,7 +511,7 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
       }
     } else if (theme === "hinge-pull" || theme === "pull-hyper") {
       blocks.push(
-        block("Main hinge", "hinge", "Romanian deadlift (hip hinge), trap-bar deadlift, or hip thrust.", profile, {
+        named("hinge", "main-hinge", "Romanian deadlift (hip hinge)", "Soft knees, hips back, weight close to the legs.", {
           durationMin: 20,
           setsReps: sets(main),
           restSec: main.restSec,
@@ -468,7 +521,7 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
         }),
       );
       blocks.push(
-        block("Pull pattern", "pull", "Rows or pull-ups / lat pulldown.", profile, {
+        named("pull", "main-pull", "Dumbbell row", "Rows or pull-ups — squeeze the armpit at the top.", {
           durationMin: 15,
           setsReps: sets(main),
           restSec: main.restSec,
@@ -478,8 +531,17 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
       );
     } else if (theme === "push-hyper" || theme === "upper" || theme === "arms" || theme === "power-upper") {
       blocks.push(
-        block("Push + pull", "push", "Press then row (or pull-up).", profile, {
-          durationMin: 25,
+        named("push", "upper-push", "Dumbbell press", "Press with a braced midsection — same effort as the main set.", {
+          durationMin: 15,
+          setsReps: sets(main),
+          restSec: main.restSec,
+          rpe: main.rpe,
+          cues: [main.intensityCue],
+        }),
+      );
+      blocks.push(
+        named("pull", "upper-pull", "Dumbbell row", "Row elbows to the ribs; don’t shrug the weight up.", {
+          durationMin: 15,
           setsReps: sets(main),
           restSec: main.restSec,
           rpe: main.rpe,
@@ -488,7 +550,7 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
       );
       if (theme === "arms") {
         blocks.push(
-          block("Arms & delts", "push", "Curls, pushdowns, lateral raises — controlled.", profile, {
+          named("push", "arms", "Dumbbell floor press", "Curls, laterals, or another press — controlled, no swinging.", {
             durationMin: 15,
             setsReps: sets(acc),
             restSec: acc.restSec,
@@ -498,7 +560,7 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
       }
     } else if (theme === "runner-strength" || theme === "stability" || theme === "bands" || theme === "golf-strength") {
       blocks.push(
-        block("Single-leg / full-body strength", "squat", "Split squat, step-up, or goblet squat.", profile, {
+        named("squat", "single-leg", "Split squat / lunge", "Split squat, reverse lunge, or step-up — own the back knee.", {
           durationMin: 18,
           setsReps: sets(main),
           restSec: main.restSec,
@@ -508,7 +570,7 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
         }),
       );
       blocks.push(
-        block("Hinge + calf / backside", "hinge", "Romanian deadlift + calves, or band pull-through.", profile, {
+        named("hinge", "runner-hinge", "Romanian deadlift (hip hinge)", "Hinge until the hamstrings talk; calves after if you have time.", {
           durationMin: 12,
           setsReps: sets(acc),
           restSec: acc.restSec,
@@ -517,7 +579,7 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
       );
     } else if (theme === "hyrox-lower" || theme === "combat-strength") {
       blocks.push(
-        block("Squat / lunge strength", "squat", "Front squat or walking lunges.", profile, {
+        named("squat", "hyrox-squat", "Reverse lunge", "Lunges or a squat you can stand up from after a run.", {
           durationMin: 18,
           setsReps: sets(main),
           restSec: main.restSec,
@@ -527,14 +589,14 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
         }),
       );
       blocks.push(
-        block("Carry / sled practice", "carry", "4–6 sled pushes or farmer carries.", profile, {
+        named("carry", "hyrox-carry", "Farmer carry", "4–6 farmer carries or suitcase carries — walk tall.", {
           durationMin: 15,
           cues: ["Strong legs + grip beat endless fast mixed workouts alone."],
         }),
       );
     } else if (theme === "hyrox-upper") {
       blocks.push(
-        block("Pull capacity", "pull", "Pull-ups / rows + optional ski or row intervals.", profile, {
+        named("pull", "hyrox-pull", "Pull-up / chin-up", "Pull-ups or rows — keep a few reps in reserve.", {
           durationMin: 20,
           setsReps: sets(main),
           restSec: main.restSec,
@@ -542,13 +604,13 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
         }),
       );
       blocks.push(
-        block("Grip + wall-ball practice", "conditioning", "Farmer holds + wall balls for unbroken sets.", profile, {
+        named("carry", "hyrox-grip", "Farmer carry", "Farmer holds + a short carry. Grip first, then put it down on purpose.", {
           durationMin: 12,
         }),
       );
     } else {
       blocks.push(
-        block("Primary strength", "squat", "Compound lift matching today's focus.", profile, {
+        named("squat", "primary", "Bodyweight squat", "A compound lift that matches today’s focus.", {
           durationMin: 20,
           setsReps: sets(main),
           restSec: main.restSec,
@@ -559,7 +621,7 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
     }
 
     blocks.push(
-      block("Accessories + core", "core", "Anti-rotation hold (Pallof press) or plank + a single-leg or backside accessory.", profile, {
+      named("core", "core", "Plank / Pallof hold", "Anti-rotation hold or plank + a single-leg or backside accessory.", {
         durationMin: 12,
         setsReps: sets(acc),
         restSec: acc.restSec,
@@ -580,7 +642,7 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
         }),
       );
       blocks.push(
-        block("Light strength support", "hinge", "Split squats or trap-bar Romanian deadlift — modest volume.", profile, {
+        named("hinge", "speed-support", "Romanian deadlift (hip hinge)", "Split squats or a light hinge — modest volume.", {
           durationMin: 15,
           setsReps: sets(acc),
           restSec: acc.restSec,
@@ -596,7 +658,7 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
         }),
       );
       blocks.push(
-        block("Single-leg strength", "squat", "Rear-foot elevated split squat (Bulgarian split squat) or side lunge.", profile, {
+        named("squat", "agility-sl", "Split squat / lunge", "Rear-foot elevated split squat or reverse lunge — own the knee.", {
           durationMin: 18,
           setsReps: sets(main),
           restSec: main.restSec,
@@ -691,39 +753,47 @@ function buildBlocks(session: SessionTemplate, profile: UserProfile): WorkoutBlo
     );
   }
 
+  if (hasAim(profile, "grow-glutes") && /squat|lower|hinge|legs|power-lower/.test(session.theme)) {
+      blocks.push(
+        named(
+          "hinge",
+          "glute-bias",
+          "Hip thrust or glute bridge",
+          "Shoulders on a bench or floor. Drive through heels. Pause at the top.",
+          {
+            durationMin: 12,
+            setsReps: `${acc.sets} × ${acc.reps}`,
+            restSec: acc.restSec,
+            rpe: acc.rpe,
+            cues: ["Extra glute work for your aim — clean reps, not sloppy load."],
+          },
+        ),
+      );
+    }
+    if (hasAim(profile, "grow-upper") && /push|pull|upper|arms|power-upper/.test(session.theme)) {
+      blocks.push(
+        named(
+          "pull",
+          "upper-bias",
+          "Extra back or arm set",
+          "Rows, pulldowns, or curls — pick the gap you want to grow.",
+          {
+            durationMin: 10,
+            setsReps: `${acc.sets} × ${acc.reps}`,
+            restSec: acc.restSec,
+            rpe: acc.rpe,
+          },
+        ),
+      );
+    }
+
   blocks.push(
-    block("Cool-down", "mobility", "Easy walk + 2–3 stretches for worked areas (tightness, not pain).", profile, {
+    named("mobility", "cooldown", "Walk + stretch", "Easy walk + 2–3 stretches for worked areas (tightness, not pain).", {
       durationMin: 5,
     }),
   );
 
   return blocks;
-}
-
-function stapleLabel(id: FoodStapleId): string {
-  return id.replace(/-/g, " ");
-}
-
-function pickProtein(inv: FoodStapleId[], vegetarian: boolean): string {
-  const order = vegetarian
-    ? (["tofu", "lentils", "beans", "greek-yogurt", "eggs", "whey"] as FoodStapleId[])
-    : (["chicken", "fish", "eggs", "greek-yogurt", "whey", "tofu"] as FoodStapleId[]);
-  const hit = order.filter((id) => inv.includes(id));
-  return hit.length ? hit.map(stapleLabel).join(" / ") : vegetarian ? "tofu or lentils" : "chicken or fish";
-}
-
-function pickCarb(inv: FoodStapleId[], gf: boolean): string {
-  const order = (["rice", "potatoes", "oats", "quinoa", "pasta", "bread"] as FoodStapleId[]).filter(
-    (id) => !(gf && (id === "pasta" || id === "bread" || id === "oats")),
-  );
-  const hit = order.filter((id) => inv.includes(id));
-  return hit.length ? hit.slice(0, 2).map(stapleLabel).join(" or ") : gf ? "rice or potatoes" : "rice or oats";
-}
-
-function pickProduce(inv: FoodStapleId[]): string {
-  const order = ["berries", "bananas", "leafy-greens", "broccoli"] as FoodStapleId[];
-  const hit = order.filter((id) => inv.includes(id));
-  return hit.length ? hit.map(stapleLabel).join(", ") : "mixed vegetables + fruit";
 }
 
 function meal(
@@ -747,35 +817,32 @@ function meal(
   };
 }
 
-function buildMeals(profile: UserProfile, hardDay: boolean): DayMeals {
-  const inv = profile.foodInventory?.length ? profile.foodInventory : (["chicken", "rice", "eggs", "berries", "leafy-greens"] as FoodStapleId[]);
-  const veg = profile.dietary === "vegetarian";
-  const gf = profile.dietary === "gluten-free";
-  const protein = pickProtein(inv, veg);
-  const carb = pickCarb(inv, gf);
-  const produce = pickProduce(inv);
-  const tip = carbEmphasis(profile.goal, hardDay);
-  const band = proteinTargetGPerKg(profile.goal);
+function buildMeals(profile: UserProfile, hardDay: boolean, dayIndex: number, usedKeys: Set<string>): DayMeals {
+  const tip = carbEmphasis(primaryGoal(profile), hardDay);
+  const band = proteinTargetGPerKg(primaryGoal(profile));
   const proteinCue = `Aim ~20–40 g protein per meal · about ${band.min}–${band.max} grams per kilogram of body weight per day`;
+  const snackTip = "Spread protein through the day, about every 3–4 hours — the daily total matters most.";
+  const dayFamilies = new Set<string>();
+
+  const take = (slot: "breakfast" | "lunch" | "dinner" | "snack", insight: string, fuel = tip) => {
+    const option = pickMealOption(
+      slot,
+      profile,
+      `${profile.sport}|${profileAims(profile).join(",")}|${dietFlags(profile).join(",")}|d${dayIndex}|${slot}`,
+      usedKeys,
+      hardDay,
+      dayFamilies,
+    );
+    usedKeys.add(option.key);
+    dayFamilies.add(mealFamilyOf(option));
+    return meal(option.name, option.items, option.fuelingTip ?? fuel, insight, proteinCue);
+  };
 
   return {
-    breakfast: meal(
-      hardDay ? "Carb-forward breakfast" : "Protein breakfast",
-      hardDay ? [carb, protein, produce, "water"] : [protein, produce, `optional ${carb}`],
-      tip,
-      coachCard(["sims", "pn-style"]),
-      proteinCue,
-    ),
-    lunch: meal("Training lunch", [protein, carb, produce, inv.includes("olive-oil") || inv.includes("avocado") ? "olive oil or avocado" : "healthy fat"], tip, coachCard(["pn-style"]), proteinCue),
-    dinner: meal("Recovery dinner", [protein, hardDay ? carb : `lighter ${carb}`, produce], tip, coachCard(["sims", "jeukendrup"]), proteinCue),
-    snack: meal(
-      "Midday protein",
-      profile.goal === "build-muscle" || profile.dietary === "high-protein"
-        ? [inv.includes("whey") ? "protein shake" : protein, produce, inv.includes("nuts") || inv.includes("nut-butter") ? "nuts or nut butter" : "optional carbs"]
-        : [protein, produce],
-      "Spread protein through the day, about every 3–4 hours — the daily total matters most.",
-      coachCard(["pn-style"]),
-    ),
+    breakfast: take("breakfast", coachCard(["sims", "pn-style"])),
+    lunch: take("lunch", coachCard(["pn-style"])),
+    dinner: take("dinner", coachCard(["sims", "jeukendrup"])),
+    snack: take("snack", coachCard(["pn-style"]), snackTip),
   };
 }
 
@@ -783,7 +850,7 @@ function scienceNotes(profile: UserProfile): string[] {
   const notes = [
     "Train each major muscle group at least twice a week. Showing up beats a fancy periodization spreadsheet.",
     "Progression: if the last set is easy by 2+ reps for two sessions in a row, add a little weight next time.",
-    `Protein: about ${proteinTargetGPerKg(profile.goal).min}–${proteinTargetGPerKg(profile.goal).max} grams per kilogram of body weight per day, in 20–40 g meals every 3–4 hours.`,
+    `Protein: about ${proteinTargetGPerKg(primaryGoal(profile)).min}–${proteinTargetGPerKg(primaryGoal(profile)).max} grams per kilogram of body weight per day, in 20–40 g meals every 3–4 hours.`,
   ];
   const fam = sportFamily(profile.sport);
   if (fam === "endurance")
@@ -792,36 +859,55 @@ function scienceNotes(profile: UserProfile): string[] {
     notes.push("HYROX (fitness race): easy running engine + station strength + practice running after stations.");
   if (profile.experience === "beginner")
     notes.push("Keep jumps and throws light until squat/hinge positions look solid.");
-  if (profile.goal === "build-muscle")
+  const lane = goalLane(primaryGoal(profile));
+  if (lane === "hypertrophy")
     notes.push("Building muscle: chase weekly set volume (~10 hard sets per muscle) more than max singles.");
-  if (profile.goal === "lose-fat")
+  if (hasAim(profile, "grow-glutes"))
+    notes.push("Glute aim: extra hinge/squat volume on lower days. Same plan — more work where you asked.");
+  if (hasAim(profile, "grow-upper"))
+    notes.push("Upper aim: extra pulling/pushing on those days. Keep lower-body days honest too.");
+  if (lane === "cut")
     notes.push("Eating a little less: keep protein high, protect strength effort, cut filler sets first.");
+  if (profile.experience === "advanced")
+    notes.push("Advanced: we follow the days you picked. Adjust loads yourself; we won’t over-coach the session.");
   return notes;
 }
 
 export function buildWeekPlan(profile: UserProfile): WeekPlan {
   const family = sportFamily(profile.sport);
   const full = familySchedule(family, profile.sport);
-  const training = full.filter((s) => s.kind !== "rest").slice(0, profile.daysPerWeek);
-  const schedule: SessionTemplate[] = [];
-  for (let i = 0; i < 7; i++) {
-    schedule.push(i < training.length ? training[i] : full[full.length - 1]);
-  }
+  const rest = full[full.length - 1];
+  const pool = full.filter((s) => s.kind !== "rest");
+  const dayCount = isDaysPerWeek(profile.daysPerWeek) ? profile.daysPerWeek : 4;
+  const trainingDays = normalizeTrainingDays(profile.trainingDays, dayCount);
+  const assigned: SessionTemplate[] = [];
+  for (let i = 0; i < dayCount; i++) assigned.push(pool[i % Math.max(pool.length, 1)] ?? rest);
+  const schedule: SessionTemplate[] = Array.from({ length: 7 }, () => rest);
+  trainingDays.forEach((dayIdx, i) => {
+    schedule[dayIdx] = assigned[i] ?? rest;
+  });
 
+  const usedMeals = new Set<string>();
+  const usedLifts = new Set<string>();
   const days: WeekDay[] = DAY_NAMES.map((dayName, dayIndex) => {
     const session = schedule[dayIndex];
     const hardDay = session.kind !== "rest" && !session.theme.includes("easy") && session.theme !== "mobility" && session.theme !== "restorative" && session.theme !== "rest";
-    const blocks = buildBlocks(session, profile);
-    const meals = buildMeals(profile, hardDay);
+    const blocks = buildBlocks(session, profile, dayIndex, usedLifts);
+    const meals = buildMeals(profile, hardDay, dayIndex, usedMeals);
     const workout: DayWorkout = {
       label: dayName,
       isRest: session.kind === "rest",
       focus: session.focus,
       phaseLabel: session.phaseLabel,
-      whyThisDay: session.why,
+      whyThisDay:
+        profile.experience === "advanced"
+          ? `${session.focus}. Your split — change loads as you see fit.`
+          : session.why,
       progressionNote:
-        "If you beat the target by 2+ reps on the last set for two sessions in a row, add a little weight next time.",
-      fuelingTip: carbEmphasis(profile.goal, hardDay),
+        profile.experience === "advanced"
+          ? "You know the rule: add load when the last set is easy by 2+ reps twice in a row."
+          : "If you beat the target by 2+ reps on the last set for two sessions in a row, add a little weight next time.",
+      fuelingTip: carbEmphasis(primaryGoal(profile), hardDay),
       coachInsight: coachCard(
         family === "endurance" ? ["daniels"] : family === "field" ? ["gambetta", "pfaff"] : ["boyle", "olympic-sc"],
       ),
@@ -844,7 +930,7 @@ export function buildWeekPlan(profile: UserProfile): WeekPlan {
     id: `plan-${Date.now()}`,
     generatedAt: new Date().toISOString(),
     engineVersion: primfitConfig.version,
-    profile,
+    profile: { ...profile, daysPerWeek: dayCount, trainingDays },
     days,
     grocery: buildGroceryList(profile, days),
     scienceNotes: scienceNotes(profile),

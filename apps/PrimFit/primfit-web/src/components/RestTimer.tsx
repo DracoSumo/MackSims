@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { acquireAwake, cancelRestDone, hapticSuccess, releaseAwake, scheduleRestDone } from "@/lib/device";
+import { useTheme } from "@/components/ThemeProvider";
+import { restDoneTitle, restIdleLabel, restRunningHint } from "@/lib/flavor";
 
 function formatRest(seconds: number) {
   const m = Math.floor(Math.max(0, seconds) / 60);
@@ -9,10 +11,14 @@ function formatRest(seconds: number) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export function RestTimer({ seconds }: { seconds: number }) {
+export function RestTimer({ seconds, onComplete }: { seconds: number; onComplete?: () => void }) {
+  const { theme } = useTheme();
   const [running, setRunning] = useState(false);
   const [left, setLeft] = useState(seconds);
   const leftRef = useRef(seconds);
+  const doneFired = useRef(false);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   useEffect(() => {
     setLeft(seconds);
@@ -29,6 +35,10 @@ export function RestTimer({ seconds }: { seconds: number }) {
     if (left <= 0) {
       setRunning(false);
       void hapticSuccess();
+      if (!doneFired.current) {
+        doneFired.current = true;
+        onCompleteRef.current?.();
+      }
       return;
     }
     const t = window.setTimeout(() => setLeft((n) => n - 1), 1000);
@@ -64,10 +74,11 @@ export function RestTimer({ seconds }: { seconds: number }) {
           className="pf-linkish"
           onClick={() => {
             setLeft(seconds);
+            doneFired.current = false;
             setRunning(true);
           }}
         >
-          Rest {formatRest(seconds)}
+          {restIdleLabel(theme, formatRest(seconds))}
         </button>
       </div>
     );
@@ -94,10 +105,10 @@ export function RestTimer({ seconds }: { seconds: number }) {
         </svg>
         <div className="min-w-0 flex-1">
           <p className="text-lg font-semibold tabular-nums leading-none">
-            {done ? "Go" : formatRest(left)}
+            {done ? restDoneTitle(theme) : formatRest(left)}
           </p>
           <p className="mt-1 text-xs text-[var(--pf-muted)]">
-            {done ? "Rest done — next set. Screen can sleep again." : "Rest · screen stays awake"}
+            {restRunningHint(theme, done)}
           </p>
         </div>
         {running ? (
@@ -122,6 +133,7 @@ export function RestTimer({ seconds }: { seconds: number }) {
             className="pf-linkish"
             onClick={() => {
               setLeft(seconds);
+              doneFired.current = false;
               setRunning(true);
             }}
           >

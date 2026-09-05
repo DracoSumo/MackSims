@@ -3,36 +3,35 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { DayBoard, mealCount } from "@/components/DayBoard";
-import { GoalsStrip } from "@/components/GoalsPanel";
+import { GoalHuntCard } from "@/components/GoalHuntCard";
 import { ProgressRing } from "@/components/ProgressRing";
 import { RequirePlan } from "@/components/RequirePlan";
 import { useTheme } from "@/components/ThemeProvider";
 import { ToolsStrip } from "@/components/ToolsStrip";
 import { WearablesGlance } from "@/components/WearablesGlance";
+import { CampaignPanel } from "@/components/CampaignPanel";
+import { ConfettiBurst } from "@/components/ConfettiBurst";
+import { FlavorToast } from "@/components/FlavorToast";
+import { WorldPulse } from "@/components/WorldPulse";
 import { WeekGoalBar } from "@/components/WeekGoalBar";
-import { getMeasurableGoals } from "@/lib/goals";
+import { flavorCompleteBanner, flavorGreeting, flavorProgressHint, flavorProgressLabel, flavorRankUpLabel } from "@/lib/flavor";
+import { claimDailyCheckin, type FlavorEvent } from "@/lib/campaign";
+import type { WeekDay, WeekPlan } from "@/data/types";
 import { useKeepAwake } from "@/lib/device";
 import { todayDayIndex } from "@/lib/planEngine";
 import { getWeekStat, syncWeekProgress, todaySessionComplete } from "@/lib/progress";
 import { getDayProgress, getProfile, getWeekPlan } from "@/lib/storage";
-import type { MeasurableGoals } from "@/data/types";
-import type { WeekDay, WeekPlan } from "@/data/types";
-
-function greeting(name: string) {
-  const h = new Date().getHours();
-  const when = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
-  return `${when}, ${name}`;
-}
+import { SaveWeekPrompt } from "@/components/SaveWeekPrompt";
 
 function TodayContent() {
-  const { copy } = useTheme();
+  const { copy, theme, ready } = useTheme();
   const [day, setDay] = useState<WeekDay | null>(null);
   const [plan, setPlan] = useState<WeekPlan | null>(null);
   const [name, setName] = useState("Athlete");
   const [done, setDone] = useState(0);
   const [total, setTotal] = useState(0);
   const [weekDone, setWeekDone] = useState(0);
-  const [goals, setGoals] = useState<MeasurableGoals | null>(null);
+  const [checkin, setCheckin] = useState<FlavorEvent | null>(null);
 
   function hydrate(nextPlan: WeekPlan) {
     const d = nextPlan.days[todayDayIndex()] ?? nextPlan.days[0];
@@ -47,12 +46,14 @@ function TodayContent() {
   }
 
   useEffect(() => {
+    if (!ready) return;
     const p = getWeekPlan();
     const profile = getProfile();
     if (profile) setName(profile.displayName);
-    setGoals(getMeasurableGoals());
     if (p) hydrate(p);
-  }, []);
+    const claimed = claimDailyCheckin(theme);
+    if (claimed) setCheckin(claimed);
+  }, [theme, ready]);
 
   const todayDone = Boolean(day && plan && (todaySessionComplete(day, plan.id) || (total > 0 && done >= total)));
   useKeepAwake(Boolean(day && plan && !todayDone && total > 0));
@@ -72,13 +73,14 @@ function TodayContent() {
 
   return (
     <div className="space-y-8">
+      <SaveWeekPrompt />
       <header className="space-y-1">
         {copy.todayEyebrow ? (
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--pf-silver)]">
             {copy.todayEyebrow}
           </p>
         ) : null}
-        <p className="text-sm text-[var(--pf-muted)]">{greeting(name)}</p>
+        <p className="text-sm text-[var(--pf-muted)]">{flavorGreeting(theme, name)}</p>
         <h1 className="pf-display text-3xl font-bold">{day.dayName}</h1>
         <p className="text-sm text-[var(--pf-silver)]">
           {workout.focus}
@@ -86,16 +88,31 @@ function TodayContent() {
         </p>
       </header>
 
+      <WorldPulse />
+      <CampaignPanel focus={workout.focus} isRest={workout.isRest} />
+      <FlavorToast
+        message={checkin ? checkin.toast : null}
+        rankedUp={checkin?.rankedUp}
+        rankLabel={flavorRankUpLabel(theme)}
+        onDone={() => setCheckin(null)}
+      />
+
       <div className={`space-y-5 ${todayDone ? "pf-complete-pulse" : ""}`}>
-        <ProgressRing done={done} total={total} />
-        {todayDone ? <p className="pf-done-banner">Session complete.</p> : null}
+        <ConfettiBurst play={todayDone} />
+        <ProgressRing
+          done={done}
+          total={total}
+          label={flavorProgressLabel(theme, todayDone, done, total)}
+          hint={flavorProgressHint(theme, todayDone, workout.isRest)}
+        />
+        {todayDone ? <p className="pf-done-banner">{flavorCompleteBanner(theme)}</p> : null}
         <WeekGoalBar
           compact
           plan={plan}
           completedTrainingDays={weekDone || getWeekStat(plan).completedTrainingDays}
           todayDone={todayDone}
         />
-        {goals ? <GoalsStrip goals={goals} compact /> : null}
+        <GoalHuntCard />
         <ToolsStrip />
         <WearablesGlance />
       </div>

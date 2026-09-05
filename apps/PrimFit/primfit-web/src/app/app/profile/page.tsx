@@ -8,17 +8,18 @@ import { RequirePlan } from "@/components/RequirePlan";
 import {
   EQUIPMENT_OPTIONS,
   labelBudget,
-  labelDietary,
   labelExperience,
-  labelGoal,
   labelLocation,
   labelSport,
 } from "@/data/options";
 import { LegalFooter } from "@/components/LegalFooter";
+import { useTheme } from "@/components/ThemeProvider";
 import { primfitConfig } from "@/config/primfit";
 import { ratePrimFit } from "@/components/TesterFeedback";
-import { useTheme } from "@/components/ThemeProvider";
+import { getCampaign, getPlayClass, rankFor } from "@/lib/campaign";
 import { getMeasurableGoals, saveMeasurableGoals } from "@/lib/goals";
+import { celebrateHunt } from "@/lib/loadLog";
+import { getAccountHint, memberEmail, rememberEmail } from "@/lib/account";
 import { formatDeviceCoords, geoStatusMessage, getDeviceLocation } from "@/lib/device";
 import { lastWeekStats } from "@/lib/progress";
 import { buildWeekPlan } from "@/lib/planEngine";
@@ -30,6 +31,9 @@ import {
   saveProfile,
   saveWeekPlan,
 } from "@/lib/storage";
+import { dietSummary } from "@/lib/diet";
+import { labelAims, profileAims } from "@/lib/aims";
+import { describeSplit } from "@/lib/trainingDays";
 import type { MeasurableGoals, UserProfile, WeekPlan } from "@/data/types";
 
 function gearLabels(ids: string[] | undefined) {
@@ -40,7 +44,7 @@ function gearLabels(ids: string[] | undefined) {
 
 function ProfileContent() {
   const router = useRouter();
-  const { copy } = useTheme();
+  const { copy, theme } = useTheme();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [plan, setPlan] = useState<WeekPlan | null>(null);
   const [introCount, setIntroCount] = useState(0);
@@ -48,6 +52,9 @@ function ProfileContent() {
   const [editingGoals, setEditingGoals] = useState(false);
   const [geoStatus, setGeoStatus] = useState("");
   const [geoBusy, setGeoBusy] = useState(false);
+  const [memberMail, setMemberMail] = useState<string | null>(null);
+  const [mailDraft, setMailDraft] = useState("");
+  const [editingMail, setEditingMail] = useState(false);
   const weeks = lastWeekStats(4);
 
   useEffect(() => {
@@ -55,6 +62,12 @@ function ProfileContent() {
     setPlan(getWeekPlan());
     setIntroCount(listIntroRequests().length);
     setGoals(getMeasurableGoals());
+    const mail = memberEmail(getAccountHint());
+    setMemberMail(mail);
+    setMailDraft(mail ?? "");
+    if (typeof window !== "undefined" && window.location.hash === "#goals") {
+      setEditingGoals(true);
+    }
   }, []);
 
   function regenerate() {
@@ -67,6 +80,7 @@ function ProfileContent() {
   function persistGoals(next: MeasurableGoals) {
     setGoals(next);
     saveMeasurableGoals(next);
+    celebrateHunt();
   }
 
   async function pinDeviceLocation() {
@@ -96,6 +110,11 @@ function ProfileContent() {
     router.replace("/");
   }
 
+  const rank = rankFor(theme);
+  const playClass = getPlayClass(theme);
+  const campaign = getCampaign();
+  const xp = campaign.xp;
+
   if (!profile) return null;
 
   return (
@@ -103,9 +122,67 @@ function ProfileContent() {
       <header>
         <h1 className="pf-display text-3xl font-bold">{profile.displayName}</h1>
         <p className="mt-1 text-sm text-[var(--pf-silver)]">
-          {labelSport(profile.sport)} · {labelGoal(profile.goal)} · {copy.packShortName}
+          {labelSport(profile.sport)} · {labelAims(profileAims(profile))} · {copy.packShortName}
         </p>
       </header>
+
+      <section className="pf-system-card space-y-2 p-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--pf-silver)]">On this device</p>
+        {memberMail && !editingMail ? (
+          <>
+            <p className="text-sm">{memberMail}</p>
+            <p className="text-xs text-[var(--pf-muted)]">
+              Email stays here for now. Later it will restore your week on a new phone. No cloud account yet.
+            </p>
+            <button type="button" className="pf-linkish px-0 text-sm" onClick={() => setEditingMail(true)}>
+              Change email
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-[var(--pf-muted)]">
+              Add an email so returning on this device — and later on a new one — knows it&apos;s you.
+            </p>
+            <input
+              className="pf-input w-full"
+              type="email"
+              placeholder="you@email.com"
+              value={mailDraft}
+              onChange={(e) => setMailDraft(e.target.value)}
+              autoComplete="email"
+            />
+            <button
+              type="button"
+              className="pf-btn-ghost w-full text-sm"
+              disabled={!mailDraft.trim()}
+              onClick={() => {
+                const next = rememberEmail(mailDraft);
+                setMemberMail(next.email ?? null);
+                setEditingMail(false);
+              }}
+            >
+              Save email on this device
+            </button>
+          </>
+        )}
+      </section>
+
+      <section className="pf-system-card space-y-2 p-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--pf-silver)]">{copy.worldTag}</p>
+        <p className="pf-display text-xl font-semibold">{rank.label}</p>
+        <p className="text-sm text-[var(--pf-muted)]">
+          {playClass ? `${playClass.label} · ` : ""}
+          {xp} XP
+          {rank.nextLabel ? ` · ${rank.xpNeed - rank.xpInto} to ${rank.nextLabel}` : ""}
+          {campaign.streak ? ` · ${campaign.streak}-day chain` : ""}
+        </p>
+        <div className="pf-bar" role="progressbar" aria-valuenow={Math.round(rank.progress * 100)}>
+          <div className="pf-bar-fill" style={{ width: `${rank.progress * 100}%` }} />
+        </div>
+        <Link href="/app/shop/" className="pf-linkish px-0 text-sm">
+          Change play style
+        </Link>
+      </section>
 
       <section className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
         <div>
@@ -115,6 +192,9 @@ function ProfileContent() {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--pf-muted)]">Days</p>
           <p className="mt-1">{profile.daysPerWeek} / week</p>
+          {profile.trainingDays?.length ? (
+            <p className="mt-1 text-xs text-[var(--pf-muted)]">{describeSplit(profile.trainingDays)}</p>
+          ) : null}
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--pf-muted)]">Where</p>
@@ -143,7 +223,7 @@ function ProfileContent() {
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--pf-muted)]">Eat</p>
-          <p className="mt-1">{labelDietary(profile.dietary)}</p>
+          <p className="mt-1">{dietSummary(profile)}</p>
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--pf-muted)]">Kitchen</p>
@@ -178,11 +258,19 @@ function ProfileContent() {
       ) : null}
 
       {goals ? (
-        <section className="space-y-3">
-          <p className="font-semibold">Goals</p>
+        <section id="goals" className="pf-system-card space-y-3 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--pf-silver)]">Numbers</p>
+          <h2 className="pf-display text-xl font-semibold">Goals</h2>
+          <p className="text-sm text-[var(--pf-muted)]">
+            Scale, lifts, challenges — the hunt on Today fills from these. Edit anytime.
+          </p>
           <GoalsStrip goals={goals} />
-          <button type="button" className="pf-linkish px-0" onClick={() => setEditingGoals((v) => !v)}>
-            {editingGoals ? "Hide editor" : "Edit goals"}
+          <button
+            type="button"
+            className={editingGoals ? "pf-btn-ghost w-full" : "pf-btn-primary w-full"}
+            onClick={() => setEditingGoals((v) => !v)}
+          >
+            {editingGoals ? "Done" : "Edit my numbers"}
           </button>
           {editingGoals ? (
             <div className="pt-2">

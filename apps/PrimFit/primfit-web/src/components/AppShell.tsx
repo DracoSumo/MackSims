@@ -5,17 +5,19 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "@/components/ThemeProvider";
 import { primfitConfig } from "@/config/primfit";
 import { HomeBackConfirm } from "@/components/TesterFeedback";
+import { RankCeremony } from "@/components/RankCeremony";
+import { StreakPill } from "@/components/StreakPill";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { copy } = useTheme();
   const onboarding = pathname?.includes("/onboarding");
   const nav = [
-    { href: "/app/today/", label: copy.nav.today, icon: "◎" },
-    { href: "/app/week/", label: copy.nav.week, icon: "▦" },
-    { href: "/app/grocery/", label: copy.nav.grocery, icon: "☐" },
-    { href: "/app/pros/", label: copy.nav.pros, icon: "✦" },
-    { href: "/app/profile/", label: copy.nav.you, icon: "○" },
+    { href: "/app/today/", label: copy.nav.today, icon: copy.navIcons.today },
+    { href: "/app/week/", label: copy.nav.week, icon: copy.navIcons.week },
+    { href: "/app/grocery/", label: copy.nav.grocery, icon: copy.navIcons.grocery },
+    { href: "/app/pros/", label: copy.nav.pros, icon: copy.navIcons.pros },
+    { href: "/app/profile/", label: copy.nav.you, icon: copy.navIcons.you },
   ];
 
   return (
@@ -28,6 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="ml-2 text-[10px] font-medium tracking-wide text-[var(--pf-muted)]">
               {copy.packShortName}
             </span>
+            <StreakPill />
           </Link>
           <div className="flex items-center gap-3">
             {!onboarding ? (
@@ -98,6 +101,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       ) : null}
       <HomeBackConfirm />
+      <RankCeremony />
     </div>
   );
 }

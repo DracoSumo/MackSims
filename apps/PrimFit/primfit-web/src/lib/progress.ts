@@ -1,6 +1,7 @@
 import type { WeekDay, WeekPlan } from "@/data/types";
 import { getDayProgress, loadJson, saveJson } from "@/lib/storage";
-import { GOALS, labelGoal, labelSport } from "@/data/options";
+import { GOALS, labelSport } from "@/data/options";
+import { labelAims, profileAims } from "@/lib/aims";
 
 const WEEK_STATS_KEY = "primfit.weekStats";
 const DAY_STAMPS_KEY = "primfit.dayStamps";
@@ -114,8 +115,9 @@ export function motivationLine(opts: {
 }
 
 export function goalReminder(plan: WeekPlan): string {
-  const g = GOALS.find((x) => x.id === plan.profile.goal);
-  return `You’re training ${labelSport(plan.profile.sport)} toward ${labelGoal(plan.profile.goal).toLowerCase()} — ${g?.description ?? "a steady routine"}. ${plan.profile.daysPerWeek} training days this week.`;
+  const aims = profileAims(plan.profile);
+  const primary = GOALS.find((x) => x.id === aims[0]);
+  return `You’re training ${labelSport(plan.profile.sport)} toward ${labelAims(aims).toLowerCase()} — ${primary?.description ?? "a steady routine"}. ${plan.profile.daysPerWeek} training days this week.`;
 }
 
 export function weekProgressKeys(): { statsKey: string; stampsKey: string } {

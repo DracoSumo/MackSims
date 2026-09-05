@@ -35,11 +35,36 @@ export type SportId =
   | "general-athleticism"
   | "pilates";
 
-export type GoalId = "lose-fat" | "build-muscle" | "performance" | "maintain";
+export type GoalId =
+  | "lose-fat"
+  | "build-muscle"
+  | "grow-glutes"
+  | "grow-upper"
+  | "get-stronger"
+  | "go-longer"
+  | "performance"
+  | "feel-better"
+  | "come-back"
+  | "maintain"
+  | "something-else";
 
 export type ExperienceId = "beginner" | "intermediate" | "advanced";
 
-export type DietaryId = "none" | "vegetarian" | "high-protein" | "gluten-free";
+export type DaysPerWeek = 2 | 3 | 4 | 5 | 6 | 7;
+
+export type DietaryId =
+  | "none"
+  | "vegetarian"
+  | "vegan"
+  | "pescatarian"
+  | "high-protein"
+  | "gluten-free"
+  | "dairy-free"
+  | "nut-free"
+  | "halal"
+  | "kosher";
+
+export type BodyContextId = "unspecified" | "woman" | "man" | "nonbinary" | "self-describe";
 
 export type BudgetId = "tight" | "moderate" | "flexible";
 
@@ -144,9 +169,17 @@ export type SavedPlace = {
 export type UserProfile = {
   sport: SportId;
   goal: GoalId;
+  /** Extra aims — `goal` stays the first/primary for older plans. */
+  aims?: GoalId[];
   experience: ExperienceId;
-  daysPerWeek: 3 | 4 | 5 | 6;
+  daysPerWeek: DaysPerWeek;
+  /** 0 = Monday … 6 = Sunday. Length should match daysPerWeek. */
+  trainingDays?: number[];
   dietary: DietaryId;
+  dietaryFlags?: DietaryId[];
+  goalNote?: string;
+  bodyContext?: BodyContextId;
+  bodyContextNote?: string;
   budget: BudgetId;
   displayName: string;
   onboardedAt: string;

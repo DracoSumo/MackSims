@@ -1,4 +1,5 @@
 import type {
+  BodyContextId,
   BudgetId,
   DietaryId,
   EquipmentId,
@@ -22,61 +23,77 @@ export const SPORT_GROUPS: { id: SportGroupId; label: string }[] = [
 export const SPORTS: {
   id: SportId;
   label: string;
-  emoji: string;
   group: SportGroupId;
   keywords: string;
+  blurb: string;
 }[] = [
-  // Strength / physique
-  { id: "strongman", label: "Strongman", emoji: "🪨", group: "strength-physique", keywords: "atlas yoke farmers log" },
-  { id: "bodybuilding", label: "Bodybuilding", emoji: "💪", group: "strength-physique", keywords: "physique hypertrophy aesthetic" },
-  { id: "powerlifting", label: "Powerlifting", emoji: "🏋️", group: "strength-physique", keywords: "squat bench deadlift 1rm" },
-  { id: "general-strength", label: "General strength", emoji: "🔩", group: "strength-physique", keywords: "gym weights strength" },
-  { id: "crossfit", label: "CrossFit / functional", emoji: "⚡", group: "strength-physique", keywords: "wod metcon functional fitness" },
-  // Endurance
-  { id: "running", label: "Running", emoji: "🏃", group: "endurance", keywords: "jog marathon 5k road" },
-  { id: "cycling", label: "Cycling", emoji: "🚴", group: "endurance", keywords: "bike road spin zwift" },
-  { id: "swimming", label: "Swimming", emoji: "🏊", group: "endurance", keywords: "pool freestyle laps" },
-  { id: "triathlon", label: "Triathlon", emoji: "🏅", group: "endurance", keywords: "swim bike run ironman" },
-  // Hybrid / combat
-  { id: "hyrox", label: "HYROX (run + station race)", emoji: "🔥", group: "hybrid-combat", keywords: "hybrid race stations hyrox" },
-  { id: "combat", label: "Boxing / mixed martial arts", emoji: "🥊", group: "hybrid-combat", keywords: "boxing mma kickboxing striking" },
-  { id: "wrestling", label: "Wrestling", emoji: "🤼", group: "hybrid-combat", keywords: "grappling folkstyle freestyle" },
-  // Field / court
-  { id: "football", label: "Football", emoji: "🏈", group: "field-court", keywords: "gridiron nfl" },
-  { id: "basketball", label: "Basketball", emoji: "🏀", group: "field-court", keywords: "hoops nba" },
-  { id: "soccer", label: "Soccer", emoji: "⚽", group: "field-court", keywords: "football pitch futbol" },
-  { id: "baseball", label: "Baseball / softball", emoji: "⚾", group: "field-court", keywords: "softball diamond bat" },
-  { id: "tennis", label: "Tennis", emoji: "🎾", group: "field-court", keywords: "racket racquet" },
-  { id: "badminton", label: "Badminton", emoji: "🏸", group: "field-court", keywords: "shuttle shuttlecock racket" },
-  { id: "volleyball", label: "Volleyball", emoji: "🏐", group: "field-court", keywords: "spike serve beach" },
-  { id: "golf", label: "Golf", emoji: "⛳", group: "field-court", keywords: "swing links" },
-  // Mobility / other
-  { id: "yoga", label: "Yoga / mobility", emoji: "🧘", group: "mobility-other", keywords: "stretch flow breath" },
-  { id: "general-athleticism", label: "General athleticism", emoji: "🎯", group: "mobility-other", keywords: "athletic all-around" },
-  { id: "pilates", label: "Pilates", emoji: "🩰", group: "mobility-other", keywords: "core reformer control" },
+  { id: "strongman", label: "Strongman", group: "strength-physique", keywords: "atlas yoke farmers log", blurb: "Odd objects, carries, and brute strength." },
+  { id: "bodybuilding", label: "Bodybuilding", group: "strength-physique", keywords: "physique hypertrophy aesthetic", blurb: "Build muscle with volume and clean form." },
+  { id: "powerlifting", label: "Powerlifting", group: "strength-physique", keywords: "squat bench deadlift 1rm", blurb: "Squat, bench, deadlift — get those heavier." },
+  { id: "general-strength", label: "General strength", group: "strength-physique", keywords: "gym weights strength", blurb: "Get stronger without a single sport focus." },
+  { id: "crossfit", label: "CrossFit / functional", group: "strength-physique", keywords: "wod metcon functional fitness", blurb: "Mixed strength and short hard efforts." },
+  { id: "running", label: "Running", group: "endurance", keywords: "jog marathon 5k road", blurb: "Easy miles plus one harder session." },
+  { id: "cycling", label: "Cycling", group: "endurance", keywords: "bike road spin zwift", blurb: "Ride volume with a couple of quality days." },
+  { id: "swimming", label: "Swimming", group: "endurance", keywords: "pool freestyle laps", blurb: "Technique, aerobic work, and a hard set." },
+  { id: "triathlon", label: "Triathlon", group: "endurance", keywords: "swim bike run ironman", blurb: "Swim, bike, run — keep most of it easy." },
+  { id: "hyrox", label: "HYROX", group: "hybrid-combat", keywords: "hybrid race stations hyrox", blurb: "Run plus stations. Build the engine first." },
+  { id: "combat", label: "Boxing / mixed martial arts", group: "hybrid-combat", keywords: "boxing mma kickboxing striking", blurb: "Strength, cardio, and contact resilience." },
+  { id: "wrestling", label: "Wrestling", group: "hybrid-combat", keywords: "grappling folkstyle freestyle", blurb: "Grappling strength, hips, and work capacity." },
+  { id: "football", label: "Football", group: "field-court", keywords: "gridiron nfl", blurb: "Power, speed, and contact prep." },
+  { id: "basketball", label: "Basketball", group: "field-court", keywords: "hoops nba", blurb: "Jump, cut, and last through games." },
+  { id: "soccer", label: "Soccer", group: "field-court", keywords: "football pitch futbol", blurb: "Repeat sprints and change of direction." },
+  { id: "baseball", label: "Baseball / softball", group: "field-court", keywords: "softball diamond bat", blurb: "Rotational power and arm care." },
+  { id: "tennis", label: "Tennis", group: "field-court", keywords: "racket racquet", blurb: "Lateral speed and durable shoulders." },
+  { id: "badminton", label: "Badminton", group: "field-court", keywords: "shuttle shuttlecock racket", blurb: "Quick feet and overhead durability." },
+  { id: "volleyball", label: "Volleyball", group: "field-court", keywords: "spike serve beach", blurb: "Jump repeatability and landing control." },
+  { id: "golf", label: "Golf", group: "field-court", keywords: "swing links", blurb: "Rotation, posture, and walking miles." },
+  { id: "yoga", label: "Yoga / mobility", group: "mobility-other", keywords: "stretch flow breath", blurb: "Move well, breathe, keep joints happy." },
+  { id: "general-athleticism", label: "General athleticism", group: "mobility-other", keywords: "athletic all-around", blurb: "A little of everything, nothing fancy." },
+  { id: "pilates", label: "Pilates", group: "mobility-other", keywords: "core reformer control", blurb: "Control, core, and long-range strength." },
 ];
 
 export const GOALS: { id: GoalId; label: string; description: string }[] = [
-  { id: "lose-fat", label: "Lose fat", description: "Calorie-aware training + balanced plates" },
-  { id: "build-muscle", label: "Build muscle", description: "Progressive strength + protein-forward meals" },
-  { id: "performance", label: "Performance", description: "Sport-specific work + fuel for output" },
-  { id: "maintain", label: "Maintain", description: "Sustainable routine + steady nutrition" },
+  { id: "lose-fat", label: "Lose fat", description: "Train, keep protein high, eat a little less." },
+  { id: "build-muscle", label: "Build muscle", description: "Add size overall with progressive strength." },
+  { id: "grow-glutes", label: "Grow glutes", description: "Extra squat and hinge work for your butt." },
+  { id: "grow-upper", label: "Grow upper body", description: "Chest, back, shoulders, and arms get the volume." },
+  { id: "get-stronger", label: "Get stronger", description: "Add weight on the main lifts." },
+  { id: "go-longer", label: "Last longer", description: "More easy work so you can go farther or longer." },
+  { id: "performance", label: "Sport performance", description: "Train for the sport you picked." },
+  { id: "feel-better", label: "Feel better", description: "Move, sleep, and keep it simple." },
+  { id: "come-back", label: "Coming back", description: "Ease in after time off." },
+  { id: "maintain", label: "Maintain", description: "Keep what you have with a steady week." },
+  { id: "something-else", label: "Something else", description: "Tell us in plain words — we’ll still build a simple week." },
+];
+
+export const BODY_CONTEXTS: { id: BodyContextId; label: string }[] = [
+  { id: "unspecified", label: "Skip" },
+  { id: "woman", label: "Woman" },
+  { id: "man", label: "Man" },
+  { id: "nonbinary", label: "Nonbinary" },
+  { id: "self-describe", label: "Other" },
 ];
 
 export const EXPERIENCE: { id: ExperienceId; label: string; description: string }[] = [
   { id: "beginner", label: "Beginner", description: "Newer to structured training — we’ll keep loads moderate and teach positions." },
   { id: "intermediate", label: "Intermediate", description: "You know the main lifts and can add weight over weeks." },
-  { id: "advanced", label: "Advanced", description: "You recover well from harder sessions and already track progress." },
+  { id: "advanced", label: "Advanced", description: "You already know your split. We’ll follow your days and stay out of the way." },
 ];
 
 export const DIETARY: { id: DietaryId; label: string }[] = [
-  { id: "none", label: "No preference" },
+  { id: "none", label: "No restrictions" },
   { id: "vegetarian", label: "Vegetarian" },
+  { id: "vegan", label: "Vegan" },
+  { id: "pescatarian", label: "Pescatarian" },
   { id: "high-protein", label: "High protein" },
   { id: "gluten-free", label: "Gluten-free" },
+  { id: "dairy-free", label: "Dairy-free" },
+  { id: "nut-free", label: "Nut-free" },
+  { id: "halal", label: "Halal" },
+  { id: "kosher", label: "Kosher" },
 ];
 
-export const DAYS_OPTIONS = [3, 4, 5, 6] as const;
+export const DAYS_OPTIONS = [2, 3, 4, 5, 6, 7] as const;
 
 export const BUDGETS: { id: BudgetId; label: string; description: string }[] = [
   {

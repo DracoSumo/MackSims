@@ -13,8 +13,28 @@ function effort(n: string, leftover: string): string {
   return `Effort ${n}/10 — ${leftover}`;
 }
 
+export type GoalLane = "cut" | "hypertrophy" | "strength" | "steady";
+
+export function goalLane(goal: GoalId): GoalLane {
+  switch (goal) {
+    case "lose-fat":
+      return "cut";
+    case "build-muscle":
+    case "grow-glutes":
+    case "grow-upper":
+      return "hypertrophy";
+    case "get-stronger":
+    case "performance":
+    case "go-longer":
+      return "strength";
+    default:
+      return "steady";
+  }
+}
+
 export function mainLiftRx(goal: GoalId, exp: ExperienceId): LiftPrescription {
-  if (goal === "build-muscle") {
+  const lane = goalLane(goal);
+  if (lane === "hypertrophy") {
     if (exp === "beginner")
       return {
         sets: 3,
@@ -39,7 +59,7 @@ export function mainLiftRx(goal: GoalId, exp: ExperienceId): LiftPrescription {
       rpe: effort("8–9", "last set is very hard, still clean"),
     };
   }
-  if (goal === "performance" || goal === "maintain") {
+  if (lane === "strength" || lane === "steady") {
     if (exp === "beginner")
       return {
         sets: 3,
@@ -140,23 +160,25 @@ export function formatRx(rx: LiftPrescription): string {
 
 /** Daily protein band (g/kg) by goal — templates only. */
 export function proteinTargetGPerKg(goal: GoalId): { min: number; max: number; note: string } {
-  if (goal === "lose-fat")
+  const lane = goalLane(goal);
+  if (lane === "cut")
     return {
       min: 1.8,
       max: 2.4,
       note: "Use the higher end when eating less, to help keep muscle (sports-nutrition position stand).",
     };
-  if (goal === "build-muscle")
+  if (lane === "hypertrophy")
     return { min: 1.6, max: 2.2, note: "Spread 20–40 g protein every 3–4 hours." };
-  if (goal === "performance")
+  if (lane === "strength")
     return { min: 1.4, max: 2.0, note: "Fuel sessions with carbs; protein for repair." };
   return { min: 1.4, max: 1.8, note: "Steady intake beats perfect timing." };
 }
 
 export function carbEmphasis(goal: GoalId, hardDay: boolean): string {
-  if (hardDay && (goal === "performance" || goal === "build-muscle"))
+  const lane = goalLane(goal);
+  if (hardDay && (lane === "strength" || lane === "hypertrophy"))
     return "Put most of today’s carbs around this session (before/after) so you have fuel in the tank.";
-  if (goal === "lose-fat")
+  if (lane === "cut")
     return "Keep protein high; put most carbs near training; veggies + fiber the rest of the day.";
   return "Balanced plate: protein + carb + produce + healthy fat.";
 }

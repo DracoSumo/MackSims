@@ -7,7 +7,7 @@ export const primfitConfig = {
     "General fitness and meal plans only. Not medical advice. Trainer intros are requests — no payments in this version.",
   disclaimer:
     "PrimFit provides general fitness and nutrition plans only. Not medical advice. Informed by sports-medicine and sports-nutrition research groups plus well-known coaching systems — not endorsements or affiliations. Pro intros are requests only — no payments or bookings in this version.",
-  version: "0.3.2",
+  version: "0.3.7",
   company: "MackSims LLC",
   ageRating: "13+",
   supportEmail: "support@macksims.com",

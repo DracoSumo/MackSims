@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   applyExerciseSwap,
   applyMealSwap,
@@ -13,8 +13,22 @@ import type { MealSlot, UserProfile, WeekDay, WeekPlan } from "@/data/types";
 import { CheckOff } from "@/components/CheckOff";
 import { VideoBlock } from "@/components/VideoBlock";
 import { RestTimer } from "@/components/RestTimer";
+import { FlavorToast } from "@/components/FlavorToast";
+import { useTheme } from "@/components/ThemeProvider";
+import { hapticSuccess } from "@/lib/device";
 import { getDayProgress, saveWeekPlan, setDayProgress } from "@/lib/storage";
 import { syncWeekProgress } from "@/lib/progress";
+import { awardOnce, revokeAward, tryCrit, type FlavorEvent } from "@/lib/campaign";
+import {
+  flavorBlockName,
+  flavorMealsTitle,
+  flavorMealSlot,
+  flavorRankUpLabel,
+  flavorSessionTitle,
+  flavorSwapTitle,
+} from "@/lib/flavor";
+import { comboToast } from "@/lib/world";
+import { LoadLog } from "@/components/LoadLog";
 
 const MEAL_SLOTS: MealSlot[] = ["breakfast", "lunch", "dinner", "snack"];
 
@@ -39,12 +53,15 @@ export function DayBoard({
   onPlanChange: (plan: WeekPlan) => void;
   onProgressChange?: (done: number, total: number, justFinished: boolean) => void;
 }) {
+  const { theme } = useTheme();
   const profile: UserProfile = plan.profile;
   const [progress, setProgress] = useState(() => getDayProgress(plan.id, day.dayIndex));
   const [cuesOpen, setCuesOpen] = useState<Record<string, boolean>>({});
   const [videoOpen, setVideoOpen] = useState<Record<string, boolean>>({});
   const [swapBlockId, setSwapBlockId] = useState<string | null>(null);
   const [swapMealSlot, setSwapMealSlot] = useState<MealSlot | null>(null);
+  const [flavor, setFlavor] = useState<FlavorEvent | null>(null);
+  const comboRef = useRef(0);
 
   const total = day.workout.blocks.length + mealCount(day);
   const done = progress.blocks.length + progress.meals.length;
@@ -61,24 +78,66 @@ export function DayBoard({
     onProgressChange?.(nDone, total, justFinished);
   }
 
+  function ping(event: FlavorEvent | null) {
+    if (!event) return;
+    const withCombo =
+      event.combo && event.combo >= 2 ? { ...event, toast: `${event.toast} · ${comboToast(event.combo)}` } : event;
+    setFlavor(withCombo);
+    if (event.rankedUp || event.crit) void hapticSuccess();
+  }
+
+  function grantCheck(kind: "block" | "meal", key: string, xp: number) {
+    comboRef.current += 1;
+    const combo = comboRef.current;
+    const base = awardOnce({ key, theme, kind, xp, combo });
+    const crit = tryCrit(theme, key);
+    if (crit && base) {
+      ping({
+        ...crit,
+        toast: `${base.toast} · ${crit.toast}${combo >= 2 ? ` · ${comboToast(combo)}` : ""}`,
+        combo,
+        rankedUp: base.rankedUp || crit.rankedUp,
+        rank: crit.rankedUp ? crit.rank : base.rank,
+      });
+    } else {
+      ping(base);
+    }
+  }
+
   function toggleBlock(id: string) {
-    const blocks = progress.blocks.includes(id)
-      ? progress.blocks.filter((x) => x !== id)
-      : [...progress.blocks, id];
+    const checking = !progress.blocks.includes(id);
+    const blocks = checking ? [...progress.blocks, id] : progress.blocks.filter((x) => x !== id);
     const next = { ...progress, blocks };
     const wasDone = progress.blocks.length + progress.meals.length >= total && total > 0;
     const nowDone = blocks.length + progress.meals.length >= total && total > 0;
+    const key = `${plan.id}:${day.dayIndex}:b:${id}`;
+    if (checking) grantCheck("block", key, 8);
+    else {
+      comboRef.current = 0;
+      revokeAward(key, 8);
+    }
     persist(next, !wasDone && nowDone);
+    if (!wasDone && nowDone) {
+      ping(awardOnce({ key: `${plan.id}:${day.dayIndex}:session`, theme, kind: "session", xp: 20 }));
+    }
   }
 
   function toggleMeal(id: string) {
-    const meals = progress.meals.includes(id)
-      ? progress.meals.filter((x) => x !== id)
-      : [...progress.meals, id];
+    const checking = !progress.meals.includes(id);
+    const meals = checking ? [...progress.meals, id] : progress.meals.filter((x) => x !== id);
     const next = { ...progress, meals };
     const wasDone = progress.blocks.length + progress.meals.length >= total && total > 0;
     const nowDone = progress.blocks.length + meals.length >= total && total > 0;
+    const key = `${plan.id}:${day.dayIndex}:m:${id}`;
+    if (checking) grantCheck("meal", key, 4);
+    else {
+      comboRef.current = 0;
+      revokeAward(key, 4);
+    }
     persist(next, !wasDone && nowDone);
+    if (!wasDone && nowDone) {
+      ping(awardOnce({ key: `${plan.id}:${day.dayIndex}:session`, theme, kind: "session", xp: 20 }));
+    }
   }
 
   function swapExercise(option: ExerciseOption) {
@@ -109,11 +168,18 @@ export function DayBoard({
 
   return (
     <div className="space-y-8">
+      <FlavorToast
+        message={flavor ? (flavor.rankedUp ? `${flavor.rank.label} · ${flavor.toast}` : flavor.toast) : null}
+        rankedUp={flavor?.rankedUp}
+        crit={flavor?.crit || flavor?.kind === "crit"}
+        rankLabel={flavorRankUpLabel(theme)}
+        onDone={() => setFlavor(null)}
+      />
       <section className="space-y-3">
         {!compact ? (
           <div>
             <h2 className="text-lg font-semibold tracking-tight">
-              {day.workout.isRest ? "Recovery" : "Today’s session"}
+              {flavorSessionTitle(theme, day.workout.isRest)}
             </h2>
             {day.workout.whyThisDay ? (
               <p className="mt-1 text-sm text-[var(--pf-muted)]">{day.workout.whyThisDay}</p>
@@ -134,18 +200,41 @@ export function DayBoard({
                   <CheckOff checked={checked} onToggle={() => toggleBlock(b.id)} label={`Mark ${b.name} done`} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="pf-board-name">{b.name}</p>
+                      <p className="pf-board-name">{flavorBlockName(theme, b.name, b.movementCategory)}</p>
                       {b.durationMin ? (
                         <span className="shrink-0 pt-1 text-xs tabular-nums text-[var(--pf-muted)]">
                           {b.durationMin} min
                         </span>
                       ) : null}
                     </div>
+                    {flavorBlockName(theme, b.name, b.movementCategory) !== b.name ? (
+                      <p className="text-[11px] text-[var(--pf-muted)]">{b.name}</p>
+                    ) : null}
                     <p className="pf-board-effort">{b.detail}</p>
                     {effortLine(b) ? <p className="pf-board-effort">{effortLine(b)}</p> : null}
+                    <LoadLog
+                      category={b.movementCategory}
+                      name={b.name}
+                      place={profile.savedPlace?.label}
+                    />
                   </div>
                 </div>
-                {b.restSec ? <RestTimer seconds={b.restSec} /> : null}
+                {b.restSec ? (
+                  <RestTimer
+                    seconds={b.restSec}
+                    onComplete={() =>
+                      ping(
+                        awardOnce({
+                          key: `${plan.id}:${day.dayIndex}:rest:${b.id}`,
+                          theme,
+                          kind: "rest",
+                          xp: theme === "dnd" ? 2 : 0,
+                          roll: theme === "dnd",
+                        }),
+                      )
+                    }
+                  />
+                ) : null}
                 <div className="pf-board-actions">
                   <button
                     type="button"
@@ -189,7 +278,7 @@ export function DayBoard({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold tracking-tight">Meals</h2>
+        <h2 className="text-lg font-semibold tracking-tight">{flavorMealsTitle(theme)}</h2>
         {MEAL_SLOTS.map((slot) => {
           const m = day.meals[slot];
           if (!m) return null;
@@ -200,7 +289,9 @@ export function DayBoard({
               <div className="flex items-start gap-3">
                 <CheckOff checked={checked} onToggle={() => toggleMeal(m.id)} label={`Mark ${m.name} done`} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--pf-muted)]">{slot}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--pf-muted)]">
+                    {flavorMealSlot(theme, slot)}
+                  </p>
                   <p className="pf-board-name">{m.name}</p>
                   {m.fuelingTip ? <p className="pf-board-effort">{m.fuelingTip}</p> : null}
                   <ul className="mt-2 space-y-1 text-sm text-[var(--pf-silver)]">
@@ -237,7 +328,7 @@ export function DayBoard({
       {swapBlockId ? (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-4" role="dialog">
           <div className="pf-card max-h-[80vh] w-full max-w-lg overflow-y-auto p-4">
-            <p className="font-semibold">Swap exercise</p>
+            <p className="font-semibold">{flavorSwapTitle(theme, "exercise")}</p>
             <p className="mt-1 text-xs text-[var(--pf-muted)]">Matches the gear you listed.</p>
             <ul className="mt-3 space-y-2">
               {exerciseAlts.map((opt) => (
@@ -266,7 +357,10 @@ export function DayBoard({
       {swapMealSlot ? (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-4" role="dialog">
           <div className="pf-card max-h-[80vh] w-full max-w-lg overflow-y-auto p-4">
-            <p className="font-semibold">Swap {swapMealSlot}</p>
+            <p className="font-semibold">
+              {flavorSwapTitle(theme, "meal")}
+              {swapMealSlot ? ` · ${flavorMealSlot(theme, swapMealSlot)}` : ""}
+            </p>
             <p className="mt-1 text-xs text-[var(--pf-muted)]">Matches how you eat; pantry items float up.</p>
             <ul className="mt-3 space-y-2">
               {mealAlts.map((opt) => (

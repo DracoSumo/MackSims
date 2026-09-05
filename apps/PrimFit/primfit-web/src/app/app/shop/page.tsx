@@ -6,7 +6,7 @@ import { useTheme } from "@/components/ThemeProvider";
 import { PREVIEW_UNLOCK_NOTE, getOwnedPacks, type ThemeId } from "@/lib/themes";
 
 export default function ShopPage() {
-  const { theme, owned, packs, copy, buy, equip, restore, receipts } = useTheme();
+  const { theme, owned, packs, copy, buy, equip, preview, restore, receipts } = useTheme();
   const [pending, setPending] = useState<ThemeId | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
@@ -26,7 +26,10 @@ export default function ShopPage() {
           {copy.shop}
         </p>
         <h1 className="pf-display text-3xl font-bold">{copy.shopTitle}</h1>
-        <p className="text-sm text-[var(--pf-muted)]">{PREVIEW_UNLOCK_NOTE}</p>
+        <p className="text-sm text-[var(--pf-muted)]">
+          Hunter System, Quest Mode, Power Arc, and Shonen change how Today feels — ranks, XP, class picks, flavored
+          sessions. Same training underneath. {PREVIEW_UNLOCK_NOTE}
+        </p>
       </header>
 
       <div className="space-y-4">
@@ -40,10 +43,17 @@ export default function ShopPage() {
           const has = owned.includes(pack.id);
           const equipped = theme === pack.id;
           return (
-            <article key={pack.id} className="pf-card space-y-3 p-4">
+            <article
+              key={pack.id}
+              className="pf-card space-y-3 p-4"
+              onClick={() => preview(pack.id)}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="pf-display text-lg font-semibold">{pack.name}</h2>
+                  <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--pf-silver)]">
+                    {pack.vibe}
+                  </p>
                   <p className="mt-1 text-sm text-[var(--pf-muted)]">{pack.pitch}</p>
                 </div>
                 <p className="shrink-0 text-sm font-semibold text-[var(--pf-silver)]">{pack.priceLabel}</p>
@@ -60,11 +70,26 @@ export default function ShopPage() {
               {equipped ? (
                 <p className="pf-btn-ghost pointer-events-none w-full opacity-80">Equipped</p>
               ) : has ? (
-                <button type="button" className="pf-btn-primary w-full" onClick={() => equip(pack.id)}>
+                <button
+                  type="button"
+                  className="pf-btn-primary w-full"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    equip(pack.id);
+                  }}
+                >
                   Equip
                 </button>
               ) : (
-                <button type="button" className="pf-btn-primary w-full" onClick={() => setPending(pack.id)}>
+                <button
+                  type="button"
+                  className="pf-btn-primary w-full"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    preview(pack.id);
+                    setPending(pack.id);
+                  }}
+                >
                   Buy · {pack.priceLabel}
                 </button>
               )}

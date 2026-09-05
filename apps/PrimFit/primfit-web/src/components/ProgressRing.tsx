@@ -4,10 +4,12 @@ export function ProgressRing({
   done,
   total,
   label,
+  hint,
 }: {
   done: number;
   total: number;
   label?: string;
+  hint?: string;
 }) {
   const pct = total > 0 ? Math.min(1, done / total) : 0;
   const r = 28;
@@ -42,7 +44,7 @@ export function ProgressRing({
         <div>
           <p className="text-base font-semibold">{label ?? (complete ? "Today is done" : `${done} of ${total} checked`)}</p>
           <p className="text-sm text-[var(--pf-muted)]">
-            {complete ? "Nice work — recover and eat." : "Session first, then meals."}
+            {hint ?? (complete ? "Nice work — recover and eat." : "Session first, then meals.")}
           </p>
         </div>
       </div>
