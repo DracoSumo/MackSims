@@ -3,7 +3,7 @@
 
   // FishCrew app shell v0.7.4 — UGC moderation + refresh/load hardening
   const CONFIG = window.FISHCREW_CONFIG || {};
-  const VERSION = CONFIG.VERSION || '0.7.4';
+  const VERSION = CONFIG.VERSION || '0.8.0';
   const STORE = `fishcrew:${VERSION}:state`;
   const LEGACY_PREFIX = 'fishcrew:';
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -842,7 +842,7 @@
         <div class="row">
           <button class="btn primary small" type="button" data-action="request-trip" data-trip-id="${safe(trip.id)}">${isMember ? 'Crew' : pending ? 'Pending' : canRequest ? 'Request' : 'Closed'}</button>
           <button class="btn dark small" type="button" data-action="trip-details" data-trip-id="${safe(trip.id)}">Details</button>
-          ${canHost ? `<button class="btn soft small" type="button" data-action="open-host-controls" data-trip-id="${safe(trip.id)}">Host</button>` : `<button class="btn dark small" type="button" data-action="open-map" data-area="${safe(trip.area)}">Map</button>`}
+          ${canHost ? `<button class="btn soft small" type="button" data-action="share-trip" data-trip-id="${safe(trip.id)}">Invite</button><button class="btn soft small" type="button" data-action="open-host-controls" data-trip-id="${safe(trip.id)}">Host</button>` : `<button class="btn dark small" type="button" data-action="open-map" data-area="${safe(trip.area)}">Map</button>`}
         </div>
       </article>`;
   }
@@ -1263,6 +1263,64 @@
     state.messages = {};
     state.activeTripId = '';
     if (state.crewPanel === 'chat') state.crewPanel = 'upcoming';
+  }
+
+  function canonicalAppUrl() {
+    const base = String(CONFIG.WEB_CANONICAL_URL || location.origin || 'https://fishcrew.macksims.com/');
+    return base.endsWith('/') ? base : `${base}/`;
+  }
+
+  function tripInviteUrl(tripId) {
+    return `${canonicalAppUrl()}?trip=${encodeURIComponent(tripId)}`;
+  }
+
+  function tripIdFromUrl() {
+    const params = new URLSearchParams(location.search || '');
+    const fromQuery = params.get('trip') || params.get('invite');
+    if (fromQuery) return String(fromQuery).trim();
+    const path = String(location.pathname || '');
+    const match = path.match(/\/(?:invite|trip)\/([^/]+)\/?$/i);
+    return match ? decodeURIComponent(match[1]) : '';
+  }
+
+  function clearTripInviteFromUrl() {
+    try {
+      const url = new URL(location.href);
+      if (!url.searchParams.has('trip') && !url.searchParams.has('invite') && !/\/(?:invite|trip)\//i.test(url.pathname)) return;
+      url.searchParams.delete('trip');
+      url.searchParams.delete('invite');
+      if (/\/(?:invite|trip)\/[^/]+\/?$/i.test(url.pathname)) url.pathname = '/';
+      history.replaceState({}, '', url.pathname + url.search + url.hash);
+    } catch (_) { /* ignore history failures */ }
+  }
+
+  async function openTripInvite(tripId, { forceRequest = false } = {}) {
+    if (!tripId) return;
+    let trip = state.trips.find((t) => t.id === tripId);
+    if (!trip && supabaseClient) {
+      try { await pullSupabase({ silent: true }); } catch (_) { /* keep going */ }
+      trip = state.trips.find((t) => t.id === tripId);
+    }
+    if (!trip) {
+      state.pendingTripId = tripId;
+      save();
+      toast('That trip invite is not loaded yet. Sign in or refresh, then try again.', 'warning');
+      return;
+    }
+    state.pendingTripId = '';
+    state.activeTripId = trip.id;
+    save();
+    clearTripInviteFromUrl();
+    if (forceRequest) return requestTrip(trip.id);
+    tripDetails(trip.id);
+  }
+
+  function consumePendingTripInvite() {
+    const tripId = state.pendingTripId || tripIdFromUrl();
+    if (!tripId) return;
+    state.pendingTripId = '';
+    save();
+    setTimeout(() => openTripInvite(tripId), 120);
   }
 
   function renderCrew() {
@@ -2501,6 +2559,7 @@
           await ensureUserFromSupabase(data.user, { name: email.split('@')[0], role: 'Angler', area: 'Tampa Bay' });
           closeModal();
           toast('Signed in.');
+          consumePendingTripInvite();
           return;
         } catch (_) {
           return showAuthError(GENERIC_LOGIN_ERROR);
@@ -2511,6 +2570,7 @@
       state.session = { userId: existing.id, signedInAt: now() };
       state.opsLog.unshift(`${existing.name} signed in locally.`);
       closeModal(); save(); render(); toast(`Welcome back, ${existing.name}.`);
+      consumePendingTripInvite();
     } finally {
       authBusy = false;
     }
@@ -2552,6 +2612,7 @@
             await ensureUserFromSupabase(data.session.user, { name, username, role, area, firstName, lastName, email }, { persistSession: true, syncProfile: true });
             closeModal();
             toast(SIGNUP_WELCOME_MESSAGE);
+            consumePendingTripInvite();
             return;
           }
           if (data.user) {
@@ -3541,7 +3602,9 @@
       if (tripReport) await liveInsertModeration(tripReport);
       return true;
     });
-    nav('explore'); toast(uploaded.url ? (mediaReview.needsReview ? 'Trip posted. Photo hidden from public Explore until approved.' : 'Trip posted. Photo auto-approved and reportable.') : 'Trip posted.');
+    nav('explore');
+    toast(uploaded.url ? (mediaReview.needsReview ? 'Trip posted. Photo hidden from public Explore until approved.' : 'Trip posted. Photo auto-approved and reportable.') : 'Trip posted.');
+    setTimeout(() => shareTrip(trip.id), 280);
   }
 
   async function saveFeedPost() {
@@ -3642,6 +3705,7 @@
       <div class="modal-head"><div><span class="eyebrow">Host controls</span><h2>${safe(trip.title)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       <div class="stack">
         <div class="panel"><div class="row">${scoreBadge(trip.score)}<span class="chip">${safe(trip.status || 'Open')}</span><span class="chip">${safe(trip.spots)} open</span></div><p class="muted">${safe(trip.area)} ${MID} ${safe(trip.time)}</p><p class="tiny">Crew: ${safe(members.join(', ') || 'Host only')}</p></div>
+        <div class="panel"><h3>Invite crew</h3><p class="muted">Share a link. Friends open it, request a spot, and you approve them into chat + private meetup.</p><div class="row"><button class="btn primary small" type="button" data-action="share-trip" data-trip-id="${safe(trip.id)}">Share invite link</button><button class="btn dark small" type="button" data-action="copy-trip-invite" data-trip-id="${safe(trip.id)}">Copy link</button></div></div>
         <div class="grid two"><button class="panel" type="button" data-action="complete-trip" data-trip-id="${safe(trip.id)}"><h3>Mark complete</h3><p class="muted">Close the trip and create a proof post for the feed.</p></button><button class="panel" type="button" data-action="cancel-trip" data-trip-id="${safe(trip.id)}"><h3>Cancel trip</h3><p class="muted">Close requests, notify crew, and protect private details.</p></button></div>
         <div class="grid two"><button class="panel" type="button" data-action="reopen-trip" data-trip-id="${safe(trip.id)}"><h3>Reopen</h3><p class="muted">Put this trip back in the open trip board.</p></button><button class="panel" type="button" data-action="duplicate-trip" data-trip-id="${safe(trip.id)}"><h3>Duplicate</h3><p class="muted">Create a fresh copy for another day.</p></button></div>
         <div class="panel"><h3>Requests</h3>${requests.map((r)=>`<div class="lead-row"><div><b>${safe(r.userName)}</b><small>${safe(r.status)} ${MID} ${safe(r.message)}</small></div><div class="row">${r.status === 'Pending' ? `<button class="btn success small" type="button" data-action="approve-request" data-request-id="${safe(r.id)}">Approve</button><button class="btn danger small" type="button" data-action="decline-request" data-request-id="${safe(r.id)}">Decline</button>` : `<span class="chip">${safe(r.status)}</span>`}</div></div>`).join('') || '<p class="muted">No requests yet.</p>'}</div>
@@ -3832,7 +3896,9 @@
       <p class="lead">${safe(trip.publicLocation)} ${MID} ${safe(trip.time)}</p>
       <div class="condition-strip"><div class="stat"><span>Wind</span><strong>${safe(trip.wind)}</strong></div><div class="stat"><span>Waves</span><strong>${safe(trip.waves)}</strong></div><div class="stat"><span>Tide</span><strong>${safe(trip.tide)}</strong></div><div class="stat"><span>Water</span><strong>${safe(trip.water || '?')}</strong></div></div>
       <p class="mt"><strong>Private meetup:</strong> ${unlocked ? safe(trip.privateLocation) : 'Locked until host approval.'}</p>
-      <div class="row"><button class="btn primary" type="button" data-action="request-trip" data-trip-id="${safe(trip.id)}">Request spot</button><button class="btn dark" type="button" data-action="open-trip-chat" data-trip-id="${safe(trip.id)}">Crew chat</button><button class="btn dark" type="button" data-action="open-map" data-area="${safe(trip.area)}">Map area</button>${(user && (trip.hostId === user.id || isAdmin())) ? `<button class="btn soft" type="button" data-action="open-host-controls" data-trip-id="${safe(trip.id)}">Host controls</button>` : ''}</div>`);
+      <div class="row">${unlocked
+        ? `<button class="btn primary" type="button" data-action="open-trip-chat" data-trip-id="${safe(trip.id)}">Open crew chat</button>`
+        : `<button class="btn primary" type="button" data-action="request-trip" data-trip-id="${safe(trip.id)}">Request spot</button>`}<button class="btn dark" type="button" data-action="open-map" data-area="${safe(trip.area)}">Map area</button>${(user && (trip.hostId === user.id || isAdmin())) ? `<button class="btn soft" type="button" data-action="share-trip" data-trip-id="${safe(trip.id)}">Invite</button><button class="btn soft" type="button" data-action="open-host-controls" data-trip-id="${safe(trip.id)}">Host controls</button>` : ''}</div>`);
   }
 
   function openTripChat(tripId) {
@@ -3878,6 +3944,85 @@
     else if (state.activeScreen === 'home') render();
     await afterLocalWrite('Reaction', async () => liveUpdate('feed_posts', { reactions: Number(post.reactions || 0) }, 'id', post.id, 'feed reaction'));
     toast('Reaction added.');
+  }
+
+  function shareTextForTrip(trip) {
+    if (!trip) return 'Join my FishCrew trip.';
+    return `Crew needed: ${trip.title} — ${trip.area} (${trip.time}). Request a spot on FishCrew.`;
+  }
+
+  function shareTrip(tripId) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!trip) return toast('Trip not found.', 'danger');
+    const url = tripInviteUrl(trip.id);
+    const text = shareTextForTrip(trip);
+    modalMode = 'share-trip';
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Invite crew</span><h2>Share this trip link.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="share-preview panel light-panel"><span class="badge">${safe(trip.type)}</span><h3>${safe(trip.title)}</h3><p class="muted">${safe(trip.area)} ${MID} ${safe(trip.time)}</p><p class="tiny">${safe(url)}</p></div>
+      <p class="muted">Friends open the link → request a spot → you approve → private meetup + crew chat unlock.</p>
+      <div class="share-port-grid" aria-label="Trip invite sharing">
+        <button class="share-port native" type="button" data-action="share-trip-platform" data-platform="native" data-trip-id="${safe(trip.id)}"><b>Share</b><span>Phone share</span></button>
+        <button class="share-port facebook" type="button" data-action="share-trip-platform" data-platform="copy" data-trip-id="${safe(trip.id)}"><b>Copy</b><span>Copy link</span></button>
+        <button class="share-port twitter" type="button" data-action="share-trip-platform" data-platform="twitter" data-trip-id="${safe(trip.id)}"><b>X</b><span>X / Twitter</span></button>
+        <button class="share-port instagram" type="button" data-action="share-trip-platform" data-platform="sms" data-trip-id="${safe(trip.id)}"><b>SMS</b><span>Text message</span></button>
+      </div>`);
+  }
+
+  async function copyTripInvite(tripId) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!trip) return toast('Trip not found.', 'danger');
+    const url = tripInviteUrl(trip.id);
+    try {
+      await navigator.clipboard?.writeText(url);
+      toast('Invite link copied.');
+    } catch (_) {
+      toast(url, 'warning');
+    }
+    trackTripShare(trip, 'copy');
+  }
+
+  async function shareTripPlatform(tripId, platform) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!trip) return toast('Trip not found.', 'danger');
+    const text = shareTextForTrip(trip);
+    const url = tripInviteUrl(trip.id);
+    const encodedText = encodeURIComponent(`${text}\n${url}`);
+    const encodedUrl = encodeURIComponent(url);
+    if (platform === 'copy') return copyTripInvite(trip.id);
+    if (platform === 'twitter') {
+      window.open(`https://twitter.com/intent/tweet?text=${encodedText}`, '_blank', 'noopener,noreferrer');
+      trackTripShare(trip, 'twitter');
+      return toast('Opening X / Twitter share.');
+    }
+    if (platform === 'sms') {
+      window.open(`sms:?&body=${encodedText}`, '_self');
+      trackTripShare(trip, 'sms');
+      return toast('Opening Messages.');
+    }
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'FishCrew trip invite', text, url });
+        trackTripShare(trip, 'native');
+        return;
+      } catch (_) { /* fall through to copy */ }
+    }
+    return copyTripInvite(trip.id);
+  }
+
+  function trackTripShare(trip, provider) {
+    if (!trip) return;
+    state.opsLog.unshift(`Trip invite shared (${provider}): ${trip.title}`);
+    save();
+    if (!supabaseClient || !currentUser()) return;
+    liveInsert('external_share_events', {
+      user_id: currentUser().id,
+      provider,
+      source_type: 'trip',
+      source_id: trip.id,
+      share_url: tripInviteUrl(trip.id),
+      created_at: now()
+    }, 'trip invite share').catch(() => {});
   }
 
   function shareFeed(feedId) {
@@ -4244,6 +4389,7 @@ ${url}`).catch(() => {});
         if (membersRes.data?.length) {
           const memberMap = {};
           membersRes.data.forEach((m) => {
+            if (String(m.status || 'Approved') !== 'Approved') return;
             if (!memberMap[m.trip_id]) memberMap[m.trip_id] = [];
             memberMap[m.trip_id].push(m.user_id);
           });
@@ -4640,6 +4786,28 @@ ${url}`).catch(() => {});
     save(); render(); nav('home'); toast('Browser data reset.');
   }
 
+  function openNotification(el) {
+    const tripId = el?.dataset?.tripId || '';
+    const linkPath = el?.dataset?.linkPath || '';
+    const type = (state.notifications || []).find((n) => n.id === el?.dataset?.notificationId)?.type || '';
+    closeModal();
+    if (tripId && state.trips.some((t) => t.id === tripId)) {
+      state.activeTripId = tripId;
+      if (String(type).includes('message') || String(linkPath).includes('chat')) state.crewPanel = 'chat';
+      else if (String(type).includes('request') || String(linkPath).includes('request')) state.crewPanel = 'requests';
+      else state.crewPanel = 'upcoming';
+      save();
+      nav('crew');
+      return;
+    }
+    if (linkPath) {
+      if (linkPath.includes('crew') || linkPath.includes('request') || linkPath.includes('chat')) return nav('crew');
+      if (linkPath.includes('feed')) return nav('feed');
+      if (linkPath.includes('explore')) return nav('explore');
+    }
+    nav('crew');
+  }
+
   function openNotifications() {
     if (!currentUser()) return openAuth('Sign in to view your FishCrew alerts.');
     const notes = state.notifications || [];
@@ -4647,7 +4815,7 @@ ${url}`).catch(() => {});
     const fetchError = state.notificationsFetchError;
     modal(`<div class="modal-head"><div><span class="eyebrow">Activity</span><h2>FishCrew alerts.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       <div class="stack">
-        ${loading ? '<div class="empty">Loading alerts...</div>' : fetchError ? `<div class="empty">Could not load alerts. ${safe(fetchError)}</div>` : notes.map((n)=>`<div class="panel notification-row ${n.read ? 'read' : ''}"><div class="row"><span class="badge ${n.read ? '' : 'green'}">${safe(n.type || 'Alert')}</span><span class="chip">${new Date(n.createdAt || now()).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })}</span></div><h3>${safe(n.title)}</h3><p class="muted">${safe(n.body)}</p></div>`).join('') || '<div class="empty">No alerts yet. Trip, crew, and message activity will show here.</div>'}
+        ${loading ? '<div class="empty">Loading alerts...</div>' : fetchError ? `<div class="empty">Could not load alerts. ${safe(fetchError)}</div>` : notes.map((n)=>`<button class="panel notification-row text-left ${n.read ? 'read' : ''}" type="button" data-action="open-notification" data-notification-id="${safe(n.id)}" data-trip-id="${safe(n.entityId || '')}" data-link-path="${safe(n.linkPath || '')}"><div class="row"><span class="badge ${n.read ? '' : 'green'}">${safe(n.type || 'Alert')}</span><span class="chip">${new Date(n.createdAt || now()).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })}</span></div><h3>${safe(n.title)}</h3><p class="muted">${safe(n.body)}</p></button>`).join('') || '<div class="empty">No alerts yet. Trip, crew, and message activity will show here.</div>'}
         <div class="row"><button class="btn primary" type="button" data-action="mark-notifications-read">Mark all read</button><button class="btn dark" type="button" data-action="open-user-settings">Notification settings</button></div>
       </div>`);
     if (supabaseClient && currentUser() && !loading) fetchNotifications();
@@ -4734,6 +4902,10 @@ ${url}`).catch(() => {});
     'react-feed': (el) => reactFeed(el.dataset.feedId),
     'share-feed': (el) => shareFeed(el.dataset.feedId),
     'share-platform': (el) => sharePlatform(el.dataset.feedId, el.dataset.platform || 'native'),
+    'share-trip': (el) => shareTrip(el.dataset.tripId),
+    'share-trip-platform': (el) => shareTripPlatform(el.dataset.tripId, el.dataset.platform || 'native'),
+    'copy-trip-invite': (el) => copyTripInvite(el.dataset.tripId),
+    'open-notification': (el) => openNotification(el),
     'report-feed': (el) => reportFeed(el.dataset.feedId),
     'block-user': (el) => blockUser(el.dataset.userId),
     'unblock-user': (el) => unblockUser(el.dataset.userId),
@@ -4866,6 +5038,13 @@ ${url}`).catch(() => {});
 
   function openDeepLinkModal() {
     const path = String(location.pathname || '').replace(/\/+$/, '').toLowerCase();
+    const tripId = tripIdFromUrl();
+    if (tripId) {
+      state.pendingTripId = tripId;
+      save();
+      openTripInvite(tripId);
+      return;
+    }
     if (path === '/privacy') openPrivacyPolicy();
     else if (path === '/terms') openTerms();
     else if (path === '/support') openSupportCenter();

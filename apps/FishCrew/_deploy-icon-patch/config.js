@@ -1,5 +1,5 @@
 window.FISHCREW_CONFIG = {
-  VERSION: '0.7.3',
+  VERSION: '0.8.0',
   // Demo/sample content (fake users, trips, feed posts) only loads when this
   // is explicitly true. Production/beta builds must keep it false.
   DEMO_MODE: false,
@@ -19,7 +19,7 @@ window.FISHCREW_CONFIG = {
   ENABLE_MEDIA_MODERATION: true,
   ENABLE_SUPABASE_LIVE_CORE: true,
   ENABLE_REALTIME_SYNC: true,
-  LIVE_CORE_VERSION: '0.7.3',
+  LIVE_CORE_VERSION: '0.8.0',
   SUPPORT_EMAIL: 'support@fishcrew.app',
   MAX_LOCAL_UPLOAD_MB: 6,
   MAX_IMAGE_UPLOAD_MB: 10,
@@ -47,7 +47,7 @@ window.FISHCREW_CONFIG = {
   ENABLE_LOCATION_MEDIA_PLUGIN: true,
   OAUTH_REDIRECT_PATH: '/',
   PLUGIN_STATUS: {
-    supabase: 'ready-for-credentials',
+    supabase: 'live',
     googleAuth: 'coming-soon',
     facebookAuth: 'coming-soon',
     instagramConnect: 'config-gated-oauth',
@@ -55,10 +55,13 @@ window.FISHCREW_CONFIG = {
     facebookShare: 'web-share-ready',
     xShare: 'web-share-ready',
     nativeShare: 'navigator-share-ready',
-    maps: 'provider-slot-ready',
-    weather: 'provider-slot-ready',
-    waterNews: 'source-slot-ready',
-    guideDirectory: 'data-model-ready',
-    locationMedia: 'area-photo-map-ready'
+    tripInviteShare: 'live',
+    maps: 'google-maps-search-live',
+    weather: 'open-meteo-live',
+    waterNews: 'static-cards',
+    guideDirectory: 'static-library',
+    locationMedia: 'area-photo-map-ready',
+    fishId: 'assistive-stub',
+    measureTool: 'assistive-stub'
   }
 };

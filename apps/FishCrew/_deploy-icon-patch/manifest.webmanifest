@@ -1,9 +1,9 @@
 {
   "name": "FishCrew",
   "short_name": "FishCrew",
-  "id": "/?v=0.7.3",
-  "description": "Find your fishing crew, post trips, share catches, and run local fishing operations.",
-  "start_url": "/?v=0.7.3",
+  "id": "/?v=0.8.0",
+  "description": "Post a trip, share an invite link, approve crew, and unlock private meetup chat.",
+  "start_url": "/?v=0.8.0",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
