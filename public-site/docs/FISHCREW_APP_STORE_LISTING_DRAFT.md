@@ -3,21 +3,39 @@
 ## App Name
 FishCrew
 
-## Short Description
-Fishing community and water tools beta.
+## Subtitle / Short Description
+Post trips. Invite crew. Fish together.
 
 ## Long Description
-FishCrew is a MackSims beta app for fishing community features and water-focused tools.
+FishCrew helps Florida anglers plan trips with a real crew — without group-chat chaos.
 
-The beta may include browse-first access, Explore, Port Window, Tools, Guide, and Profile areas. FishCrew is designed as a foundation for anglers, guides, local fishing activity, and future water-based app features.
+Post a trip with public area details and a private meetup pin. Share an invite link. Friends request a spot. You approve them. Private meetup location and crew chat unlock only for approved members.
 
-FishCrew is still in beta. Some content may be mock, demo, or preview content.
+Also included in this beta:
+- Explore open trips near Tampa Bay / Florida waters
+- Bite board feed for catch reports and dock notes
+- Planning tools for wind, waves, and tide context
+- Safety-minded privacy: exact pins stay locked until approval
+
+FishCrew is an external beta. Weather and maps are planning aids only — confirm official marine forecasts, regulations, and your own judgment before launching. FishCrew is not for emergency, navigation, or safety-critical decisions.
+
+## Primary Loop (what to demo in screenshots)
+1. Post a trip
+2. Share invite link
+3. Second angler opens link → requests spot
+4. Host approves
+5. Private meetup + crew chat unlock
 
 ## Known Limitations
-- Beta software
-- May include preview, mock, or demo content
-- Do not claim live GPS unless wired
-- Do not claim live weather unless wired
-- Do not claim push notifications unless wired
-- Do not claim paid/native integrations unless wired
+- External beta software
+- Email/password sign-in is primary (Google/Facebook coming later)
+- Push notifications are in-app alerts only (no APNs/FCM yet)
+- Fish ID / measure tools are assistive stubs, not scientific instruments
 - Not for emergency, navigation, boating, weather, or safety-critical decisions
+
+## Support
+support@fishcrew.app
+https://fishcrew.macksims.com/support.html
+
+## Privacy
+https://fishcrew.macksims.com/privacy.html

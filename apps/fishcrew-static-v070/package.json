@@ -1,0 +1,17 @@
+{
+  "name": "fishcrew-static",
+  "version": "0.8.0",
+  "private": true,
+  "description": "FishCrew static SPA + Capacitor shell for store builds",
+  "scripts": {
+    "test": "node --test ./*.test.mjs",
+    "build:dist": "node scripts/prepare-dist.mjs",
+    "cap:sync": "npm run build:dist && npx cap sync"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.4.2",
+    "@capacitor/cli": "^7.4.2",
+    "@capacitor/core": "^7.4.2",
+    "@capacitor/ios": "^7.4.2"
+  }
+}
