@@ -1,36 +1,41 @@
-# FishCrew App Store Listing Draft
+﻿# FishCrew App Store Listing Draft
 
-## Name
+## App Name
 FishCrew
 
-## Subtitle / Short description
-Fishing community and water tools beta.
+## Subtitle / Short Description
+Post trips. Invite crew. Fish together.
 
-## Long description
-FishCrew is a beta fishing community and water-planning app from MackSims. It is designed around browse-first access, local fishing discovery, community activity, and practical tools for anglers preparing for a day on the water.
+## Long Description
+FishCrew helps Florida anglers plan trips with a real crew — without group-chat chaos.
 
-During beta, testers can help validate sign-in, profile setup, Explore, Crew, Feed, Tools, Guide, Port Window-style planning, layout, content clarity, and feedback workflows.
+Post a trip with public area details and a private meetup pin. Share an invite link. Friends request a spot. You approve them. Private meetup location and crew chat unlock only for approved members.
 
-## Important beta limitation
-FishCrew is in beta. Do not rely on it for emergency, navigation, boating safety, live GPS, marine weather, paid guide verification, push notifications, or safety-critical decisions unless the current build clearly states those features are live and verified.
+Also included in this beta:
+- Explore open trips near Tampa Bay / Florida waters
+- Bite board feed for catch reports and dock notes
+- Planning tools for wind, waves, and tide context
+- Safety-minded privacy: exact pins stay locked until approval
 
-## Category
-Sports, Lifestyle, or Social Networking candidate.
+FishCrew is an external beta. Weather and maps are planning aids only — confirm official marine forecasts, regulations, and your own judgment before launching. FishCrew is not for emergency, navigation, or safety-critical decisions.
 
-## Keywords
-fishing, anglers, crew, water, trips, guide, tools, community.
+## Primary Loop (what to demo in screenshots)
+1. Post a trip
+2. Share invite link
+3. Second angler opens link → requests spot
+4. Host approves
+5. Private meetup + crew chat unlock
 
-## URLs
-- Support: https://macksims.com/support
-- Privacy: https://macksims.com/privacy
-- Account deletion: https://macksims.com/account-deletion
+## Known Limitations
+- External beta software
+- Email/password sign-in is primary (Google/Facebook coming later)
+- Push notifications are in-app alerts only (no APNs/FCM yet)
+- Fish ID / measure tools are assistive stubs, not scientific instruments
+- Not for emergency, navigation, boating, weather, or safety-critical decisions
 
-## Screenshots needed
-- Home
-- Explore
-- Crew
-- Feed
-- Tools
-- Guide
-- Profile
-- Sign in / create account
+## Support
+support@fishcrew.app
+https://fishcrew.macksims.com/support.html
+
+## Privacy
+https://fishcrew.macksims.com/privacy.html
