@@ -5090,6 +5090,15 @@ ${url}`).catch(() => {});
         if (backendResult === 'timeout') {
           state.backendMode = 'local';
           toast('Shared data is slow to respond. Browsing continues with local data.', 'danger');
+        } else {
+          // Pull public trips so Explore + invite deep links resolve without a manual sync.
+          setBootStatus('Loading open trips and crew boards...');
+          try {
+            await Promise.race([
+              pullSupabase({ silent: true, reason: 'boot' }),
+              new Promise((resolve) => setTimeout(resolve, 8000))
+            ]);
+          } catch (_) { /* browse continues with whatever we have locally */ }
         }
       }
       await maybeHandlePasswordRecovery();
@@ -5099,7 +5108,7 @@ ${url}`).catch(() => {});
       save(true);
       render();
       setDebug(`Screen: ${state.activeScreen}`);
-      setTimeout(openDeepLinkModal, 180);
+      setTimeout(() => { openDeepLinkModal(); }, 180);
       if (!state.locationAsked && window.isSecureContext && navigator.geolocation) {
         state.locationAsked = true;
         save();
