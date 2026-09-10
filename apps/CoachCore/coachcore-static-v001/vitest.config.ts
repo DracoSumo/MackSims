@@ -10,5 +10,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // localStorage/window stubs are process-global; avoid cross-file races
+    fileParallelism: false,
   },
 });

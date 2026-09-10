@@ -52,7 +52,7 @@ export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Pr
     setBusy(true); setMsg('')
     const { error } = await supabase.auth.signUp({ email, password })
     setBusy(false)
-    setMsg(error ? `❌ ${error.message}` : '✅ Check your email to confirm (or sign in if confirmations are disabled).')
+    setMsg(error ? error.message : 'Check your email to confirm (or sign in if confirmations are disabled).')
   }
 
   async function signIn() {
@@ -60,7 +60,7 @@ export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Pr
     setBusy(true); setMsg('')
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     setBusy(false)
-    setMsg(error ? `❌ ${error.message}` : '✅ Signed in!')
+    setMsg(error ? error.message : 'Signed in!')
     if (!error) { setEmail(''); setPassword('') }
   }
 
@@ -69,7 +69,7 @@ export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Pr
     setBusy(true); setMsg('')
     const { error } = await supabase.auth.signOut()
     setBusy(false)
-    setMsg(error ? `❌ ${error.message}` : '👋 Signed out')
+    setMsg(error ? error.message : 'Signed out')
   }
 
   async function oauthSignIn(provider: OAuthProvider) {
@@ -78,14 +78,14 @@ export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Pr
     setMsg('')
     const error = await signInWithOAuth(supabase, provider)
     if (error) {
-      setMsg(`❌ ${error}`)
+      setMsg(error)
       setOauthBusy(null)
     }
   }
 
   if (!ready) {
     return (
-      <div className={`text-xs text-gray-500 ${className}`}>
+      <div className={`text-xs text-[color:var(--ss-muted)] ${className}`}>
         Checking cloud sync…
       </div>
     )
@@ -93,8 +93,8 @@ export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Pr
 
   if (!supabase) {
     return (
-      <div className={`text-xs text-gray-500 ${className}`}>
-        Supabase not configured — local demo mode (browser storage only).
+      <div className={`text-xs text-[color:var(--ss-muted)] ${className}`}>
+        Local library on this device — cloud sync turns on when Supabase env is set.
       </div>
     )
   }
@@ -103,7 +103,7 @@ export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Pr
     <div className={`flex flex-wrap items-center gap-2 ${className}`}>
       {user ? (
         <>
-          <span className="text-sm text-gray-600">Signed in as {user.email}</span>
+          <span className="text-sm text-[color:var(--ss-ink)]">Signed in as {user.email}</span>
           <button className="btn btn-outline" onClick={signOut} disabled={busy}>Sign out</button>
         </>
       ) : (
@@ -140,10 +140,10 @@ export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Pr
             disabled={busy}
           />
           <button className="btn btn-primary" onClick={signIn} disabled={busy}>Sign in</button>
-          <button className="btn" onClick={signUp} disabled={busy}>Sign up</button>
+          <button className="btn btn-outline" onClick={signUp} disabled={busy}>Sign up</button>
         </>
       )}
-      {msg && <span className="text-xs text-gray-500 ml-2">{msg}</span>}
+      {msg && <span className="text-xs text-[color:var(--ss-muted)] ml-2">{msg}</span>}
     </div>
   )
 }

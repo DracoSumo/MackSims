@@ -37,7 +37,7 @@ Set in Codemagic **Environment variables** or **Code signing** UI before first s
 | `CURBCUE_PACKAGE_NAME` | Android package ? **TBD owner** |
 | `CURBCUE_APP_STORE_APPLE_ID` | ASC numeric app ID after owner creates record |
 | `CURBCUE_ANDROID_KEYSTORE_REFERENCE` | Codemagic Android keystore reference name |
-| `CAPACITOR_SERVER_URL` | Optional override; default `https://fairshare-v03-20260624.netlify.app` |
+| `CAPACITOR_SERVER_URL` | Default `https://fairshare-v03-20260624.netlify.app/` |
 
 ### Per app ? MotoCrew
 
@@ -47,7 +47,7 @@ Set in Codemagic **Environment variables** or **Code signing** UI before first s
 | `MOTOCREW_PACKAGE_NAME` | **TBD owner** |
 | `MOTOCREW_APP_STORE_APPLE_ID` | **TBD** after ASC app created |
 | `MOTOCREW_ANDROID_KEYSTORE_REFERENCE` | Codemagic keystore ref |
-| `CAPACITOR_SERVER_URL` | Default `https://motocrewz.netlify.app` |
+| `CAPACITOR_SERVER_URL` | Default `https://motocrewz.netlify.app/` |
 
 ### Per app ? CoachCore
 
@@ -57,7 +57,7 @@ Set in Codemagic **Environment variables** or **Code signing** UI before first s
 | `COACHCORE_PACKAGE_NAME` | **TBD owner** |
 | `COACHCORE_APP_STORE_APPLE_ID` | **TBD** |
 | `COACHCORE_ANDROID_KEYSTORE_REFERENCE` | Codemagic keystore ref |
-| `CAPACITOR_SERVER_URL` | Default `https://coachcore7.netlify.app/app` |
+| `CAPACITOR_SERVER_URL` | Default `https://coachcore7.netlify.app/app/` (trailing slash avoids 301 blank WebView) |
 
 ### Per app ? Sermon Studio
 
@@ -67,7 +67,7 @@ Set in Codemagic **Environment variables** or **Code signing** UI before first s
 | `SERMON_STUDIO_PACKAGE_NAME` | **TBD owner** |
 | `SERMON_STUDIO_APP_STORE_APPLE_ID` | **TBD** |
 | `SERMON_STUDIO_ANDROID_KEYSTORE_REFERENCE` | Codemagic keystore ref |
-| `CAPACITOR_SERVER_URL` | Default `https://sermon-studio-beta.netlify.app` |
+| `CAPACITOR_SERVER_URL` | Default `https://sermon-studio-beta.netlify.app/` |
 
 ### Codemagic workflows (artifacts only ? no auto-publish)
 
@@ -165,7 +165,7 @@ cd apps\FairShare\android
 | Field | Value |
 |-------|-------|
 | Source | `apps/CoachCore/coachcore-static-v001` |
-| Hybrid URL | https://coachcore7.netlify.app/app |
+| Hybrid URL | https://coachcore7.netlify.app/app/ |
 | Display name | CoachCore |
 | Bundle ID / package | **TBD** ? `docs/store-launch/apps/coachcore/` |
 | Capacitor config | `apps/CoachCore/coachcore-static-v001/capacitor.config.ts` |

@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { useSupabase } from '@/lib/supabaseClient'
-import { getAuthedUser, getSyncMeta, mergeOnSignIn, pushSeries, pushSermon, type SermonWithSync } from '@/lib/supabaseSync'
+import { getAuthedUser, getSyncMeta, mergeOnSignIn, pushSeries, pushSermon, deleteSermonRemote, type SermonWithSync } from '@/lib/supabaseSync'
 import AuthCard from '@/components/AuthCard'
 import { FALLBACK_VERSES } from '@/lib/fallbackVerses'
 import { buildSermonNotes, openPrintableOutline } from '@/lib/sermonExport'
@@ -31,13 +31,33 @@ const LICENSED_TRANSLATION_NOTICE =
 const THEMES = ['faith','love','grace','hope','holiness','discipleship','mission','transformation','trust','praise']
 
 const FALLBACK_SONGS: Song[] = [
-  { id: 1, title: 'How Great Is Our God', artist: 'Chris Tomlin', themes: ['greatness','praise'], tempo: 'mid' },
-  { id: 2, title: 'Oceans (Where Feet May Fail)', artist: 'Hillsong UNITED', themes: ['faith','trust'], tempo: 'slow' },
-  { id: 3, title: 'Reckless Love', artist: 'Cory Asbury', themes: ['love','grace'], tempo: 'mid' },
-  { id: 4, title: 'Build My Life', artist: 'Pat Barrett', themes: ['holiness','surrender'], tempo: 'mid' },
-  { id: 5, title: 'Graves Into Gardens', artist: 'Elevation Worship', themes: ['transformation','victory'], tempo: 'up' },
-  { id: 6, title: 'The Blessing', artist: 'Kari Jobe & Elevation', themes: ['blessing','benediction'], tempo: 'slow' },
+  { id: 1, title: 'How Great Is Our God', artist: 'Chris Tomlin', themes: ['greatness','praise','faith'], tempo: 'mid' },
+  { id: 2, title: 'Oceans (Where Feet May Fail)', artist: 'Hillsong UNITED', themes: ['faith','trust','hope'], tempo: 'slow' },
+  { id: 3, title: 'Reckless Love', artist: 'Cory Asbury', themes: ['love','grace','praise'], tempo: 'mid' },
+  { id: 4, title: 'Build My Life', artist: 'Pat Barrett', themes: ['holiness','surrender','discipleship'], tempo: 'mid' },
+  { id: 5, title: 'Graves Into Gardens', artist: 'Elevation Worship', themes: ['transformation','victory','hope'], tempo: 'up' },
+  { id: 6, title: 'The Blessing', artist: 'Kari Jobe & Elevation', themes: ['blessing','benediction','mission'], tempo: 'slow' },
 ]
+
+/** Map sermon themes → song tags so "Match Current Sermon Theme" finds songs for common themes. */
+const THEME_TO_SONG_TAGS: Record<string, string[]> = {
+  faith: ['faith', 'trust', 'praise'],
+  love: ['love', 'grace', 'praise'],
+  grace: ['grace', 'love', 'praise'],
+  hope: ['hope', 'surrender', 'trust', 'praise'],
+  holiness: ['holiness', 'surrender'],
+  discipleship: ['discipleship', 'faith', 'surrender', 'trust'],
+  mission: ['mission', 'praise', 'victory', 'faith'],
+  transformation: ['transformation', 'victory'],
+  trust: ['trust', 'faith'],
+  praise: ['praise', 'greatness'],
+}
+
+function songMatchesTheme(song: Song, themeFilter: string): boolean {
+  if (!themeFilter) return true
+  const tags = THEME_TO_SONG_TAGS[themeFilter] ?? [themeFilter]
+  return tags.some((t) => song.themes.includes(t))
+}
 
 const TABS = ['Scripture','Ideas','Worship','Series','Library'] as const
 type TabId = typeof TABS[number]
@@ -154,7 +174,7 @@ function StringListEditor({ label, placeholder, items, onChange, ordered=false }
         : (
           <ul className='mt-2 space-y-1'>
             {items.map((item, idx) => (
-              <li key={`${item}-${idx}`} className='flex items-start justify-between gap-2 rounded-xl border border-gray-200 px-3 py-1.5 text-sm'>
+              <li key={`${item}-${idx}`} className='flex items-start justify-between gap-2 rounded-xl border border-[color:var(--ss-line)] px-3 py-1.5 text-sm'>
                 <span className='min-w-0 break-words'>{ordered ? `${idx+1}. ${item}` : item}</span>
                 <button className='text-[color:var(--ss-muted)] hover:text-red-600 shrink-0' aria-label={`Remove ${item}`}
                   onClick={()=>onChange(items.filter((_,i)=>i!==idx))}>×</button>
@@ -264,15 +284,18 @@ export default function Page() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[ready, supabase])
 
-  // Always persist local fallback
+  // Always persist local fallback (quota / private mode can throw)
   useEffect(()=>{
-    if (hydrated.current) localStorage.setItem(LS_LIB, JSON.stringify(library))
+    if (!hydrated.current) return
+    try { localStorage.setItem(LS_LIB, JSON.stringify(library)) } catch { /* ignore */ }
   },[library])
   useEffect(()=>{
-    if (hydrated.current) localStorage.setItem(LS_SERIES, JSON.stringify(series))
+    if (!hydrated.current) return
+    try { localStorage.setItem(LS_SERIES, JSON.stringify(series)) } catch { /* ignore */ }
   },[series])
   useEffect(()=>{
-    if (hydrated.current) localStorage.setItem(LS_DRAFT, JSON.stringify(sermon))
+    if (!hydrated.current) return
+    try { localStorage.setItem(LS_DRAFT, JSON.stringify(sermon)) } catch { /* ignore */ }
   },[sermon])
 
   const selectedPassages = useMemo(()=> sermon.passages.map(ref=>verses.find(v=>v.ref===ref)).filter(Boolean) as Verse[], [sermon.passages, verses])
@@ -284,7 +307,7 @@ export default function Page() {
   },[search, verses])
   const songResults = useMemo(()=>{
     return songs.filter(s=>{
-      const tm = theme ? s.themes.includes(theme) : true
+      const tm = songMatchesTheme(s, theme)
       const pm = tempo ? s.tempo===tempo : true
       return tm && pm
     })
@@ -407,21 +430,24 @@ export default function Page() {
 
   return (
     <div className='ss-page p-4 sm:p-6 max-w-7xl mx-auto space-y-6'>
-      <div className='no-print rounded-2xl border border-[rgba(126,184,218,0.22)] bg-[rgba(21,28,36,0.72)] px-4 py-3 text-sm text-[color:var(--ss-muted)] backdrop-blur-sm' role='note'>
-        <strong className='text-[color:var(--ss-ink)]'>External beta{supabase ? (authed ? ' — signed in + Supabase' : ' — Supabase connected') : ' — local demo mode'}.</strong>{' '}
-        {supabase
-          ? authed
-            ? ' Sermons and series sync when you save; unsaved drafts still work offline in this browser.'
-            : ' Sign in with Google or GitHub to sync when tables are ready; unsaved drafts still work offline in this browser.'
-          : ' Your data stays in this browser only — clearing browser data clears your library.'}
-        {' '}Idea suggestions are simple local templates, <strong className='text-[color:var(--ss-ink)]'>not live AI</strong>.
-        Please send feedback to feedback@macksims.com.
-      </div>
+      {!authed ? (
+        <div className='no-print rounded-2xl border border-[rgba(126,184,218,0.22)] bg-[rgba(21,28,36,0.72)] px-4 py-3 text-sm text-[color:var(--ss-muted)] backdrop-blur-sm' role='note'>
+          <strong className='text-[color:var(--ss-ink)]'>
+            {supabase ? 'Sign in to sync sermons' : 'Working on this device'}
+          </strong>
+          {' '}
+          {supabase
+            ? 'Use Google or GitHub below. Drafts still work offline in this browser until you save.'
+            : 'Your library stays in this browser — clearing browser data clears sermons. Feedback: feedback@macksims.com.'}
+        </div>
+      ) : null}
 
-      <div className='no-print rounded-[12px] border border-[rgba(126,184,218,0.18)] bg-[rgba(126,184,218,0.08)] px-4 py-3 text-sm text-[color:var(--ss-muted)]' role='note'>
-        <strong className='text-[color:var(--ss-ink)]'>Start here:</strong> edit the demo sermon below → add key points → open <strong>Scripture</strong> →
-        use <strong>Copy Sermon Notes</strong> → <strong>Save Draft</strong>.
-      </div>
+      {!authed ? (
+        <div className='no-print rounded-[12px] border border-[rgba(126,184,218,0.18)] bg-[rgba(126,184,218,0.08)] px-4 py-3 text-sm text-[color:var(--ss-muted)]' role='note'>
+          <strong className='text-[color:var(--ss-ink)]'>Start here:</strong> edit the sermon below → add key points → open <strong>Scripture</strong> →
+          use <strong>Copy Sermon Notes</strong> → <strong>Save Draft</strong>.
+        </div>
+      ) : null}
 
       <header className='no-print flex flex-wrap items-center justify-between gap-4'>
         <div>
@@ -771,7 +797,11 @@ export default function Page() {
 
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
               {series.length===0 && <p className='text-sm text-[color:var(--ss-muted)]'>No series yet. Create one above to group sermons.</p>}
-              {series.map(s => (
+              {series.map(s => {
+                const linked = library.filter(
+                  (serm) => serm.isSeriesItem && serm.seriesId && (serm.seriesId === s.id || serm.seriesId === s.name)
+                )
+                return (
                 <Card key={s.id} className='border' style={{ borderColor: s.color }}>
                   <CardHeader className='pb-2 flex flex-row justify-between items-center gap-2'>
                     <CardTitle className='text-base flex flex-wrap items-center gap-2'>
@@ -780,11 +810,36 @@ export default function Page() {
                     </CardTitle>
                     <div className='w-3 h-3 rounded-full shrink-0' style={{ background: s.color }} />
                   </CardHeader>
-                  <CardContent>
-                    <p className='text-sm text-[color:var(--ss-muted)]'>Attach saved sermons to this series from the library section.</p>
+                  <CardContent className='space-y-2'>
+                    {linked.length > 0 ? (
+                      <ul className='space-y-1.5 text-sm'>
+                        {linked.map((serm, idx) => (
+                          <li key={serm.id ?? `${s.id}-${idx}`} className='text-[color:var(--ss-ink)]'>
+                            <button
+                              type='button'
+                              className='text-left font-medium text-[color:var(--ss-accent)] underline-offset-2 hover:underline'
+                              onClick={() => {
+                                setSermon(normalizeSermon(serm, serm.cloudSynced === true))
+                                setActiveTab('Scripture')
+                                window.scrollTo({ top: 0, behavior: 'smooth' })
+                                notify('info', `Opened “${serm.title || 'Untitled sermon'}” from series.`)
+                              }}
+                            >
+                              {serm.title || 'Untitled sermon'}
+                            </button>
+                            {serm.date ? <span className='text-[color:var(--ss-muted)]'> · {serm.date}</span> : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className='text-sm text-[color:var(--ss-muted)]'>
+                        No sermons linked yet — create one in Library and set series.
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
-              ))}
+                )
+              })}
             </div>
           </CardContent>
         </Card>
@@ -872,10 +927,16 @@ export default function Page() {
                     setLibrary(arr => [copy, ...arr])
                     notify('success', 'Duplicate saved to library (local until you save while signed in).')
                   }}>Duplicate</Button>
-                  <Button variant='destructive' onClick={()=>{
+                  <Button variant='destructive' onClick={async ()=>{
                     if (!window.confirm(`Delete "${s.title || 'Untitled Sermon'}" from this browser?`)) return
-                    setLibrary(arr => arr.filter(x=> x.id !== s.id))
-                    notify('info', s.cloudSynced ? 'Removed from library view — Supabase row not deleted in this beta.' : 'Sermon deleted from this browser.')
+                    const id = s.id
+                    setLibrary(arr => arr.filter(x=> x.id !== id))
+                    if (s.cloudSynced && id) {
+                      const { error } = await deleteSermonRemote(id)
+                      notify(error ? 'error' : 'success', error ? `Deleted locally; cloud delete failed: ${error}` : 'Sermon deleted locally and from Supabase.')
+                    } else {
+                      notify('info', 'Sermon deleted from this browser.')
+                    }
                   }}>Delete</Button>
                 </div>
               </div>

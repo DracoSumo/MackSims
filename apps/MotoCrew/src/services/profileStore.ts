@@ -43,7 +43,11 @@ export function loadRiderProfile(): RiderProfileLocal {
 }
 
 export function saveRiderProfile(profile: RiderProfileLocal): RiderProfileLocal {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+  } catch {
+    // Quota or private mode — keep caller state; sync may still run.
+  }
   void import("./supabaseSync").then(({ pushRiderProfile }) => pushRiderProfile(profile));
   return profile;
 }

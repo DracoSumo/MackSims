@@ -1,3 +1,5 @@
+import { localGet, localSet } from "@/lib/safeStorage";
+
 export type AthleteCheckIn = {
   id: string;
   athleteId: string;
@@ -8,13 +10,19 @@ export type AthleteCheckIn = {
 
 const STORAGE_KEY = "coachcore.athleteCheckIns";
 
-export function listCheckIns(): AthleteCheckIn[] {
-  if (typeof window === "undefined") return [];
+function parseCheckIns(raw: string | null): AthleteCheckIn[] {
+  if (!raw) return [];
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as AthleteCheckIn[];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? (parsed as AthleteCheckIn[]) : [];
   } catch {
     return [];
   }
+}
+
+export function listCheckIns(): AthleteCheckIn[] {
+  if (typeof window === "undefined") return [];
+  return parseCheckIns(localGet(STORAGE_KEY));
 }
 
 export function saveCheckIn(input: {
@@ -31,7 +39,7 @@ export function saveCheckIn(input: {
   };
 
   const existing = listCheckIns();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([record, ...existing].slice(0, 30)));
+  localSet(STORAGE_KEY, JSON.stringify([record, ...existing].slice(0, 30)));
   void import("./localDataEvents").then(({ notifyLocalDataChanged }) => notifyLocalDataChanged("checkIns"));
   void import("./supabaseSync").then(({ pushCheckIn }) => pushCheckIn(record));
   return record;
@@ -42,7 +50,7 @@ export function mergeCheckIns(remote: AthleteCheckIn[]): AthleteCheckIn[] {
   const local = listCheckIns();
   const localIds = new Set(local.map((r) => r.id));
   const merged = [...local, ...remote.filter((r) => !localIds.has(r.id))].slice(0, 30);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+  localSet(STORAGE_KEY, JSON.stringify(merged));
   void import("./localDataEvents").then(({ notifyLocalDataChanged }) => notifyLocalDataChanged("checkIns"));
   return merged;
 }

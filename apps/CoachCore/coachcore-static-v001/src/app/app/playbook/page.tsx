@@ -13,7 +13,7 @@ export default function PlaybookPage() {
       </p>
       <div className="mb-6 flex flex-wrap gap-3">
         <a href="/app/playbook/new" className="rounded-2xl bg-sky-400 px-5 py-3 font-black text-slate-950">
-          Create Mock Playbook Item
+          Create playbook item
         </a>
       </div>
       <div className="grid gap-4 md:grid-cols-2">

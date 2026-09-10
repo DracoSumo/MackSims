@@ -111,6 +111,12 @@ export const routes: RoutePreview[] = [
     estimatedRideTime: '1 hr 20 min',
     roadType: 'Coastal surface streets and open bridge lanes',
     segments: ['Fuel stop', 'Coastal run', 'Bridge overlook', 'Garage row return'],
+    stops: [
+      { label: 'North Pier Fuel Stop', kind: 'fuel', lat: 32.38, lng: -64.68 },
+      { label: 'Coastal run', kind: 'waypoint', lat: 32.36, lng: -64.7 },
+      { label: 'Bridge Overlook', kind: 'vista', lat: 32.34, lng: -64.71 },
+      { label: 'Downtown Garage Row', kind: 'finish', lat: 32.3, lng: -64.78 },
+    ],
   },
   {
     id: 'route-ridge-line',
@@ -122,6 +128,12 @@ export const routes: RoutePreview[] = [
     estimatedRideTime: '2 hr 45 min',
     roadType: 'Mountain sweepers and two-lane backroads',
     segments: ['Warmup flats', 'Ridge climb', 'Vista pause', 'Coffee return'],
+    stops: [
+      { label: 'Mack County Welcome Center', kind: 'meet', lat: 34.1, lng: -84.2 },
+      { label: 'Ridge climb', kind: 'waypoint', lat: 34.25, lng: -84.05 },
+      { label: 'Pine Ridge Vista', kind: 'vista', lat: 34.32, lng: -83.95 },
+      { label: 'Copper Kettle Coffee', kind: 'finish', lat: 34.18, lng: -84.12 },
+    ],
   },
   {
     id: 'route-lakeside',
@@ -133,6 +145,12 @@ export const routes: RoutePreview[] = [
     estimatedRideTime: '1 hr 55 min',
     roadType: 'Shoreline roads and low-speed town crossings',
     segments: ['Market meet', 'Shoreline loop', 'Photo stop', 'Cafe finish'],
+    stops: [
+      { label: 'South Market Lot B', kind: 'meet', lat: 41.88, lng: -87.62 },
+      { label: 'Shoreline loop', kind: 'waypoint', lat: 41.9, lng: -87.58 },
+      { label: 'Lakeview Pullout', kind: 'vista', lat: 41.92, lng: -87.55 },
+      { label: 'Beanline Cafe', kind: 'finish', lat: 41.89, lng: -87.61 },
+    ],
   },
   {
     id: 'route-county-line',
@@ -144,6 +162,12 @@ export const routes: RoutePreview[] = [
     estimatedRideTime: '2 hr 10 min',
     roadType: 'Mixed pavement with narrow technical sections',
     segments: ['Gear check', 'County scout', 'Quarry stop', 'Debrief return'],
+    stops: [
+      { label: 'Eastside Gear House', kind: 'meet', lat: 35.22, lng: -80.84 },
+      { label: 'County Line Marker 18', kind: 'waypoint', lat: 35.3, lng: -80.7 },
+      { label: 'Old Quarry Pullout', kind: 'vista', lat: 35.35, lng: -80.65 },
+      { label: 'Debrief return', kind: 'finish', lat: 35.22, lng: -80.84 },
+    ],
   },
   {
     id: 'route-mill-road',
@@ -155,6 +179,12 @@ export const routes: RoutePreview[] = [
     estimatedRideTime: '1 hr 5 min',
     roadType: 'Night urban edge roads and light industrial lanes',
     segments: ['Diner launch', 'Mill road loop', 'River bend', 'Diner debrief'],
+    stops: [
+      { label: 'West End Diner', kind: 'meet', lat: 39.95, lng: -75.18 },
+      { label: 'Old Mill Road', kind: 'waypoint', lat: 39.98, lng: -75.22 },
+      { label: 'River bend', kind: 'vista', lat: 40.0, lng: -75.25 },
+      { label: 'West End Diner', kind: 'finish', lat: 39.95, lng: -75.18 },
+    ],
   },
 ]
 

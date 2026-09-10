@@ -22,8 +22,13 @@ function readServerConfig(): SupabaseConfig | null {
 async function fetchClientConfig(): Promise<SupabaseConfig | null> {
   if (typeof window === 'undefined') return readServerConfig()
   try {
-    const res = await fetch('/api/config', { cache: 'no-store' })
-    if (!res.ok) return null
+    const res = await Promise.race([
+      fetch('/api/config', { cache: 'no-store' }),
+      new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), 2500)
+      }),
+    ])
+    if (!res || !res.ok) return null
     const data = (await res.json()) as { supabaseUrl?: string | null; supabaseAnonKey?: string | null }
     const url = data.supabaseUrl?.trim() ?? ''
     const anon = data.supabaseAnonKey?.trim() ?? ''

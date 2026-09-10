@@ -119,6 +119,19 @@ export async function pushSavedComparison(record: SavedComparison): Promise<Sync
   return result;
 }
 
+export async function deleteSavedComparisonRemote(id: string): Promise<SyncResult> {
+  if (!isSupabaseConfigured) return "skipped";
+  const supabase = getSupabaseClient();
+  if (!supabase) return "skipped";
+  const uid = await userId();
+  if (!uid) return "skipped";
+
+  const { error } = await supabase.from("saved_comparisons").delete().eq("id", id).eq("user_id", uid);
+  const result = error ? "error" : "ok";
+  setSyncMeta({ lastResult: result, lastError: error?.message ?? null });
+  return result;
+}
+
 export async function pushCrowdPoll(record: CrowdPoll): Promise<SyncResult> {
   if (!isSupabaseConfigured) return "skipped";
   const supabase = getSupabaseClient();

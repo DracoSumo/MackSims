@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>CurbCue — Offline</title>
+    <style>
+      :root { color-scheme: light; }
+      body {
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 24px;
+        background: #eef6f4;
+        color: #0c2e36;
+        box-sizing: border-box;
+      }
+      main { max-width: 22rem; text-align: center; }
+      h1 { margin: 0 0 0.5rem; font-size: 1.5rem; font-weight: 800; }
+      p { margin: 0 0 1.25rem; line-height: 1.5; color: #4a6670; font-size: 0.95rem; }
+      a, button {
+        display: inline-block; width: 100%; margin: 0.4rem 0; padding: 0.85rem 1rem;
+        border-radius: 0.85rem; border: 1px solid rgba(12,46,54,0.15);
+        background: #007a6e; color: #fff; font-weight: 700; font-size: 1rem;
+        text-decoration: none; cursor: pointer;
+      }
+      button.secondary { background: transparent; color: #0c2e36; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>CurbCue couldn’t load</h1>
+      <p>The app needs a network connection. Check Wi‑Fi or cellular, then try again.</p>
+      <a id="retry" href="https://fairshare-v03-20260624.netlify.app/">Retry</a>
+      <button class="secondary" type="button" id="reload">Reload this page</button>
+    </main>
+    <script>
+      document.getElementById("reload").addEventListener("click", function () { location.reload(); });
+    </script>
+  </body>
+</html>

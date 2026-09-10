@@ -1,6 +1,6 @@
-import { useState } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { APP_NAME, APP_LONG_DESCRIPTION, APP_FEEDBACK_SUBJECT, BETA_LABEL, FEEDBACK_EMAIL, VERSION_LABEL } from "../config";
+import { getCurrentUser } from "../lib/auth";
 import { isBetaAcknowledged, setBetaAcknowledged } from "../lib/storage";
 
 interface BetaGateProps {
@@ -8,14 +8,30 @@ interface BetaGateProps {
 }
 
 /**
- * One-time landing screen shown before the app. Explains that this is an
- * external beta running entirely on simulated data. Acknowledgement is
- * stored in localStorage so testers only see it once per device.
+ * One-time landing screen before the app for anonymous visitors.
+ * Signed-in users skip straight into the product — no filler after login.
  */
 export function BetaGate({ children }: BetaGateProps) {
   const [acknowledged, setAcknowledged] = useState(() => isBetaAcknowledged());
+  const [signedIn, setSignedIn] = useState(false);
+  const [checking, setChecking] = useState(true);
 
-  if (acknowledged) {
+  useEffect(() => {
+    getCurrentUser()
+      .then((user) => setSignedIn(Boolean(user)))
+      .finally(() => setChecking(false));
+    const onAuth = () => {
+      getCurrentUser().then((user) => setSignedIn(Boolean(user)));
+    };
+    window.addEventListener("fairshare:auth-changed", onAuth);
+    return () => window.removeEventListener("fairshare:auth-changed", onAuth);
+  }, []);
+
+  if (checking) {
+    return <>{children}</>;
+  }
+
+  if (acknowledged || signedIn) {
     return <>{children}</>;
   }
 
@@ -32,24 +48,22 @@ export function BetaGate({ children }: BetaGateProps) {
           Welcome to {APP_NAME} <small>{VERSION_LABEL}</small>
         </h1>
         <p className="beta-gate-lead">
-          {APP_LONG_DESCRIPTION} This beta uses simulated fares, crowd levels, venues, and events — with nightlife
-          context and CrowdMeter pickup pressure.
+          {APP_LONG_DESCRIPTION} Compare fares with nightlife context and CrowdMeter pickup pressure.
         </p>
 
         <div className="beta-gate-disclaimer">
           <h2>Before you start</h2>
           <ul>
             <li>
-              <strong>All data is simulated.</strong> Every fare, wait time, crowd level, venue, and event in
-              this build is demo data. Nothing here is a live quote or real demand reading.
+              <strong>Estimates are simulated until live partners are connected.</strong> Fare ranges and crowd
+              levels help you practice the decision flow.
             </li>
             <li>
-              <strong>No bookings happen.</strong> Buttons that look like booking or saving actions are
-              placeholders for testing the flow only.
+              <strong>No bookings happen in this build.</strong> Save comparisons and places on this device
+              (and to the cloud when signed in).
             </li>
             <li>
-              <strong>Provider names are examples.</strong> Services shown are generic or example listings,
-              not partnerships or live integrations.
+              <strong>Provider names are examples.</strong> Listings are for comparison UX — not partnerships.
             </li>
             <li>
               <strong>Your feedback shapes the real build.</strong> Send anything you notice to{" "}
@@ -59,9 +73,9 @@ export function BetaGate({ children }: BetaGateProps) {
         </div>
 
         <button className="beta-gate-accept" type="button" onClick={acceptBeta}>
-          I understand — explore the demo
+          Continue into {APP_NAME}
         </button>
-        <small>Acknowledgement is stored on this device only.</small>
+        <small>Acknowledgement is stored on this device only. Signed-in accounts skip this screen.</small>
       </div>
     </div>
   );

@@ -47,7 +47,23 @@ No real GPS, maps, messaging, calling, Bluetooth, payments, or auth yet.
 
 ## Phase 0.2: Ride Planning Bones
 
+Status: Done (checklist / drafts / readiness).
+
 Goal: make MotoCrew useful before live road features.
+
+Done in this pass:
+
+- Per-ride checklist persistence (`motocrew.completedChecklistByRide`) with legacy flat-array migration.
+- Draft ride management: delete (local + Supabase when signed in), savedAt/pace/date display, “Use as template” prefills create form.
+- Pack readiness chips on Home ride cards (Ready / Almost / Needs checklist at 80/50).
+- Safety screen readiness meter wired to the **selected ride’s** checklist.
+- Local export includes the new checklist map key; version label `v0.2-demo`.
+
+Still open from Phase 0.2:
+
+- Better create-ride state beyond draft templates.
+- Route preview improvements with richer mocked stops.
+- Remaining polish on filters / pack roster (filters and roster already exist in shell).
 
 Features:
 
@@ -66,6 +82,8 @@ Technical:
 - Avoid router dependency unless navigation complexity requires it.
 
 ## Phase 0.3: Real Map Foundation
+
+Status: In progress / partial — static SVG route + typed stops behind mapAdapter (no provider keys).
 
 Goal: introduce real map rendering without live tracking.
 

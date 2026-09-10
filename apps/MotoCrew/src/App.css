@@ -101,7 +101,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-bottom: 84px;
+  padding-bottom: calc(84px + env(safe-area-inset-bottom));
 }
 
 .screen-content {
@@ -787,6 +787,69 @@ textarea:focus-visible {
   font-weight: 800;
 }
 
+.draft-saved-at {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.draft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.draft-delete-btn {
+  border-color: rgba(220, 80, 60, 0.45);
+  color: #f0a090;
+  background: rgba(220, 80, 60, 0.12);
+}
+
+.draft-delete-btn:hover,
+.draft-delete-btn:focus-visible {
+  border-color: rgba(220, 80, 60, 0.7);
+  background: rgba(220, 80, 60, 0.2);
+}
+
+.readiness-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.readiness-chip-pct {
+  opacity: 0.75;
+  font-weight: 700;
+}
+
+.readiness-chip--ready {
+  color: #7ddea8;
+  border-color: rgba(39, 174, 127, 0.35);
+  background: rgba(39, 174, 127, 0.12);
+}
+
+.readiness-chip--almost {
+  color: #f0c674;
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.readiness-chip--needs {
+  color: #f0a090;
+  border-color: rgba(220, 80, 60, 0.4);
+  background: rgba(220, 80, 60, 0.12);
+}
+
 .subtle-copy,
 .empty-state {
   margin: 0;
@@ -1047,6 +1110,34 @@ textarea:focus-visible {
   margin: 0;
   color: var(--muted);
   font-size: 13px;
+}
+
+.static-route-map {
+  display: grid;
+  gap: 10px;
+}
+
+.static-route-svg {
+  width: 100%;
+  min-height: 190px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(2, 6, 23, 0.65);
+}
+
+.static-route-meet {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.route-stop-kind {
+  display: inline-block;
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .comms-mock-controls {

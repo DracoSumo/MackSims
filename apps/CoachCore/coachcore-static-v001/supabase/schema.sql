@@ -39,15 +39,101 @@ create table if not exists beta_requests (
   submitted_at timestamptz not null default now()
 );
 
+-- v0.6 assignment + local product tables (mirror localStorage stores)
+create table if not exists assignments (
+  id text primary key,
+  title text not null default '',
+  kind text not null default 'other',
+  status text not null default 'Assigned',
+  assignee text not null default '',
+  updated_at timestamptz not null default now(),
+  owner_user_id uuid,
+  team_id uuid,
+  coach_profile_id uuid references coach_profiles(id) on delete set null
+);
+
+create table if not exists meal_logs (
+  id uuid primary key default gen_random_uuid(),
+  meal_type text not null default '',
+  hydration text not null default '',
+  notes text not null default '',
+  athlete_id text,
+  athlete_name text,
+  logged_at timestamptz not null default now(),
+  owner_user_id uuid,
+  team_id uuid,
+  coach_profile_id uuid references coach_profiles(id) on delete set null
+);
+
+create table if not exists coach_notes (
+  id uuid primary key default gen_random_uuid(),
+  attached_to text not null default '',
+  note_type text not null default '',
+  body text not null default '',
+  logged_at timestamptz not null default now(),
+  owner_user_id uuid,
+  team_id uuid,
+  coach_profile_id uuid references coach_profiles(id) on delete set null
+);
+
+-- v0.7.4 coach-owned manual roster (local athleteRosterStore mirror)
+create table if not exists athlete_roster (
+  id text primary key,
+  name text not null,
+  role text not null default 'Athlete',
+  status text not null default 'Needs nudge',
+  last_active text not null default 'Not yet',
+  film text not null default '—',
+  workouts text not null default '—',
+  meals text not null default '—',
+  readiness text not null default '—',
+  note text not null default '',
+  owner_user_id uuid not null,
+  team_id uuid,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+-- v0.7.5 org / team bootstrap (see migration 20260731220000_org_team_bootstrap.sql)
+create table if not exists organizations (
+  id uuid primary key default gen_random_uuid(),
+  owner_user_id uuid not null,
+  name text not null default 'My organization',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists teams (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references organizations (id) on delete cascade,
+  name text not null default 'Primary team',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists team_members (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references teams (id) on delete cascade,
+  user_id uuid not null,
+  role text not null default 'coach',
+  created_at timestamptz not null default now(),
+  unique (team_id, user_id)
+);
+
 -- RLS placeholders (enable after Supabase Auth wiring)
 alter table coach_profiles enable row level security;
 alter table athlete_check_ins enable row level security;
 alter table coach_action_log enable row level security;
 alter table beta_requests enable row level security;
+alter table assignments enable row level security;
+alter table meal_logs enable row level security;
+alter table coach_notes enable row level security;
+alter table athlete_roster enable row level security;
 
 -- Optional policies (run in SQL editor after enabling Google/GitHub Auth):
 -- create policy "auth insert checkins" on athlete_check_ins for insert to authenticated with check (true);
 -- create policy "auth select checkins" on athlete_check_ins for select to authenticated using (true);
+-- create policy "auth upsert assignments" on assignments for all to authenticated using (true) with check (true);
+-- create policy "auth upsert meal_logs" on meal_logs for all to authenticated using (true) with check (true);
+-- create policy "auth upsert coach_notes" on coach_notes for all to authenticated using (true) with check (true);
 -- create policy "anon insert beta" on beta_requests for insert with check (true);
 
 -- v0.7.2 plugin layer (also applied via Supabase migration on staging)

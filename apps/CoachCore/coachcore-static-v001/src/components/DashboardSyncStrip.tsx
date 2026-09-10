@@ -16,13 +16,14 @@ export function DashboardSyncStrip() {
       setLabel(syncStatusLabel(dash.meta.lastResult));
       if (dash.signedIn) {
         const parts = [
-          `Check-ins: ${dash.local.checkIns} local`,
-          dash.remote?.checkIns != null ? `${dash.remote.checkIns} cloud` : null,
+          `Roster: ${dash.local.roster}`,
+          `Check-ins: ${dash.local.checkIns}`,
+          dash.remote?.roster != null ? `cloud roster ${dash.remote.roster}` : null,
           dash.meta.lastSyncedAt ? `Last sync ${new Date(dash.meta.lastSyncedAt).toLocaleTimeString()}` : null,
         ].filter(Boolean);
         setDetail(parts.join(" · "));
       } else if (isSupabaseConfigured) {
-        setDetail("Sign in on Profile to merge local check-ins and action log with Supabase.");
+        setDetail("Sign in on Profile to merge roster, assignments, meals, and notes with Supabase.");
       } else {
         setDetail("Demo mode — data stays on this device.");
       }
