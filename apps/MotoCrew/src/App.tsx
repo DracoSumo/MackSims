@@ -376,6 +376,10 @@ function App() {
             <p>{DEMO_NOTICE}</p>
             <p>
               Beta tester? <a href={feedbackMailto}>Email feedback to {FEEDBACK_EMAIL}</a>
+              {" · "}
+              <a href="/legal/privacy.html">Privacy</a>
+              {" · "}
+              <a href="/legal/terms.html">Terms</a>
             </p>
           </footer>
         </div>
