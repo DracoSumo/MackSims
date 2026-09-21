@@ -16,23 +16,23 @@
     "build:native": "npm run check && npx cap sync"
   },
   "dependencies": {
-    "@capacitor/android": "^7.4.2",
-    "@capacitor/core": "^7.4.2",
-    "@capacitor/ios": "^7.4.2",
-    "@supabase/supabase-js": "^2.110.0",
-    "next": "16.2.9",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "@capacitor/android": "^7.6.8",
+    "@capacitor/core": "^7.6.8",
+    "@capacitor/ios": "^7.6.8",
+    "@supabase/supabase-js": "^2.110.9",
+    "next": "16.2.12",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7.4.2",
-    "@netlify/plugin-nextjs": "^5.15.12",
+    "@capacitor/cli": "^7.6.8",
+    "@netlify/plugin-nextjs": "^5.15.13",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.9",
+    "eslint-config-next": "16.2.12",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^3.2.6"
