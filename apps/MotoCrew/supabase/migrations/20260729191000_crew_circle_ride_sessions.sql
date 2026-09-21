@@ -193,6 +193,9 @@ create policy "ride_sessions insert" on public.ride_sessions for insert to authe
     and private.motocrew_is_crew_member(crew_id)
   );
 
+-- crew_id / host_user_id integrity is enforced by trg_motocrew_guard_ride_session
+-- (see 20260731120000_harden_ride_session_authz.sql). WITH CHECK must require
+-- membership on the (immutable) crew — host_user_id alone is not enough.
 drop policy if exists "ride_sessions update" on public.ride_sessions;
 create policy "ride_sessions update" on public.ride_sessions for update to authenticated
   using (
@@ -200,8 +203,11 @@ create policy "ride_sessions update" on public.ride_sessions for update to authe
     or private.motocrew_is_crew_admin(crew_id)
   )
   with check (
-    host_user_id = (select auth.uid())
-    or private.motocrew_is_crew_admin(crew_id)
+    private.motocrew_is_crew_member(crew_id)
+    and (
+      host_user_id = (select auth.uid())
+      or private.motocrew_is_crew_admin(crew_id)
+    )
   );
 
 -- ride_check_ins
