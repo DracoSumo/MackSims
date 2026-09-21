@@ -148,10 +148,13 @@ drop policy if exists "crews insert owner" on public.crews;
 create policy "crews insert owner" on public.crews for insert to authenticated
   with check (owner_user_id = (select auth.uid()));
 
+-- owner_user_id immutability is enforced by trg_motocrew_guard_crew_owner
+-- (see 20260730110000_harden_crew_membership_authz.sql). Do not compare
+-- owner_user_id = crews.owner_user_id in WITH CHECK — that is a NEW-row tautology.
 drop policy if exists "crews update admin" on public.crews;
 create policy "crews update admin" on public.crews for update to authenticated
   using (private.motocrew_is_crew_admin(id))
-  with check (private.motocrew_is_crew_admin(id) and owner_user_id = crews.owner_user_id);
+  with check (private.motocrew_is_crew_admin(id));
 
 drop policy if exists "crews delete owner" on public.crews;
 create policy "crews delete owner" on public.crews for delete to authenticated
@@ -162,10 +165,22 @@ drop policy if exists "crew_members select" on public.crew_members;
 create policy "crew_members select" on public.crew_members for select to authenticated
   using (private.motocrew_is_crew_member(crew_id) or user_id = (select auth.uid()));
 
+-- Open self-insert (any role) was an authz hole; founding owner + admin invite only.
+-- Role self-escalation on UPDATE is blocked by trg_motocrew_guard_crew_member_role.
 drop policy if exists "crew_members insert self or admin" on public.crew_members;
-create policy "crew_members insert self or admin" on public.crew_members for insert to authenticated
+drop policy if exists "crew_members insert founding owner or admin" on public.crew_members;
+create policy "crew_members insert founding owner or admin" on public.crew_members
+  for insert to authenticated
   with check (
-    user_id = (select auth.uid())
+    (
+      user_id = (select auth.uid())
+      and role = 'owner'
+      and exists (
+        select 1 from public.crews c
+        where c.id = crew_id
+          and c.owner_user_id = (select auth.uid())
+      )
+    )
     or private.motocrew_is_crew_admin(crew_id)
   );
 
