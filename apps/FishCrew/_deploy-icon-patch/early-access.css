@@ -1,0 +1,11 @@
+.ea-honey{position:absolute;left:-9999px;height:0;overflow:hidden}
+.ea-consent{display:flex;align-items:flex-start;gap:10px;color:#d4e9f2;font-size:14px;line-height:1.4;font-weight:700}
+.ea-consent input{margin-top:3px;flex:0 0 auto}
+.ea-cta-card h2,.ea-cta-card h3{margin:.2rem 0 .35rem}
+.ea-empty h3{margin:0 0 8px;color:var(--ink)}
+.ea-queue{max-height:58svh;overflow:auto}
+.ea-queue-card h3{font-size:clamp(18px,5vw,24px)}
+.ea-page{min-height:100svh;max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 18px) 16px 40px}
+.ea-page-hero{margin-bottom:16px}
+.ea-page-hero h1{margin:8px 0 10px;font-size:clamp(36px,10vw,58px);letter-spacing:-.06em;line-height:.96}
+.ea-page a{color:#9ef6ef}
