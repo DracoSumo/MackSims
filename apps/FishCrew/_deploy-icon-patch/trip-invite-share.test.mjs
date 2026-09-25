@@ -38,7 +38,7 @@ test('approved-only membership pull and host invite CTAs', () => {
 });
 
 test('config marks trip invite share live at 0.8.0', () => {
-  assert.match(config, /VERSION:\s*'0\.8\.0'/);
+  assert.match(config, /VERSION:\s*'0\.9\.1'/);
   assert.match(config, /tripInviteShare:\s*'live'/);
   assert.match(config, /DEMO_MODE:\s*false/);
 });

@@ -1,4 +1,4 @@
-const FISHCREW_SW_VERSION = 'fishcrew-v0.8.0-invite-loop';
+const FISHCREW_SW_VERSION = 'fishcrew-v0.9.1-store-grade';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

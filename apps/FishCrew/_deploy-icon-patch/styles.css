@@ -603,6 +603,12 @@ body.modal-open .app-header,body.modal-open .bottom-nav,body.modal-open .fab{poi
 .home-command b{display:block;font-size:clamp(17px,2.1vw,23px);letter-spacing:-.04em;line-height:1.02;}
 .home-command span{display:block;margin-top:7px;color:#a8bfce;font-size:13px;line-height:1.25;}
 .home-command:hover,.score-help:hover,.header-gear:hover{border-color:rgba(45,212,191,.4);background:rgba(45,212,191,.1)}
+.captain-desk{margin:16px auto 8px;max-width:860px;padding:16px 16px 10px;}
+.captain-desk .muted{margin:0 0 12px;}
+.captain-desk-grid{margin:0;}
+.lead-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+a.home-command{text-decoration:none;display:block;cursor:pointer;}
+a.home-command:focus-visible,.home-command:focus-visible{outline:2px solid #2dd4bf;outline-offset:2px;}
 .v040-card-stack{grid-template-columns:repeat(auto-fit,minmax(245px,1fr))!important;}
 .v040-card-stack .trip-card,.v040-card-stack .feed-card{min-height:100%;}
 .app-section-tight{margin-top:24px;}
@@ -2429,3 +2435,37 @@ body.screenshot-mode .app-main::before,
 body.screenshot-mode .app-main::after{display:none!important}
 body.screenshot-mode #bootScreen{display:none!important}
 body.screenshot-mode .app-shell{min-height:auto}
+
+/* v0.8.0 curated captain discoverability */
+.captain-card-curated{border-color:rgba(45,212,191,.35);background:linear-gradient(160deg,rgba(14,165,233,.14),rgba(6,24,38,.92) 55%)}
+.captain-card-focus{outline:2px solid rgba(45,212,191,.55);outline-offset:2px}
+.captain-card .row{flex-wrap:wrap;gap:8px}
+.captain-card .meta{max-height:4.5rem;overflow:hidden}
+.captain-card-focus .meta,.captain-card .meta:has(+ .row .btn){max-height:none}
+.dock-ad-card{border-color:rgba(251,191,36,.28);background:linear-gradient(160deg,rgba(251,191,36,.12),rgba(6,24,38,.94) 58%)}
+.dock-ad-house{border-style:dashed;border-color:rgba(248,231,201,.28);background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(6,24,38,.94) 58%)}
+
+/* v0.9.0 charter loop + BlueStacks / 360-412 tap-first */
+.charter-search-panel .form-grid{gap:10px}
+.charter-card .card-media{height:120px}
+.charter-hero-photo{height:160px;margin-bottom:12px}
+.charter-card .btn,.charter-search-panel .btn{min-height:44px}
+.bottom-nav{grid-template-columns:repeat(6,minmax(0,1fr))}
+.nav-btn{min-height:48px;touch-action:manipulation}
+.fab,.btn,.filter-btn,.home-command,.nav-btn{touch-action:manipulation}
+@media (hover:none){
+  .home-command:hover,.score-help:hover,.header-gear:hover{border-color:inherit;background:inherit}
+}
+@media (max-width:412px){
+  .charter-search-panel .form-grid{grid-template-columns:1fr}
+  .home-hero h1{max-width:14ch;font-size:clamp(30px,9vw,40px)}
+  .hero-actions{grid-template-columns:1fr;gap:8px}
+  .hero-actions .btn{grid-column:auto;min-height:46px}
+  .home-command-grid{grid-template-columns:1fr 1fr}
+  .nav-btn b{font-size:9px}
+  .charter-card .row .btn{flex:1 1 calc(50% - 6px)}
+}
+@media (max-width:360px){
+  .nav-btn b{font-size:8px}
+  .header-account{max-width:84px;font-size:12px}
+}

@@ -3,6 +3,12 @@
   "appName": "FishCrew",
   "webDir": "dist",
   "server": {
-    "androidScheme": "https"
+    "url": "https://fishcrew.macksims.com",
+    "cleartext": false,
+    "androidScheme": "https",
+    "allowNavigation": ["fishcrew.macksims.com", "*.macksims.com", "kkyuychvitrmtehvzqfd.supabase.co"]
+  },
+  "android": {
+    "allowMixedContent": false
   }
 }

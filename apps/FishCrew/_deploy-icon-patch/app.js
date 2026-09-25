@@ -1,10 +1,10 @@
 (() => {
   'use strict';
 
-  // FishCrew app shell v0.7.4 — UGC moderation + refresh/load hardening
+  // FishCrew app shell v0.8.1 - returning skip + stable local store
   const CONFIG = window.FISHCREW_CONFIG || {};
-  const VERSION = CONFIG.VERSION || '0.8.0';
-  const STORE = `fishcrew:${VERSION}:state`;
+  const VERSION = CONFIG.VERSION || '0.8.1';
+  const STORE = 'fishcrew:state';
   const LEGACY_PREFIX = 'fishcrew:';
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -212,9 +212,9 @@
         { id: 'biz_4', ownerId: guide.id, name: 'Eli Inshore Guide Co.', kind: 'Guide Service', area: 'Sarasota Bay', status: 'Verified', leads: 7, revenue: 320, campaign: 'Beginner kayak mornings', demo: true }
       ],
       bookings: [
-        { id: 'book_1', businessId: 'biz_2', customerName: 'Alex R.', kind: 'Charter inquiry', status: 'New', date: 'Saturday morning', value: 150, notes: 'Looking for two seats.' },
-        { id: 'book_2', businessId: 'biz_3', customerName: 'Jamie K.', kind: 'Cruise inquiry', status: 'Contacted', date: 'Friday sunset', value: 220, notes: 'Family of four.' },
-        { id: 'book_3', businessId: 'biz_1', customerName: 'Mike R.', kind: 'Shop deal', status: 'New', date: 'This weekend', value: 35, notes: 'Leader and live bait bundle.' }
+        { id: 'book_1', businessId: 'biz_2', customerName: 'Alex R.', phone: '8135550142', kind: 'Charter inquiry', status: 'New', date: 'Saturday morning', value: 150, notes: 'Looking for two seats.' },
+        { id: 'book_2', businessId: 'biz_3', customerName: 'Jamie K.', phone: '', kind: 'Cruise inquiry', status: 'Contacted', date: 'Friday sunset', value: 220, notes: 'Family of four.' },
+        { id: 'book_3', businessId: 'biz_1', customerName: 'Mike R.', phone: '7275550199', kind: 'Shop deal', status: 'New', date: 'This weekend', value: 35, notes: 'Leader and live bait bundle.' }
       ],
       reports: [ { id: 'rep_1', type: 'Media review', target: 'feed_2', status: 'Open', note: 'Sponsored label check' } ],
       mediaAssets: [
@@ -224,8 +224,474 @@
     };
   }
 
+  /** Real Tampa captains/businesses (public web info). Not demo fakeries. */
+  function curatedCaptain(fields) {
+    return {
+      avatar: '',
+      profileTheme: 'Harbor Blue',
+      createdAt: now(),
+      curated: true,
+      demo: false,
+      listingKind: 'public',
+      ...fields
+    };
+  }
+
+  function curatedBusiness(fields) {
+    return {
+      leads: 0,
+      revenue: 0,
+      campaign: 'Public listing · book on their site',
+      curated: true,
+      demo: false,
+      listingKind: 'public',
+      ...fields
+    };
+  }
+
+  function curatedDirectoryContent() {
+    const josh = curatedCaptain({
+      id: 'u_capt_josh_taylor',
+      name: 'Capt. Joshua Taylor',
+      username: 'salty_scales',
+      email: 'joshua@saltyscales.com',
+      role: 'Captain',
+      area: 'Tampa Bay (St. Pete / Ruskin / west-central Florida)',
+      bio: 'Tampa Bay charter captain with Salty Scales. Inshore and nearshore trips for snook, tarpon, redfish, and family crews. Book through saltyscalescharter.com.',
+      bioLong: 'Capt. Joshua Taylor runs Salty Scales Fishing Charters out of Tampa Bay. He fishes the grass flats, mangroves, oyster bars, and nearshore structure, with trips for seasoned anglers and first-timers. Boat: Avenger Marauder Custom 25. Apparel brand: Salty Scales performance fishing shirts. Bookings and reports live on his charter site — FishCrew is discovery only in this beta.',
+      fishingStyles: 'Charter, inshore flats/mangroves, nearshore structure, light tackle',
+      tripTypes: 'Inshore · nearshore · family / beginner-friendly · half-day & full-day',
+      experience: 'USCG-licensed captain; guiding Tampa Bay since 2013; 30+ years fishing these waters',
+      websiteUrl: 'https://saltyscalescharter.com/',
+      brandUrl: 'https://saltyscales.com/',
+      youtubeUrl: 'https://www.youtube.com/saltyscales',
+      instagramUrl: 'https://www.instagram.com/saltyscales/',
+      boat: 'Avenger Marauder Custom 25',
+      species: 'Snook, tarpon, redfish, speckled trout, mangrove snapper, grouper, flounder, cobia (seasonal)',
+      listingKind: 'partner'
+    });
+    const mattSantiago = curatedCaptain({
+      id: 'u_capt_matt_santiago',
+      name: 'Capt. Matt Santiago',
+      username: 'badfish_tampa',
+      role: 'Captain',
+      area: 'Ruskin / Tampa Bay',
+      bio: 'Badfish Charters out of Ruskin. Inshore, nearshore, tarpon, and goliath trips. Book on badfishtampa.com.',
+      bioLong: 'Capt. Matt Santiago runs Badfish Charters from Ruskin (3520 W Shell Point Rd). Public site lists inshore snook/redfish/trout, nearshore hogfish/kingfish, tarpon, and goliath grouper trips, plus a Custom-Built 2023 Sabalo 27. FishCrew is discovery only — book on their site.',
+      fishingStyles: 'Charter, inshore, nearshore, tarpon',
+      tripTypes: 'Inshore · nearshore · tarpon · goliath · family',
+      experience: 'Tampa native; public site cites 30+ years on the water and USCG-licensed captains',
+      websiteUrl: 'https://www.badfishtampa.com/',
+      boat: 'Custom-built 2023 Sabalo 27',
+      species: 'Snook, redfish, trout, tarpon, hogfish, kingfish, goliath grouper'
+    });
+    const brian = curatedCaptain({
+      id: 'u_capt_brian_lemelin',
+      name: 'Capt. Brian Lemelin',
+      username: 'optimus_fishing',
+      role: 'Captain',
+      area: 'Ruskin / Tampa Bay / St. Pete',
+      bio: 'Optimus Fishing Charters. Beginner through family trips from backwaters to coastal reefs. Meet at Sunset Grill, Ruskin. Book on their site.',
+      bioLong: 'Capt. Brian Lemelin runs Optimus Fishing Charters, launching from the Ruskin area (meet at Sunset Grill and Beach Bar, 602 Bahia Del Sol Dr). Public trips cover Tampa Bay mixed-species bites from backwaters to coastal grounds. FishCrew is discovery only.',
+      fishingStyles: 'Charter, inshore, coastal reef, family / beginner',
+      tripTypes: 'Beginner · family · mixed-species · half-day & longer',
+      experience: 'Public site: inshore Tampa Bay charters with a mate; fish cleaned after the trip',
+      websiteUrl: 'https://www.optimusfishingcharters.com/',
+      species: 'Snook, redfish, trout, snapper, cobia, mackerel, tarpon, sheepshead, shark'
+    });
+    const carl = curatedCaptain({
+      id: 'u_capt_carl_snodgrass',
+      name: 'Capt. Carl Snodgrass',
+      username: 'lucky_lauren',
+      role: 'Captain',
+      area: 'Tampa Bay (Weedon Island / Picnic Island / Skyway)',
+      bio: 'Lucky Lauren Charters. Private inshore trips for redfish, snook, and trout, plus beginner and sunset options. Book on luckylaurencharters.com.',
+      bioLong: 'Capt. Carl Snodgrass runs Lucky Lauren Charters, LLC. Public trips include 4-hour beginner and inshore charters, longer guided days, and a sunset cruise. License, bait, and tackle listed as included on their site. FishCrew is discovery only.',
+      fishingStyles: 'Charter, inshore flats, family / beginner',
+      tripTypes: 'Inshore · beginner · sunset cruise · half-day',
+      experience: 'Local Tampa Bay captain; family-friendly private charters (public site)',
+      websiteUrl: 'https://www.luckylaurencharters.com/',
+      species: 'Redfish, snook, spotted seatrout, tarpon, flounder, sheepshead, mangrove snapper, cobia'
+    });
+    const mattErcoli = curatedCaptain({
+      id: 'u_capt_matt_ercoli',
+      name: 'Capt. Matt Ercoli',
+      username: 'captain_matt',
+      role: 'Captain',
+      area: 'Anna Maria / Tampa Bay / Sarasota',
+      bio: 'Captain Matt Fishing Charters. Tarpon, inshore flats, and offshore days out of Anna Maria. Book on captainmatt.com.',
+      bioLong: 'Capt. Matt Ercoli runs Captain Matt Fishing Charters from Anna Maria, with public pages for tarpon, inshore snook/reds, and offshore. Site notes a custom Sheaffer tower boat and 20+ years of charter experience. FishCrew is discovery only.',
+      fishingStyles: 'Charter, tarpon, inshore flats, offshore',
+      tripTypes: 'Tarpon · inshore · offshore · fly',
+      experience: 'Public site: 20+ years, flats fishing national champion, custom tower boat',
+      websiteUrl: 'https://www.captainmatt.com/',
+      boat: 'Custom Sheaffer tower boat',
+      species: 'Tarpon, snook, redfish, kingfish, grouper, trout, permit'
+    });
+    const jason = curatedCaptain({
+      id: 'u_capt_jason_prieto',
+      name: 'Capt. Jason Prieto',
+      username: 'steady_action',
+      role: 'Captain',
+      area: 'Davis Islands / Tampa Bay (Ruskin, St. Pete, Bradenton)',
+      bio: 'Steady Action Fishing Charters. Inshore Tampa Bay trips for snook, redfish, and tarpon on custom bay boats. Book on their site.',
+      bioLong: 'Capt. Jason Prieto runs Steady Action from Davis Islands (430 W Davis Blvd). Public site covers inshore Tampa Bay and Boca Grande tarpon, typically up to four anglers, gear included. FishCrew is discovery only.',
+      fishingStyles: 'Charter, inshore, tarpon, custom bay boats',
+      tripTypes: 'Inshore · tarpon · family / first-timers',
+      experience: 'Tampa Bay inshore specialist; custom-built bay boats (public site)',
+      websiteUrl: 'https://www.steadyactionfishingcharters.com/',
+      boat: 'Custom-built bay boats',
+      species: 'Snook, redfish, tarpon, mangrove snapper, trout'
+    });
+    const christian = curatedCaptain({
+      id: 'u_capt_christian_lugo',
+      name: 'Capt. Christian Lugo',
+      username: 'family_ties',
+      role: 'Captain',
+      area: 'South Tampa / Riverview / Apollo Beach / Ruskin',
+      bio: 'Family Ties Fishing Charters. Family inshore trips for snook, redfish, and trout. Book on familytiesfishingcharter.com.',
+      bioLong: 'Capt. Christian Lugo runs Family Ties Fishing Charters from South Tampa (2406 South 46th Street). Public trips include half-day and full-day inshore, plus night fishing. Rods, licenses, tackle, and live bait listed as included. FishCrew is discovery only.',
+      fishingStyles: 'Charter, inshore, family / kids',
+      tripTypes: 'Half-day · full-day · night · family',
+      experience: 'Family-first Tampa Bay inshore guide (public site)',
+      websiteUrl: 'https://www.familytiesfishingcharter.com/',
+      species: 'Snook, redfish, trout, mangrove snapper, sheepshead'
+    });
+    const saltyBiz = curatedBusiness({
+      id: 'biz_salty_scales',
+      ownerId: josh.id,
+      name: 'Salty Scales Fishing Charters',
+      kind: 'Pro Charter',
+      area: josh.area,
+      status: 'Verified',
+      campaign: 'Book on saltyscalescharter.com',
+      websiteUrl: josh.websiteUrl,
+      brandUrl: josh.brandUrl,
+      listingKind: 'partner'
+    });
+    const businesses = [
+      saltyBiz,
+      curatedBusiness({ id: 'biz_badfish', ownerId: mattSantiago.id, name: 'Badfish Charters', kind: 'Pro Charter', area: mattSantiago.area, status: 'Directory', websiteUrl: mattSantiago.websiteUrl }),
+      curatedBusiness({ id: 'biz_optimus', ownerId: brian.id, name: 'Optimus Fishing Charters', kind: 'Pro Charter', area: brian.area, status: 'Directory', websiteUrl: brian.websiteUrl }),
+      curatedBusiness({ id: 'biz_lucky_lauren', ownerId: carl.id, name: 'Lucky Lauren Charters', kind: 'Pro Charter', area: carl.area, status: 'Directory', websiteUrl: carl.websiteUrl }),
+      curatedBusiness({ id: 'biz_captain_matt', ownerId: mattErcoli.id, name: 'Captain Matt Fishing Charters', kind: 'Pro Charter', area: mattErcoli.area, status: 'Directory', websiteUrl: mattErcoli.websiteUrl }),
+      curatedBusiness({ id: 'biz_steady_action', ownerId: jason.id, name: 'Steady Action Fishing Charters', kind: 'Pro Charter', area: jason.area, status: 'Directory', websiteUrl: jason.websiteUrl }),
+      curatedBusiness({ id: 'biz_family_ties', ownerId: christian.id, name: 'Family Ties Fishing Charters', kind: 'Pro Charter', area: christian.area, status: 'Directory', websiteUrl: christian.websiteUrl })
+    ];
+    return {
+      users: [josh, mattSantiago, brian, carl, mattErcoli, jason, christian],
+      trips: [],
+      requests: [],
+      messages: {},
+      feed: [],
+      businesses,
+      bookings: [],
+      reports: [],
+      mediaAssets: []
+    };
+  }
+
   function emptySeedContent() {
-    return { users: [], trips: [], requests: [], messages: {}, feed: [], businesses: [], bookings: [], reports: [], mediaAssets: [] };
+    return curatedDirectoryContent();
+  }
+
+  function isAuditListing(item) {
+    const name = String(item?.name || '');
+    const title = String(item?.title || '');
+    const body = String(item?.body || '');
+    const author = String(item?.authorName || item?.userName || '');
+    const blob = `${name} ${title} ${body} ${author}`;
+    if (/\[AUDIT|Fake Verified|AUDIT ARTIFACT/i.test(blob)) return true;
+    if (/^(bypass|x)$/i.test(title.trim())) return true;
+    return false;
+  }
+
+  function publicTrips() {
+    return (state.trips || []).filter((t) => !isAuditListing(t));
+  }
+
+  function directoryCaptains() {
+    const users = state.users || [];
+    const curated = users.filter((u) => u.role === 'Captain' && u.curated && !u.demo);
+    const others = users.filter((u) => u.role === 'Captain' && !u.curated && !u.demo && !isAuditListing(u) && (u.websiteUrl || u.listingKind === 'partner'));
+    return [...curated, ...others];
+  }
+
+  function directoryBusinesses() {
+    const rows = state.businesses || [];
+    const curated = rows.filter((b) => b.curated && !isAuditListing(b));
+    const others = rows.filter((b) => !b.curated && !isAuditListing(b));
+    return [...curated, ...others];
+  }
+
+  function isCharterKind(kind) {
+    return /pro charter|guide service|charter|guide/i.test(String(kind || ''));
+  }
+
+  function unpackCharterCampaign(campaign) {
+    const raw = String(campaign || '');
+    const token = '| FC_META:';
+    const idx = raw.indexOf(token);
+    if (idx < 0) return { campaign: raw, meta: {} };
+    try {
+      return { campaign: raw.slice(0, idx).trim(), meta: JSON.parse(raw.slice(idx + token.length)) || {} };
+    } catch (_) {
+      return { campaign: raw, meta: {} };
+    }
+  }
+
+  function packCharterCampaign(b) {
+    const offer = String(b.campaign || '').replace(/\s*\| FC_META:.*$/, '').trim();
+    const meta = {
+      species: b.species || '',
+      boatType: b.boatType || '',
+      tripTypes: b.tripTypes || '',
+      priceFrom: b.priceFrom ?? null,
+      priceTo: b.priceTo ?? null,
+      availability: b.availability || '',
+      websiteUrl: b.websiteUrl || '',
+      listingKind: b.listingKind || ''
+    };
+    const has = Object.values(meta).some((v) => v !== '' && v != null);
+    return has ? `${offer || 'Charter listing'} | FC_META:${JSON.stringify(meta)}` : (offer || '');
+  }
+
+  function hydrateBusinessListing(b) {
+    const unpacked = unpackCharterCampaign(b.campaign);
+    return {
+      ...b,
+      campaign: unpacked.campaign || b.campaign || '',
+      species: b.species || unpacked.meta.species || '',
+      boatType: b.boatType || unpacked.meta.boatType || '',
+      tripTypes: b.tripTypes || unpacked.meta.tripTypes || '',
+      priceFrom: b.priceFrom ?? unpacked.meta.priceFrom ?? null,
+      priceTo: b.priceTo ?? unpacked.meta.priceTo ?? null,
+      availability: b.availability || unpacked.meta.availability || '',
+      websiteUrl: b.websiteUrl || unpacked.meta.websiteUrl || '',
+      listingKind: b.listingKind || unpacked.meta.listingKind || (b.curated ? 'public' : '')
+    };
+  }
+
+  function approvedCharterPhoto(listing) {
+    const assets = (state.mediaAssets || []).filter((a) =>
+      (a.sourceType === 'charter' || a.sourceType === 'business') &&
+      (a.sourceId === listing.id || a.sourceId === listing.ownerId || a.sourceId === listing.businessId)
+    );
+    const viewer = currentUser();
+    const isOwner = Boolean(viewer && (listing.ownerId === viewer.id || listing.captainId === viewer.id));
+    const pick = assets.find((a) => a.publicUrl && (isApprovedMediaStatus(a.status) || isAdmin() || (isOwner && a.ownerId === viewer.id)));
+    if (!pick?.publicUrl) return listing.coverUrl || '';
+    if (isApprovedMediaStatus(pick.status) || isAdmin() || isOwner) return pick.publicUrl;
+    return '';
+  }
+
+  function charterFromParts(b, captain = {}) {
+    const row = hydrateBusinessListing(b);
+    return {
+      id: row.id,
+      businessId: row.businessId || row.id,
+      ownerId: row.ownerId || captain.id || '',
+      name: row.name || captain.name || 'Charter',
+      captainName: captain.name || row.name || 'Captain',
+      captainId: captain.id || row.ownerId || '',
+      username: captain.username || '',
+      area: row.area || captain.area || '',
+      species: row.species || captain.species || '',
+      boatType: row.boatType || captain.boat || row.boat || '',
+      boat: row.boat || captain.boat || row.boatType || '',
+      tripTypes: row.tripTypes || captain.tripTypes || captain.fishingStyles || '',
+      priceFrom: row.priceFrom ?? captain.priceFrom ?? null,
+      priceTo: row.priceTo ?? captain.priceTo ?? null,
+      availability: row.availability || captain.availability || '',
+      bio: row.bio || captain.bio || row.campaign || '',
+      bioLong: captain.bioLong || row.bioLong || '',
+      experience: captain.experience || row.experience || '',
+      websiteUrl: row.websiteUrl || captain.websiteUrl || '',
+      photoUrl: '',
+      status: row.status || 'Directory',
+      curated: !!row.curated || !!captain.curated,
+      listingKind: row.listingKind || captain.listingKind || (row.curated ? 'public' : 'operator'),
+      kind: row.kind || 'Pro Charter',
+      demo: !!row.demo
+    };
+  }
+
+  function allCharters() {
+    const users = state.users || [];
+    const fromBiz = (state.businesses || [])
+      .filter((b) => !isAuditListing(b) && !b.demo && (isCharterKind(b.kind) || b.listingKind === 'partner' || b.listingKind === 'charter' || b.curated))
+      .map((b) => {
+        const captain = users.find((u) => u.id === b.ownerId) || {};
+        const listing = charterFromParts(b, captain);
+        listing.photoUrl = approvedCharterPhoto(listing);
+        return listing;
+      });
+    const claimed = new Set(fromBiz.map((c) => c.ownerId).filter(Boolean));
+    const fromCaptains = directoryCaptains()
+      .filter((u) => !claimed.has(u.id))
+      .map((u) => {
+        const listing = charterFromParts({
+          id: `charter_user_${u.id}`,
+          businessId: '',
+          ownerId: u.id,
+          name: u.name,
+          kind: 'Pro Charter',
+          area: u.area,
+          species: u.species,
+          boatType: u.boat,
+          boat: u.boat,
+          tripTypes: u.tripTypes,
+          websiteUrl: u.websiteUrl,
+          campaign: u.bio,
+          listingKind: u.listingKind || 'public',
+          curated: !!u.curated,
+          status: u.listingKind === 'partner' ? 'Verified' : 'Directory'
+        }, u);
+        listing.photoUrl = approvedCharterPhoto(listing);
+        return listing;
+      });
+    const extra = (state.charters || []).filter((c) => !fromBiz.some((b) => b.id === c.id) && !c.demo).map((c) => {
+      const captain = users.find((u) => u.id === c.ownerId) || {};
+      const listing = charterFromParts(c, captain);
+      listing.photoUrl = approvedCharterPhoto(listing);
+      return listing;
+    });
+    return [...fromBiz, ...extra, ...fromCaptains].filter((c) => isAdmin() || !isBlocked(c.ownerId));
+  }
+
+  function charterFilterState() {
+    return state.charterFilter || { q: '', location: '', species: '', boat: '', date: '', price: '' };
+  }
+
+  function charterMatches(listing, filter) {
+    const f = filter || charterFilterState();
+    const hay = `${listing.name} ${listing.captainName} ${listing.area} ${listing.species} ${listing.tripTypes} ${listing.boat} ${listing.boatType} ${listing.bio}`.toLowerCase();
+    if (f.q && !hay.includes(String(f.q).toLowerCase())) return false;
+    if (f.location && !String(listing.area || '').toLowerCase().includes(String(f.location).toLowerCase())) return false;
+    if (f.species && !`${listing.species} ${listing.tripTypes}`.toLowerCase().includes(String(f.species).toLowerCase())) return false;
+    if (f.boat && !`${listing.boat} ${listing.boatType}`.toLowerCase().includes(String(f.boat).toLowerCase())) return false;
+    if (f.price) {
+      const cap = Number(f.price);
+      if (Number.isFinite(cap) && listing.priceFrom != null && Number(listing.priceFrom) > cap) return false;
+    }
+    if (f.date && listing.availability) {
+      const note = String(listing.availability).toLowerCase();
+      const day = new Date(`${f.date}T12:00:00`);
+      const weekday = Number.isNaN(day.getTime()) ? '' : day.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+      if (/weekend/.test(note) && weekday && !/saturday|sunday/.test(weekday)) return false;
+      if (/weekday/.test(note) && weekday && /saturday|sunday/.test(weekday)) return false;
+    }
+    return true;
+  }
+
+  function filteredCharters() {
+    return allCharters().filter((c) => charterMatches(c));
+  }
+
+  function priceLabel(listing) {
+    const from = Number(listing.priceFrom);
+    const to = Number(listing.priceTo);
+    if (Number.isFinite(from) && from > 0 && Number.isFinite(to) && to > 0 && to !== from) return `${from}${EN_DASH}${to}`;
+    if (Number.isFinite(from) && from > 0) return `From ${from}`;
+    return 'Ask for a quote';
+  }
+
+  function myCharterInquiries() {
+    const user = currentUser();
+    if (!user) return [];
+    return (state.bookings || []).filter((b) => {
+      if (isAdmin()) return /charter|guide|inquiry/i.test(b.kind || '');
+      if (b.customerId === user.id) return true;
+      const biz = (state.businesses || []).find((x) => x.id === b.businessId);
+      return biz && biz.ownerId === user.id;
+    });
+  }
+
+  function liveReviewsFor(charterId) {
+    return (state.charterReviews || []).filter((r) => {
+      if (r.charterId !== charterId && r.businessId !== charterId) return false;
+      if (r.status === 'Live' || r.status === 'Approved') return true;
+      const viewer = currentUser();
+      return Boolean(viewer && (viewer.id === r.reviewerId || isAdmin()));
+    });
+  }
+
+  function findCharter(id) {
+    return allCharters().find((c) => c.id === id || c.businessId === id || c.captainId === id || normalizeUsername(c.username || '') === normalizeUsername(id || ''));
+  }
+
+  function houseDockAd() {
+    return {
+      id: 'dock_ad_house',
+      name: 'Advertise on this dock',
+      kind: 'Open slot',
+      area: 'Tampa Bay',
+      campaign: 'Tampa-only listing for tackle shops, marinas, and charters. No Google banners. No fake user counts.',
+      house: true
+    };
+  }
+
+  function pickDockAd() {
+    const partners = directoryBusinesses().filter((b) => b.curated);
+    const tick = Math.floor(Date.now() / 45000);
+    if (!partners.length || tick % 3 === 0) return houseDockAd();
+    return partners[tick % partners.length];
+  }
+
+  function dockAdCard() {
+    const ad = pickDockAd();
+    const house = !!ad.house;
+    return `
+      <section class="section app-section-tight dock-ad" aria-label="Dock ad">
+        <div class="section-head compact-head">
+          <div><span class="eyebrow">Dock ad</span><h2>${house ? 'A quiet Tampa slot.' : safe(ad.name)}</h2></div>
+          <span class="chip">First-party</span>
+        </div>
+        <article class="admin-card dock-ad-card${house ? ' dock-ad-house' : ''}">
+          <span class="badge orange">${house ? 'Open slot' : (ad.listingKind === 'partner' ? 'Early partner' : 'Local listing')}</span>
+          <h3>${safe(ad.name)}</h3>
+          <p class="muted">${safe(ad.kind || 'Partner')} ${MID} ${safe(ad.area || 'Tampa Bay')}</p>
+          <p>${safe(ad.campaign || 'Public Tampa listing. Book on their site.')}</p>
+          <div class="row">
+            ${ad.websiteUrl ? `<button class="btn primary small" type="button" data-action="dock-ad-click" data-ad-id="${safe(ad.id)}" data-ad-url="${safe(ad.websiteUrl)}">Visit site</button>` : ''}
+            <button class="btn ${house ? 'primary' : 'soft'} small" type="button" data-action="open-dock-ad-inquiry" data-ad-id="${safe(ad.id)}">${house ? 'Ask about a listing' : 'Advertise here'}</button>
+          </div>
+        </article>
+      </section>`;
+  }
+
+  /** Always refresh curated directory fields from seed so stale localStorage cannot pin old copy. */
+  function mergeCuratedDirectory() {
+    const curated = curatedDirectoryContent();
+    state.users = state.users || [];
+    state.businesses = state.businesses || [];
+    for (const u of curated.users) {
+      const idx = state.users.findIndex((x) => x.id === u.id || normalizeUsername(x.username || '') === normalizeUsername(u.username || ''));
+      if (idx < 0) {
+        state.users.push({ ...u });
+        continue;
+      }
+      const prev = state.users[idx];
+      state.users[idx] = {
+        ...prev,
+        ...u,
+        curated: true,
+        demo: false,
+        // Keep any local-only session/media bits the seed does not own.
+        password: prev.password,
+        avatar: u.avatar || prev.avatar || '',
+        avatarModerationStatus: prev.avatarModerationStatus,
+        instagramConnection: prev.instagramConnection
+      };
+    }
+    for (const b of curated.businesses) {
+      const idx = state.businesses.findIndex((x) => x.id === b.id);
+      if (idx < 0) {
+        state.businesses.push({ ...b });
+        continue;
+      }
+      state.businesses[idx] = { ...state.businesses[idx], ...b, curated: true, demo: false };
+    }
   }
 
   const defaultState = () => {
@@ -261,10 +727,18 @@
       activeScreen: 'home',
       activeTripId: seed.trips[0]?.id || null,
       tripFilter: 'All',
+      charterFilter: { q: '', location: '', species: '', boat: '', date: '', price: '' },
+      charters: [],
+      charterReviews: [],
+      chartersTableReady: false,
+      reviewsTableReady: false,
+      charterRefreshing: false,
       feedFilter: 'All',
       feedRefreshing: false,
       crewPanel: 'upcoming',
       toolsPanel: 'tools',
+      focusCaptain: '',
+      expandedCaptains: {},
       demoContentLoaded: demoMode,
       blockedUsers: [],
       accountDeletionRequests: [],
@@ -276,6 +750,7 @@
       feed: seed.feed,
       businesses: seed.businesses,
       bookings: seed.bookings,
+      dockAds: { clicks: 0, inquiries: [] },
       reports: seed.reports,
       mediaAssets: seed.mediaAssets,
       notifications: [],
@@ -383,6 +858,11 @@
   function applyScreenshotDemoData() {
     if (!isScreenshotMode()) return;
     if ((state.trips || []).length && (state.feed || []).length) return;
+    ensureDemoPackMerged();
+    if (!state.activeTripId && state.trips[0]?.id) state.activeTripId = state.trips[0].id;
+  }
+
+  function ensureDemoPackMerged() {
     const fresh = demoSeedContent();
     state.users = mergeById(state.users || [], fresh.users || []);
     state.trips = mergeById(state.trips || [], fresh.trips || []);
@@ -392,7 +872,46 @@
     state.bookings = mergeById(state.bookings || [], fresh.bookings || []);
     state.reports = mergeById(state.reports || [], fresh.reports || []);
     state.demoContentLoaded = true;
-    if (!state.activeTripId && state.trips[0]?.id) state.activeTripId = state.trips[0].id;
+  }
+
+  function wantsCaptainDemo() {
+    try {
+      if (new URLSearchParams(location.search).get('demo') === 'captain') return true;
+      return String(location.pathname || '').replace(/\/+$/, '').toLowerCase() === '/captain';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function wantsGuestPath() {
+    try {
+      return String(location.pathname || '').replace(/\/+$/, '').toLowerCase() === '/guest';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function applyCaptainDemoMode() {
+    if (!wantsCaptainDemo()) return;
+    // Production: /captain is an operator on-ramp, not a fake signed-in demo user.
+    state.activeScreen = 'explore';
+    state.operatorListHint = true;
+    try {
+      const params = new URLSearchParams(location.search);
+      params.delete('demo');
+      const qs = params.toString();
+      history.replaceState(null, '', `/${qs ? `?${qs}` : ''}`);
+    } catch (_) {}
+  }
+
+  function applyGuestPath() {
+    if (!wantsGuestPath()) return;
+    // Predictable reviewer/guest path: browse without an account.
+    state.session = null;
+    state.activeScreen = 'home';
+    try {
+      history.replaceState(null, '', '/');
+    } catch (_) {}
   }
 
   function applyBetaBannerState() {
@@ -450,9 +969,22 @@
     saveTimer = setTimeout(flushSave, SAVE_DEBOUNCE_MS);
   }
 
+  function readStoredStateRaw() {
+    const stable = localStorage.getItem(STORE);
+    if (stable) return stable;
+    const keys = Object.keys(localStorage)
+      .filter((key) => /^fishcrew:.+:state$/.test(key))
+      .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (raw) return raw;
+    }
+    return null;
+  }
+
   function load() {
     try {
-      const raw = localStorage.getItem(STORE);
+      const raw = readStoredStateRaw();
       if (raw) {
         const parsed = JSON.parse(raw);
         state = { ...defaultState(), ...parsed, version: VERSION };
@@ -467,6 +999,8 @@
 
   function normalizeState() {
     state.users = state.users || [];
+    state.businesses = state.businesses || [];
+    mergeCuratedDirectory();
     const used = new Set();
     state.users.forEach((u) => {
       // Migration: older saved states shipped demo accounts with plaintext
@@ -502,6 +1036,10 @@
     state.deviceHub.log = Array.isArray(state.deviceHub.log) ? state.deviceHub.log.slice(0, 8) : [];
     state.blockedUsers = Array.isArray(state.blockedUsers) ? state.blockedUsers : [];
     state.accountDeletionRequests = Array.isArray(state.accountDeletionRequests) ? state.accountDeletionRequests : [];
+    state.dockAds = {
+      clicks: Number(state.dockAds?.clicks || 0),
+      inquiries: Array.isArray(state.dockAds?.inquiries) ? state.dockAds.inquiries : []
+    };
   }
 
   function cleanupOldCaches() {
@@ -696,6 +1234,75 @@
     return false;
   }
 
+  function isTripCrewMember(trip, user = currentUser()) {
+    if (!trip || !user) return false;
+    return trip.hostId === user.id || Boolean(trip.members?.includes(user.id)) || isAdmin();
+  }
+
+  function scrubCrewChatLocalState() {
+    state.messages = {};
+    state.activeTripId = '';
+    if (state.crewPanel === 'chat') state.crewPanel = 'upcoming';
+  }
+
+  function canonicalAppUrl() {
+    const base = String(CONFIG.WEB_CANONICAL_URL || location.origin || 'https://fishcrew.macksims.com/');
+    return base.endsWith('/') ? base : `${base}/`;
+  }
+
+  function tripInviteUrl(tripId) {
+    return `${canonicalAppUrl()}?trip=${encodeURIComponent(tripId)}`;
+  }
+
+  function tripIdFromUrl() {
+    const params = new URLSearchParams(location.search || '');
+    const fromQuery = params.get('trip') || params.get('invite');
+    if (fromQuery) return String(fromQuery).trim();
+    const path = String(location.pathname || '');
+    const match = path.match(/\/(?:invite|trip)\/([^/]+)\/?$/i);
+    return match ? decodeURIComponent(match[1]) : '';
+  }
+
+  function clearTripInviteFromUrl() {
+    try {
+      const url = new URL(location.href);
+      if (!url.searchParams.has('trip') && !url.searchParams.has('invite') && !/\/(?:invite|trip)\//i.test(url.pathname)) return;
+      url.searchParams.delete('trip');
+      url.searchParams.delete('invite');
+      if (/\/(?:invite|trip)\/[^/]+\/?$/i.test(url.pathname)) url.pathname = '/';
+      history.replaceState({}, '', url.pathname + url.search + url.hash);
+    } catch (_) { /* ignore */ }
+  }
+
+  async function openTripInvite(tripId, { forceRequest = false } = {}) {
+    if (!tripId) return;
+    let trip = state.trips.find((t) => t.id === tripId);
+    if (!trip && supabaseClient) {
+      try { await pullSupabase({ silent: true }); } catch (_) { /* keep going */ }
+      trip = state.trips.find((t) => t.id === tripId);
+    }
+    if (!trip) {
+      state.pendingTripId = tripId;
+      save();
+      toast('That trip invite is not loaded yet. Sign in or refresh, then try again.', 'warning');
+      return;
+    }
+    state.pendingTripId = '';
+    state.activeTripId = trip.id;
+    save();
+    clearTripInviteFromUrl();
+    if (forceRequest) return requestTrip(trip.id);
+    tripDetails(trip.id);
+  }
+
+  function consumePendingTripInvite() {
+    const tripId = state.pendingTripId || tripIdFromUrl();
+    if (!tripId) return;
+    state.pendingTripId = '';
+    save();
+    setTimeout(() => openTripInvite(tripId), 120);
+  }
+
   function hydrateHeader() {
     const user = currentUser();
     const area = user?.area || currentConditions().area || state.savedGuideArea || 'Tampa Bay';
@@ -727,6 +1334,7 @@
     render();
     setDebug(`Screen: ${screen}`);
     scrollToTopSoft();
+    try { window.history.pushState({ fishcrewScreen: screen }, '', location.href); } catch {}
   }
 
   function scoreBadge(score) {
@@ -777,6 +1385,7 @@
   function visibleFeedPosts() {
     const viewer = currentUser();
     return (state.feed || []).filter((post) => {
+      if (isAuditListing(post)) return false;
       if (post.status === 'Removed' || post.status === 'Hidden') return isAdmin();
       if (!isAdmin() && isBlocked(post.authorId)) return false;
       if (post.status === 'Pending review') {
@@ -1129,7 +1738,7 @@
 
   function homeActivityFeed() {
     const posts = visibleFeedPosts().slice(0, 2);
-    const nextTrip = state.trips.find((t) => t.status === 'Open');
+    const nextTrip = publicTrips().find((t) => t.status === 'Open');
     const pending = state.requests.find((r) => r.status === 'Pending');
     const extras = [
       nextTrip ? `<article class="activity-row activity-trip"><div class="activity-avatar">?</div><div><strong>Upcoming crew request open</strong><p>${safe(nextTrip.title)} ${MID} ${safe(nextTrip.area)} ${MID} ${safe(nextTrip.time)}</p><div class="inline-actions"><button type="button" data-action="request-trip" data-trip-id="${safe(nextTrip.id)}">Request crew</button><button type="button" data-action="trip-details" data-trip-id="${safe(nextTrip.id)}">Details</button></div></div></article>` : '',
@@ -1154,19 +1763,35 @@
   }
 
   function renderHome() {
-    const openTrips = state.trips.filter((t) => t.status === 'Open').slice(0, 3);
+    const openTrips = publicTrips().filter((t) => t.status === 'Open').slice(0, 3);
     const proof = visibleFeedPosts().slice(0, 3);
     const user = currentUser();
     const c = currentConditions();
-    const pendingRequests = user ? state.requests.filter((r) => r.userId === user.id || state.trips.some((t) => t.hostId === user.id && t.id === r.tripId)).length : 0;
+    const featuredCaptains = allCharters().slice(0, 4);
+    const f = charterFilterState();
+    const pendingHostRequests = user
+      ? state.requests.filter((r) => r.status === 'Pending' && state.trips.some((t) => t.hostId === user.id && t.id === r.tripId)).length
+      : 0;
+    const pendingRequests = user
+      ? state.requests.filter((r) => r.status === 'Pending' && (r.userId === user.id || state.trips.some((t) => t.hostId === user.id && t.id === r.tripId))).length
+      : 0;
+    const firstName = user?.name ? String(user.name).split(' ')[0] : '';
+    const newLeads = user && isBusinessRole()
+      ? (state.bookings || []).filter((b) => {
+          const biz = (state.businesses || []).find((x) => x.id === b.businessId);
+          return (isAdmin() || biz?.ownerId === user.id) && (b.status || 'New') === 'New';
+        }).length
+      : 0;
     $('#screen-home').innerHTML = `
       <section class="hero home-hero v040-hero" aria-labelledby="homeTitle">
         <div class="hero-topline">
           <span class="eyebrow">${greeting()} ${MID} ${safe(c.area || userArea())}</span>
-          <span class="chip">Browse first</span>
+          <span class="chip">${user ? 'Welcome back' : 'Browse first'}</span>
         </div>
-        <h1 id="homeTitle">Your water, your crew, your window.</h1>
-        <p>Start with live local conditions, then find open seats, post a plan, or check the bite board near you.</p>
+        <h1 id="homeTitle">${user ? `Find the next charter${firstName ? `, ${safe(firstName)}` : ''}.` : 'Find all the charters.'}</h1>
+        <p>${user
+          ? 'Compare captains, send a real inquiry, then log the trip and rebook the good ones.'
+          : 'Browse real Tampa Bay charter listings. Filter by water, species, boat, and date. No fake seat inventory.'}</p>
         <button class="hero-snapshot" type="button" data-action="open-conditions" aria-label="Open current fishing window">
           <span class="snapshot-kicker"><i class="live-dot ${c.isLive ? 'on' : ''}"></i>${safe(c.isLive ? 'Live water' : 'Local water')}</span>
           <strong>${safe(c.score)} window</strong>
@@ -1177,9 +1802,27 @@
           ${['Gandy','Skyway','Fort De Soto','Weedon Island','Alafia mouth'].map((spot)=>`<button class="spot-pill" type="button" data-action="open-map" data-area="${safe(spot + ', Tampa Bay')}">${safe(spot)}</button>`).join('')}
         </div>
         <div class="hero-actions v040-actions">
-          <button class="btn primary" type="button" data-action="go" data-screen="explore">Find a trip</button>
-          <button class="btn soft" type="button" data-action="open-feed-form">Post catch</button>
-          <button class="btn dark" type="button" data-action="open-conditions">Open window</button>
+          <button class="btn primary" type="button" data-action="go" data-screen="explore">Find charters</button>
+          <button class="btn soft" type="button" data-action="open-my-bookings">${user && isBusinessRole() ? 'Leads inbox' : 'My inquiries'}</button>
+          <button class="btn dark" type="button" data-action="${isBusinessRole() ? 'open-charter-form' : 'open-conditions'}">${isBusinessRole() ? 'List a charter' : 'Water window'}</button>
+        </div>
+      </section>
+
+      <section class="section app-section-tight charter-search-panel" aria-label="Search charters">
+        <div class="panel">
+          <div class="section-head compact-head"><div><span class="eyebrow">Need a boat?</span><h2>Search charters</h2></div></div>
+          <div class="form-grid">
+            <label class="label">Location<input id="homeCharterLocation" name="charter-location" class="field" autocomplete="address-level2" placeholder="Tampa Bay, Ruskin, Anna Maria" value="${safe(f.location || userArea())}" /></label>
+            <label class="label">Species<input id="homeCharterSpecies" name="charter-species" class="field" autocomplete="off" placeholder="Snook, tarpon, snapper" value="${safe(f.species || '')}" /></label>
+          </div>
+          <div class="form-grid mt">
+            <label class="label">Date<input id="homeCharterDate" name="charter-date" class="field" type="date" value="${safe(f.date || '')}" /></label>
+            <label class="label">Boat type<input id="homeCharterBoat" name="charter-boat" class="field" autocomplete="off" placeholder="Bay boat, center console" value="${safe(f.boat || '')}" /></label>
+          </div>
+          <div class="row mt">
+            <button class="btn primary" type="button" data-action="apply-charter-search" data-source="home">Show matching charters</button>
+            <button class="btn dark" type="button" data-action="clear-charter-search">Clear</button>
+          </div>
         </div>
       </section>
 
@@ -1187,19 +1830,42 @@
       ${homeActivityFeed()}
       ${localWaterNews(c)}
 
-      <section class="home-command-grid" aria-label="Quick fishing actions">
-        <button class="home-command" type="button" data-action="go" data-screen="explore"><b>Find a trip</b><span>Open seats and local plans</span></button>
-        <button class="home-command" type="button" data-action="open-feed-form"><b>Post catch</b><span>Share proof to the bite board</span></button>
-        <button class="home-command" type="button" data-action="go" data-screen="feed"><b>Shop board</b><span>Reports, deals, and dock notes</span></button>
-        <button class="home-command" type="button" data-action="go" data-screen="tools"><b>Fishing tools</b><span>Bait, gear, fish ID, measuring</span></button>
-      </section>
+      ${isBusinessRole() ? `
+      <section class="captain-desk panel" aria-label="Captain desk">
+        <div class="section-head compact-head">
+          <div><span class="eyebrow">Captain desk</span><h2>Run the charter morning.</h2></div>
+        </div>
+        <p class="muted">Open seats, seat requests, booking leads, and the morning checklist â€” without hunting through Ops.</p>
+        <div class="home-command-grid captain-desk-grid" aria-label="Captain quick actions">
+          <button class="home-command" type="button" data-action="open-trip-form"><b>Post open seats</b><span>Charter-ready trip form</span></button>
+          <button class="home-command" type="button" data-action="go" data-screen="crew"><b>Seat requests</b><span>${pendingHostRequests ? `${pendingHostRequests} waiting` : 'Approve crew joins'}</span></button>
+          <button class="home-command" type="button" data-action="open-business-leads"><b>Leads inbox</b><span>${newLeads ? `${newLeads} new` : 'Charter and partner inquiries'}</span></button>
+          <a class="home-command" href="downloads/fishcrew-morning-window-checklist.pdf" target="_blank" rel="noopener"><b>Morning checklist</b><span>PDF ready for the dock</span></a>
+        </div>
+      </section>` : `
+      <section class="home-command-grid" aria-label="Charter loop">
+        <button class="home-command" type="button" data-action="go" data-screen="explore"><b>Find charters</b><span>Location, species, date, boat</span></button>
+        <button class="home-command" type="button" data-action="open-my-bookings"><b>My inquiries</b><span>Status after you ask a captain</span></button>
+        <button class="home-command" type="button" data-action="go" data-screen="crew"><b>After the trip</b><span>Crew log, recap, then rebook</span></button>
+        <button class="home-command" type="button" data-action="go" data-screen="tools"><b>Water tools</b><span>Window, bait, and gear help</span></button>
+      </section>`}
 
-      ${state.onboardingSeen ? '' : `<section class="section tutorial-nudge"><div class="panel launch-card"><div><span class="eyebrow">New here?</span><h2>Take the quick dock walk-through.</h2><p class="muted">See how to browse, join, chat, post proof, and use tools without getting hit by a login wall.</p></div><button class="btn primary" type="button" data-action="open-tutorial">Start tutorial</button></div></section>`}
+      ${featuredCaptains.length ? `
+      <section class="section app-section-tight" aria-label="Tampa Bay charters">
+        <div class="section-head compact-head">
+          <div><span class="eyebrow">Charters</span><h2>Compare Tampa Bay boats</h2></div>
+          <button class="btn dark small" type="button" data-action="go" data-screen="explore">Browse all</button>
+        </div>
+        <div class="grid cards v040-card-stack">${featuredCaptains.map((u) => charterCard(u)).join('')}</div>
+      </section>` : ''}
+      ${dockAdCard()}
 
-      <section class="section v040-flow" aria-label="FishCrew flow">
-        <button class="flow-step" type="button" data-action="go" data-screen="explore"><b>1</b><span>Find water</span></button>
-        <button class="flow-step" type="button" data-action="go" data-screen="crew"><b>2</b><span>Lock crew</span>${pendingRequests ? `<em>${pendingRequests}</em>` : ''}</button>
-        <button class="flow-step" type="button" data-action="go" data-screen="feed"><b>3</b><span>Post proof</span></button>
+      ${state.onboardingSeen || user ? '' : `<section class="section tutorial-nudge"><div class="panel launch-card"><div><span class="eyebrow">New here?</span><h2>Take the quick dock walk-through.</h2><p class="muted">See how to browse, join, chat, post proof, and use tools without getting hit by a login wall.</p></div><button class="btn primary" type="button" data-action="open-tutorial">Start tutorial</button></div></section>`}
+
+      <section class="section v040-flow" aria-label="Charter loop">
+        <button class="flow-step" type="button" data-action="go" data-screen="explore"><b>1</b><span>Find charters</span></button>
+        <button class="flow-step" type="button" data-action="open-my-bookings"><b>2</b><span>Inquire / book</span></button>
+        <button class="flow-step" type="button" data-action="go" data-screen="crew"><b>3</b><span>Trip + review</span>${pendingRequests ? `<em>${pendingRequests}</em>` : ''}</button>
       </section>
 
       ${conditionsRibbon(c)}
@@ -1217,110 +1883,124 @@
           <div><span class="eyebrow">Bite board</span><h2>Catch of the day</h2></div>
           <button class="btn dark small" type="button" data-action="go" data-screen="feed">Open feed</button>
         </div>
-        <div class="grid cards v040-card-stack">${proof.map((p) => feedCard(p, true)).join('')}</div>
+        <div class="grid cards v040-card-stack">${proof.map((p) => feedCard(p, true)).join('') || `<div class="empty">No catch reports yet. The bite board fills when crews post proof.</div>`}</div>
       </section>`;
   }
 
+  function captainChips(u, limit = 6) {
+    const bits = [
+      ...(u.tripTypes || '').split(/[·,]/).map((s) => s.trim()).filter(Boolean),
+      ...(u.fishingStyles || '').split(',').map((s) => s.trim()).filter(Boolean),
+      ...(u.species || '').split(',').map((s) => s.trim()).filter(Boolean)
+    ];
+    const seen = new Set();
+    const out = [];
+    for (const b of bits) {
+      const key = b.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(b);
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
+  function captainCard(u) {
+    return charterCard(u.role === 'Captain' && !u.kind ? findCharter(u.id) || charterFromParts({
+      id: u.id, ownerId: u.id, name: u.name, kind: 'Pro Charter', area: u.area, species: u.species, boatType: u.boat, boat: u.boat, tripTypes: u.tripTypes, websiteUrl: u.websiteUrl, campaign: u.bio, listingKind: u.listingKind, curated: u.curated, status: 'Directory'
+    }, u) : u);
+  }
+
+  function charterCard(listing) {
+    if (!listing) return '';
+    const focus = normalizeUsername(state.focusCaptain || '') === normalizeUsername(listing.username || listing.id);
+    const chips = captainChips(listing, 6);
+    const photo = listing.photoUrl;
+    const owner = currentUser() && listing.ownerId === currentUser().id;
+    return `
+      <article class="admin-card captain-card charter-card${listing.curated ? ' captain-card-curated' : ''}${focus ? ' captain-card-focus' : ''}" id="captain-${safe(normalizeUsername(listing.username || listing.id))}" data-charter-id="${safe(listing.id)}">
+        ${photo ? `<div class="card-media photo" style="background-image:url('${safe(photo)}')"></div>` : `<div class="card-media media-sketch boat" aria-hidden="true"><span class="sketch-sun"></span><span class="sketch-wave one"></span><span class="sketch-mark"></span></div>`}
+        <span class="badge green">${listing.listingKind === 'partner' ? 'Early partner' : listing.curated ? 'Public listing' : listing.status === 'Pending review' ? 'Pending' : 'Charter'}</span>
+        <h3>${safe(listing.name)}</h3>
+        <p class="muted">${safe(listing.captainName && listing.captainName !== listing.name ? `${listing.captainName} ${MID} ` : '')}${safe(listing.area)}${listing.boat ? ` ${MID} ${safe(listing.boat)}` : ''}</p>
+        <p class="muted">${safe(listing.bio)}</p>
+        <div class="meta">
+          <span class="chip">${safe(priceLabel(listing))}</span>
+          ${listing.availability ? `<span class="chip">${safe(listing.availability)}</span>` : '<span class="chip">Ask for a date</span>'}
+          ${chips.map((s) => `<span class="chip">${safe(s)}</span>`).join('')}
+        </div>
+        <div class="row">
+          <button class="btn primary small" type="button" data-action="open-charter-profile" data-charter-id="${safe(listing.id)}">View charter</button>
+          <button class="btn soft small" type="button" data-action="open-charter-inquiry" data-charter-id="${safe(listing.id)}">Inquire</button>
+          ${owner ? `<button class="btn dark small" type="button" data-action="open-charter-form" data-charter-id="${safe(listing.id)}">Edit listing</button>` : ''}
+        </div>
+      </article>`;
+  }
+
   function renderExplore() {
-    const filters = ['All', 'Boat', 'Pier', 'Kayak', 'Charter', 'Open'];
-    const trips = state.trips.filter((t) => {
+    const f = charterFilterState();
+    const listings = filteredCharters();
+    const refreshing = Boolean(state.charterRefreshing);
+    const shops = directoryBusinesses().filter((b) => !isCharterKind(b.kind) && !b.curated && !isAuditListing(b));
+    const trips = publicTrips().filter((t) => {
       if (!isAdmin() && isBlocked(t.hostId)) return false;
-      if (state.tripFilter === 'All') return true;
       if (state.tripFilter === 'Open') return t.status === 'Open';
-      if (state.tripFilter === 'Charter') return t.type === 'Charter' || /charter/i.test(t.title);
-      return t.type === state.tripFilter;
+      return true;
     });
+    const emptyCharters = `<div class="empty"><h3>No charters match this search.</h3><p>We will not invent boats or prices. Widen the area, clear a filter, or ask a captain to list.</p><div class="row mt"><button class="btn primary" type="button" data-action="clear-charter-search">Clear filters</button><button class="btn dark" type="button" data-action="open-charter-form">List a charter</button></div></div>`;
     $('#screen-explore').innerHTML = `
-      <section class="section" aria-labelledby="exploreTitle">
-        <span class="eyebrow">Explore</span>
-        <h1 class="page-title" id="exploreTitle">Find water, crew, and local pros.</h1>
-        <p class="lead">Open trips, area guides, pro charters, cruises, tackle shops, and map links. Exact meetup details stay private until approval.</p>
-        <div class="filters">${filters.map((f) => `<button class="filter-btn ${state.tripFilter === f ? 'active' : ''}" type="button" data-action="trip-filter" data-filter="${safe(f)}">${safe(f)}</button>`).join('')}</div>
-        <div class="grid cards">${trips.slice(0, TRIP_RENDER_LIMIT).map((t) => tripCard(t)).join('') || `<div class="empty">${state.trips.length ? 'No trips match this filter.' : 'No trips posted yet.'}${postTripCta(state.trips.length ? 'Post a trip' : 'Post the first trip')}</div>`}</div>
+      <section class="section" aria-labelledby="exploreTitle" id="explore-captains">
+        <div class="section-head compact-head">
+          <div>
+            <span class="eyebrow">Charters</span>
+            <h1 class="page-title" id="exploreTitle">Find the boat first.</h1>
+          </div>
+          <button class="btn soft small" type="button" data-action="refresh-charters" ${refreshing ? 'disabled' : ''} aria-busy="${refreshing ? 'true' : 'false'}">${refreshing ? 'Refreshing...' : 'Refresh'}</button>
+        </div>
+        <p class="lead">Browse by location, species, date, boat, and price when a captain posted one. Guest browse is open. Inquiry saves to the captain inbox ${MID} no fake booked toast.</p>
+        ${state.operatorListHint ? `<div class="safe-note"><strong>Captains:</strong> Sign in with a captain account, then list your charter. We do not sign you into a demo profile.</div>` : ''}
+        <div class="panel charter-search-panel">
+          <div class="form-grid">
+            <label class="label">Location<input id="expCharterLocation" name="charter-location" class="field" autocomplete="address-level2" placeholder="Tampa Bay, Ruskin, Clearwater" value="${safe(f.location || '')}" /></label>
+            <label class="label">Species / target<input id="expCharterSpecies" name="charter-species" class="field" autocomplete="off" placeholder="Snook, redfish, grouper" value="${safe(f.species || '')}" /></label>
+          </div>
+          <div class="form-grid mt">
+            <label class="label">Preferred date<input id="expCharterDate" name="charter-date" class="field" type="date" value="${safe(f.date || '')}" /></label>
+            <label class="label">Boat type<input id="expCharterBoat" name="charter-boat" class="field" autocomplete="off" placeholder="Bay boat, skiff, offshore" value="${safe(f.boat || '')}" /></label>
+          </div>
+          <div class="form-grid mt">
+            <label class="label">Max budget (optional)<input id="expCharterPrice" name="charter-price" class="field" type="number" inputmode="decimal" min="0" placeholder="Leave blank to include quote-only listings" value="${safe(f.price || '')}" /></label>
+            <label class="label">Keyword<input id="expCharterQ" name="charter-q" class="field" autocomplete="off" placeholder="Family, tarpon, night" value="${safe(f.q || '')}" /></label>
+          </div>
+          <div class="row mt">
+            <button class="btn primary" type="button" data-action="apply-charter-search" data-source="explore">Apply search</button>
+            <button class="btn dark" type="button" data-action="clear-charter-search">Reset</button>
+            <button class="btn soft" type="button" data-action="open-charter-form">List a charter</button>
+          </div>
+        </div>
+        <p class="tiny mt">${listings.length} listing${listings.length === 1 ? '' : 's'} ${MID} date is a request, not reserved inventory.</p>
+        <div class="grid cards v040-card-stack">${listings.slice(0, 48).map((c) => charterCard(c)).join('') || emptyCharters}</div>
       </section>
+      ${dockAdCard()}
       <section class="section">
-        <div class="section-head"><div><span class="eyebrow">Marketplace</span><h2>Local partners</h2></div><button class="btn dark small" type="button" data-action="open-business-form">Add business</button></div>
-        <div class="grid cards">${state.businesses.slice(0, 24).map((b) => `
+        <div class="section-head"><div><span class="eyebrow">Crew seats</span><h2>Open trips after you have a boat.</h2></div><button class="btn dark small" type="button" data-action="trip-filter" data-filter="Open">Last-minute</button></div>
+        <p class="muted">Crew matching supports the charter loop. It does not replace listings.</p>
+        <div class="grid cards">${trips.slice(0, 8).map((t) => tripCard(t)).join('') || `<div class="empty">No open crew trips posted.${postTripCta('Post a crew trip')}</div>`}</div>
+      </section>
+      ${shops.length ? `
+      <section class="section">
+        <div class="section-head"><div><span class="eyebrow">Dock partners</span><h2>Shops and marinas</h2></div></div>
+        <div class="grid cards">${shops.slice(0, 12).map((b) => `
           <article class="admin-card">
             <span class="badge ${b.status === 'Verified' ? 'green' : 'orange'}">${safe(b.status)}</span>
             <h3>${safe(b.name)}</h3>
             <p class="muted">${safe(b.kind)} ${MID} ${safe(b.area)}</p>
-            <div class="meta"><span class="chip">${safe(b.leads)} leads</span><span class="chip">$${safe(b.revenue)}</span><span class="chip">${safe(b.campaign)}</span></div>
-            <div class="row"><button class="btn primary small" type="button" data-action="book-business" data-business-id="${safe(b.id)}">Inquire</button><button class="btn dark small" type="button" data-action="open-map" data-area="${safe(b.area)}">Map area</button></div>
+            <div class="row">
+              <button class="btn primary small" type="button" data-action="book-business" data-business-id="${safe(b.id)}">Inquire</button>
+              <button class="btn dark small" type="button" data-action="open-map" data-area="${safe((b.area || '').split('(')[0].trim() || b.area)}">Map area</button>
+            </div>
           </article>`).join('')}</div>
-      </section>`;
-  }
-
-  function isTripCrewMember(trip, user = currentUser()) {
-    if (!trip || !user) return false;
-    return trip.hostId === user.id || Boolean(trip.members?.includes(user.id)) || isAdmin();
-  }
-
-  function scrubCrewChatLocalState() {
-    // Crew chat often carries meetup pins. Clear local copies on logout /
-    // account switch so the next browser session cannot read them from
-    // Crew → Chat while the private meetup line still says "Locked".
-    state.messages = {};
-    state.activeTripId = '';
-    if (state.crewPanel === 'chat') state.crewPanel = 'upcoming';
-  }
-
-  function canonicalAppUrl() {
-    const base = String(CONFIG.WEB_CANONICAL_URL || location.origin || 'https://fishcrew.macksims.com/');
-    return base.endsWith('/') ? base : `${base}/`;
-  }
-
-  function tripInviteUrl(tripId) {
-    return `${canonicalAppUrl()}?trip=${encodeURIComponent(tripId)}`;
-  }
-
-  function tripIdFromUrl() {
-    const params = new URLSearchParams(location.search || '');
-    const fromQuery = params.get('trip') || params.get('invite');
-    if (fromQuery) return String(fromQuery).trim();
-    const path = String(location.pathname || '');
-    const match = path.match(/\/(?:invite|trip)\/([^/]+)\/?$/i);
-    return match ? decodeURIComponent(match[1]) : '';
-  }
-
-  function clearTripInviteFromUrl() {
-    try {
-      const url = new URL(location.href);
-      if (!url.searchParams.has('trip') && !url.searchParams.has('invite') && !/\/(?:invite|trip)\//i.test(url.pathname)) return;
-      url.searchParams.delete('trip');
-      url.searchParams.delete('invite');
-      if (/\/(?:invite|trip)\/[^/]+\/?$/i.test(url.pathname)) url.pathname = '/';
-      history.replaceState({}, '', url.pathname + url.search + url.hash);
-    } catch (_) { /* ignore history failures */ }
-  }
-
-  async function openTripInvite(tripId, { forceRequest = false } = {}) {
-    if (!tripId) return;
-    let trip = state.trips.find((t) => t.id === tripId);
-    if (!trip && supabaseClient) {
-      try { await pullSupabase({ silent: true }); } catch (_) { /* keep going */ }
-      trip = state.trips.find((t) => t.id === tripId);
-    }
-    if (!trip) {
-      state.pendingTripId = tripId;
-      save();
-      toast('That trip invite is not loaded yet. Sign in or refresh, then try again.', 'warning');
-      return;
-    }
-    state.pendingTripId = '';
-    state.activeTripId = trip.id;
-    save();
-    clearTripInviteFromUrl();
-    if (forceRequest) return requestTrip(trip.id);
-    tripDetails(trip.id);
-  }
-
-  function consumePendingTripInvite() {
-    const tripId = state.pendingTripId || tripIdFromUrl();
-    if (!tripId) return;
-    state.pendingTripId = '';
-    save();
-    setTimeout(() => openTripInvite(tripId), 120);
+      </section>` : ''}`;
   }
 
   function renderCrew() {
@@ -1328,7 +2008,6 @@
     const visibleTrips = user ? state.trips.filter((t) => isTripCrewMember(t, user)) : state.trips.slice(0, 1);
     const reqs = user ? state.requests.filter((r) => isAdmin() || state.trips.some((t) => t.id === r.tripId && t.hostId === user.id) || r.userId === user.id) : [];
     const active = state.trips.find((t) => t.id === state.activeTripId);
-    // Chat (and private meetup) must never select a trip the viewer cannot access.
     const trip = (active && isTripCrewMember(active, user) ? active : null) || visibleTrips[0] || null;
     $('#screen-crew').innerHTML = `
       <section class="section" aria-labelledby="crewTitle">
@@ -1402,8 +2081,8 @@
           <button class="tool-card panel photo-panel bait-panel" type="button" data-action="open-bait-help"><span class="tool-icon bait"></span><h3>Bait help</h3><p class="muted">Pick bait and rigs by area, target fish, tide, and water clarity.</p></button>
           <button class="tool-card panel photo-panel gear-panel" type="button" data-action="open-gear-help"><span class="tool-icon gear"></span><h3>Gear + tackle</h3><p class="muted">Core setups, terminal tackle, leaders, and trip checklists.</p></button>
           <button class="tool-card panel photo-panel device-panel" type="button" data-action="open-device-hub"><span class="tool-icon gps"></span><h3>GPS + devices</h3><p class="muted">Phone GPS, Bluetooth discovery, USB/NMEA bridge notes, and waypoint fix.</p></button>
-          <button class="tool-card panel photo-panel fish-panel" type="button" data-action="open-fish-id"><span class="tool-icon fish"></span><h3>Fish identifier</h3><p class="muted">Assistive species estimate only. Not a legal harvest decision tool — verify species, size, season, and regulations with official sources.</p></button>
-          <button class="tool-card panel photo-panel measure-panel" type="button" data-action="open-measure-tool"><span class="tool-icon ruler"></span><h3>Measure assist</h3><p class="muted">Camera/gallery length estimate only. Not enforcement or legal proof — confirm with a physical ruler and official rules.</p></button>
+          <button class="tool-card panel photo-panel fish-panel" type="button" data-action="open-fish-id"><span class="tool-icon fish"></span><h3>Fish identifier</h3><p class="muted">Assistive species estimate only. Not a legal harvest decision tool â€” verify species, size, season, and regulations with official sources.</p></button>
+          <button class="tool-card panel photo-panel measure-panel" type="button" data-action="open-measure-tool"><span class="tool-icon ruler"></span><h3>Measure assist</h3><p class="muted">Camera/gallery length estimate only. Not enforcement or legal proof â€” confirm with a physical ruler and official rules.</p></button>
         </div>
         <div class="grid two mt tools-status-grid">
           <div class="panel warm-panel"><h3>Last fish ID</h3><p class="muted">${lastFish ? `${safe(lastFish.result)} ${MID} ${safe(lastFish.confidence)} confidence` : 'No fish ID run yet.'}</p><button class="btn soft small" type="button" data-action="open-fish-id">Try fish ID</button></div>
@@ -1471,7 +2150,7 @@
             <div>
               <h3>${igConnection?.username ? `Linked @${safe(igConnection.username)}` : 'Connect Instagram'}</h3>
               <p class="muted">${igConfigured
-                ? 'Connect a Business/Creator account through Meta. This is not a login — email/password stays primary.'
+                ? 'Connect a Business/Creator account through Meta. This is not a login â€” email/password stays primary.'
                 : 'Owner setup: set META_APP_ID and ENABLE_INSTAGRAM_OAUTH in config.js, then add the redirect URI in the Meta app.'}</p>
             </div>
           </div>
@@ -1479,7 +2158,7 @@
             <button class="btn ${igConfigured ? 'primary' : 'dark'} small" type="button" data-action="instagram-connect"${igConfigured ? '' : ' disabled'}>${igConnection ? 'Reconnect' : 'Connect Instagram'}</button>
             ${igConnection ? `<button class="btn soft small" type="button" data-action="instagram-import">Import recent</button>` : ''}
           </div>
-          <p class="tiny">Share-to-Instagram caption handoff remains available from Feed share — separate from connect.</p>
+          <p class="tiny">Share-to-Instagram caption handoff remains available from Feed share â€” separate from connect.</p>
         </div>
       </section>` : '';
 
@@ -1635,7 +2314,7 @@
   function render() {
     hydrateHeader();
     const screen = state.activeScreen || 'home';
-    // Only rebuild the active screen — inactive screens keep prior DOM (social-app sticky feel).
+    // Only rebuild the active screen â€” inactive screens keep prior DOM (social-app sticky feel).
     const renderers = {
       home: renderHome,
       explore: renderExplore,
@@ -1778,26 +2457,403 @@
     if (title) title.textContent = createMode ? 'Create your FishCrew profile.' : 'Sign in when it matters.';
   }
 
-  function openCreate() {
-    if (!requireLogin('Sign in to post trips, catches, photos, shop updates, charter openings, or cruise opportunities.')) return;
+  function readCharterSearch(source = '') {
+    const prefix = source === 'home' ? 'homeCharter' : 'expCharter';
+    const get = (id, fallback = '') => ($(`#${id}`)?.value || fallback).trim();
+    if (source === 'home') {
+      return {
+        q: charterFilterState().q || '',
+        location: get('homeCharterLocation'),
+        species: get('homeCharterSpecies'),
+        date: get('homeCharterDate'),
+        boat: get('homeCharterBoat'),
+        price: charterFilterState().price || ''
+      };
+    }
+    return {
+      q: get('expCharterQ'),
+      location: get('expCharterLocation'),
+      species: get('expCharterSpecies'),
+      date: get('expCharterDate'),
+      boat: get('expCharterBoat'),
+      price: get('expCharterPrice')
+    };
+  }
+
+  function applyCharterSearch(source = 'explore') {
+    state.charterFilter = readCharterSearch(source);
+    save(true);
+    nav('explore');
+    const n = filteredCharters().length;
+    toast(n ? `${n} charter${n === 1 ? '' : 's'} match.` : 'No charters match. Nothing was invented.');
+  }
+
+  function clearCharterSearch() {
+    state.charterFilter = { q: '', location: '', species: '', boat: '', date: '', price: '' };
+    save(true);
+    render();
+    toast('Charter filters cleared.');
+  }
+
+  async function refreshCharters(options = {}) {
+    if (state.charterRefreshing && !options.force) return;
+    state.charterRefreshing = true;
+    if (state.activeScreen === 'explore') renderExplore();
+    try {
+      if (liveReady()) await pullSupabase({ silent: true, reason: 'charter-refresh' });
+      else if (!options.silent) toast('Browsing local listings. Sign in for shared data.');
+      if (!options.silent) toast('Charter board updated.');
+    } catch (error) {
+      if (!options.silent) toast(`Charter refresh failed: ${error.message}`, 'danger');
+    } finally {
+      state.charterRefreshing = false;
+      if (state.activeScreen === 'explore') renderExplore();
+    }
+  }
+
+  function openCharterProfile(charterId) {
+    const listing = findCharter(charterId);
+    if (!listing) return toast('Charter not found.', 'danger');
+    const owner = currentUser() && listing.ownerId === currentUser().id;
+    const reviews = liveReviewsFor(listing.id);
+    const liveReviews = reviews.filter((r) => r.status === 'Live' || r.status === 'Approved');
+    const avg = liveReviews.length
+      ? (liveReviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / liveReviews.length).toFixed(1)
+      : '';
+    const photo = listing.photoUrl;
     modal(`
-      <div class="modal-head"><div><span class="eyebrow">Create</span><h2>What are we posting?</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="modal-head"><div><span class="eyebrow">Charter</span><h2>${safe(listing.name)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      ${photo ? `<div class="card-media photo charter-hero-photo" style="background-image:url('${safe(photo)}')"></div>` : ''}
+      <p class="muted">${safe(listing.captainName)} ${MID} ${safe(listing.area)}</p>
+      <p>${safe(listing.bioLong || listing.bio)}</p>
+      ${listing.experience ? `<p class="tiny">${safe(listing.experience)}</p>` : ''}
+      <div class="meta">
+        <span class="chip">${safe(priceLabel(listing))}</span>
+        ${listing.boat ? `<span class="chip">${safe(listing.boat)}</span>` : ''}
+        ${listing.tripTypes ? `<span class="chip">${safe(listing.tripTypes)}</span>` : ''}
+        ${listing.species ? `<span class="chip">${safe(listing.species)}</span>` : ''}
+        ${listing.availability ? `<span class="chip">${safe(listing.availability)}</span>` : '<span class="chip">Ask for a date</span>'}
+      </div>
+      <div class="panel mt">
+        <h3>Reviews</h3>
+        ${avg ? `<p class="muted">${safe(avg)} from ${liveReviews.length} published trip review${liveReviews.length === 1 ? '' : 's'}.</p>` : '<p class="muted">No published trip reviews yet. We will not show a fake 5-star wall.</p>'}
+        ${reviews.map((r) => `<div class="lead-row"><div><b>${safe(r.reviewerName || 'Angler')} ${r.rating ? MID + ' ' + r.rating + '/5' : ''}</b><small>${safe(r.status === 'Live' || r.status === 'Approved' ? (r.body || '') : 'Your review is waiting on operator publish.')}</small></div></div>`).join('')}
+      </div>
+      <div class="row mt">
+        <button class="btn primary" type="button" data-action="open-charter-inquiry" data-charter-id="${safe(listing.id)}">Request this trip</button>
+        ${listing.websiteUrl ? `<a class="btn dark" href="${safe(listing.websiteUrl)}" target="_blank" rel="noopener noreferrer">Captain site</a>` : ''}
+        ${owner ? `<button class="btn soft" type="button" data-action="open-charter-form" data-charter-id="${safe(listing.id)}">Edit listing</button>` : ''}
+        ${listing.ownerId ? `<button class="btn danger" type="button" data-action="block-user" data-user-id="${safe(listing.ownerId)}">Block</button>` : ''}
+      </div>`);
+  }
+
+  function openCharterInquiry(charterId) {
+    if (!requireLogin('Sign in to send a charter inquiry. The captain sees it in their inbox.')) return;
+    const listing = findCharter(charterId);
+    if (!listing) return toast('Charter not found.', 'danger');
+    const user = currentUser();
+    const f = charterFilterState();
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Inquiry</span><h2>Ask ${safe(listing.captainName || listing.name)}.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">This writes a real lead. Status stays New until the captain marks Contacted, Booked, or Closed.</p>
+      <div class="forms">
+        <input type="hidden" id="inqCharterId" value="${safe(listing.id)}" />
+        <div class="form-grid">
+          <label class="label">Preferred date<input id="inqDate" name="inquiry-date" class="field" type="date" value="${safe(f.date || '')}" /></label>
+          <label class="label">Party size<input id="inqParty" name="inquiry-party" class="field" type="number" inputmode="numeric" min="1" value="2" /></label>
+        </div>
+        <label class="label">Phone<input id="inqPhone" name="tel" class="field" type="tel" inputmode="tel" autocomplete="tel" placeholder="Optional for SMS" /></label>
+        <label class="label">What do you need?<textarea id="inqNotes" name="inquiry-notes" class="field" placeholder="Species, experience level, kids, budget">${safe([f.species && `Target: ${f.species}`, f.boat && `Boat: ${f.boat}`].filter(Boolean).join(' · '))}</textarea></label>
+        <button class="btn primary full" type="button" data-action="save-charter-inquiry">Send inquiry</button>
+      </div>`);
+  }
+
+  async function ensureCharterBusiness(listing) {
+    if (!listing) return '';
+    if (listing.businessId && !String(listing.businessId).startsWith('charter_user_')) return listing.businessId;
+    const existing = (state.businesses || []).find((b) => b.ownerId === listing.ownerId && isCharterKind(b.kind));
+    if (existing) return existing.id;
+    const biz = {
+      id: uid('biz'),
+      ownerId: listing.ownerId || currentUser()?.id || '',
+      name: listing.name,
+      kind: listing.kind || 'Pro Charter',
+      area: listing.area,
+      status: listing.status || 'Directory',
+      leads: 0,
+      revenue: 0,
+      campaign: listing.bio || 'Charter listing',
+      species: listing.species,
+      boatType: listing.boatType,
+      tripTypes: listing.tripTypes,
+      priceFrom: listing.priceFrom,
+      priceTo: listing.priceTo,
+      availability: listing.availability,
+      websiteUrl: listing.websiteUrl,
+      listingKind: listing.listingKind || 'operator'
+    };
+    state.businesses.unshift(biz);
+    return biz.id;
+  }
+
+  async function saveCharterInquiry() {
+    if (!requireLogin('Sign in to send a charter inquiry.')) return;
+    const listing = findCharter($('#inqCharterId')?.value || '');
+    if (!listing) return toast('Charter not found.', 'danger');
+    const user = currentUser();
+    const date = $('#inqDate')?.value.trim() || '';
+    const party = Number($('#inqParty')?.value || 0);
+    const phone = ($('#inqPhone')?.value || '').trim();
+    const note = $('#inqNotes')?.value.trim();
+    if (!date && !note) return toast('Add a date or a note so the captain knows the ask.', 'danger');
+    const businessId = await ensureCharterBusiness(listing);
+    const booking = {
+      id: uid('book'),
+      businessId,
+      charterId: listing.id,
+      customerId: user.id,
+      customerName: user.name,
+      phone,
+      kind: 'Charter inquiry',
+      status: 'New',
+      date: date || 'Flexible',
+      value: Number(listing.priceFrom || 0),
+      notes: [party ? `Party of ${party}` : '', note].filter(Boolean).join(' · '),
+      createdAt: now()
+    };
+    state.bookings.unshift(booking);
+    const biz = (state.businesses || []).find((b) => b.id === businessId);
+    if (biz) biz.leads = Number(biz.leads || 0) + 1;
+    state.opsLog.unshift(`${user.name} inquired on ${listing.name}.`);
+    closeModal();
+    await afterLocalWrite('Charter inquiry', async () => {
+      if (biz && String(biz.id).startsWith('biz_')) await liveUpsertBusiness(biz);
+      await liveUpsert('bookings', bookingRow(booking), 'booking');
+      if (biz) await liveUpdate('businesses', { lead_count: Number(biz.leads || 0) }, 'id', biz.id, 'business lead count');
+      return true;
+    });
+    toast(liveReady() && currentUser() ? 'Inquiry saved. The captain can update status from their inbox.' : 'Inquiry saved on this device. Sign in with shared data to sync.');
+  }
+
+  function openCharterForm(charterId = '') {
+    if (!requireBusiness('Sign in as a captain or operator to list a charter.')) return;
+    const existing = charterId ? findCharter(charterId) : allCharters().find((c) => c.ownerId === currentUser()?.id && !c.curated);
+    if (existing && existing.ownerId && existing.ownerId !== currentUser().id && !isAdmin()) {
+      return toast('You can only edit your own listing.', 'danger');
+    }
+    const u = currentUser();
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Operator</span><h2>${existing ? 'Edit your charter.' : 'List a charter.'}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">Public photos stay hidden until approved. Do not invent prices or availability you cannot honor.</p>
+      <div class="forms">
+        <input type="hidden" id="charterEditId" value="${safe(existing?.businessId || existing?.id || '')}" />
+        <label class="label">Charter name<input id="charterName" name="organization" class="field" autocomplete="organization" value="${safe(existing?.name || `${u.name} Charters`)}" /></label>
+        <div class="form-grid">
+          <label class="label">Home water<input id="charterArea" name="address-level2" class="field" autocomplete="address-level2" value="${safe(existing?.area || u.area || userArea())}" /></label>
+          <label class="label">Boat type<input id="charterBoat" name="boat-type" class="field" value="${safe(existing?.boatType || existing?.boat || '')}" placeholder="Bay boat, skiff" /></label>
+        </div>
+        <label class="label">Target species<input id="charterSpecies" name="species" class="field" value="${safe(existing?.species || '')}" placeholder="Snook, redfish, trout" /></label>
+        <label class="label">Trip types<input id="charterTrips" name="trip-types" class="field" value="${safe(existing?.tripTypes || '')}" placeholder="Half-day, family, tarpon" /></label>
+        <label class="label">Availability notes<input id="charterAvail" name="availability" class="field" value="${safe(existing?.availability || '')}" placeholder="Weekends, mornings, seasonal tarpon" /></label>
+        <div class="form-grid">
+          <label class="label">Price from<input id="charterPriceFrom" name="price-from" class="field" type="number" inputmode="decimal" min="0" value="${safe(existing?.priceFrom || '')}" placeholder="Optional" /></label>
+          <label class="label">Price to<input id="charterPriceTo" name="price-to" class="field" type="number" inputmode="decimal" min="0" value="${safe(existing?.priceTo || '')}" placeholder="Optional" /></label>
+        </div>
+        <label class="label">Website<input id="charterSite" name="url" class="field" type="url" value="${safe(existing?.websiteUrl || '')}" placeholder="https://" /></label>
+        <label class="label">Listing summary<textarea id="charterBio" name="charter-bio" class="field">${safe(existing?.bio || u.bio || '')}</textarea></label>
+        <div class="file-box"><label class="label">Charter photo (approved media only goes public)<input id="charterPhoto" name="charter-photo" type="file" accept="image/*" /></label></div>
+        <button class="btn primary full" type="button" data-action="save-charter-listing">Save listing</button>
+      </div>`);
+  }
+
+  async function saveCharterListing() {
+    if (!requireBusiness()) return;
+    const user = currentUser();
+    const existingId = $('#charterEditId')?.value || '';
+    const existing = existingId ? (state.businesses || []).find((b) => b.id === existingId) : (state.businesses || []).find((b) => b.ownerId === user.id && isCharterKind(b.kind) && !b.curated);
+    const file = $('#charterPhoto')?.files?.[0] || null;
+    let uploaded = { url: '', path: '', type: '', live: false };
+    let mediaReview = { status: 'No media', needsReview: false };
+    let asset = null;
+    if (file) {
+      mediaReview = autoModerateMedia(file, 'charter');
+      uploaded = await uploadMedia(file, 'charter').catch((error) => {
+        toast(error.message || 'Photo upload failed.', 'danger');
+        return { url: '', path: '', type: '', live: false };
+      });
+    }
+    const biz = existing || {
+      id: uid('biz'),
+      ownerId: user.id,
+      leads: 0,
+      revenue: 0
+    };
+    biz.name = $('#charterName')?.value.trim() || `${user.name} Charters`;
+    biz.kind = 'Pro Charter';
+    biz.area = $('#charterArea')?.value.trim() || user.area || userArea();
+    biz.status = existing?.status && existing.status !== 'Pending review' ? existing.status : (isAdmin() ? 'Verified' : 'Pending review');
+    biz.campaign = $('#charterBio')?.value.trim() || 'Charter listing';
+    biz.species = $('#charterSpecies')?.value.trim() || '';
+    biz.boatType = $('#charterBoat')?.value.trim() || '';
+    biz.tripTypes = $('#charterTrips')?.value.trim() || '';
+    biz.availability = $('#charterAvail')?.value.trim() || '';
+    biz.priceFrom = Number($('#charterPriceFrom')?.value || 0) || null;
+    biz.priceTo = Number($('#charterPriceTo')?.value || 0) || null;
+    biz.websiteUrl = $('#charterSite')?.value.trim() || '';
+    biz.listingKind = existing?.listingKind || 'operator';
+    biz.curated = false;
+    biz.demo = false;
+    if (!existing) state.businesses.unshift(biz);
+    if (uploaded.url) {
+      asset = trackMediaAsset({
+        ownerId: user.id,
+        sourceId: biz.id,
+        sourceType: 'charter',
+        mediaType: uploaded.type || file?.type || 'image/jpeg',
+        storagePath: uploaded.path || 'local-charter-preview',
+        publicUrl: uploaded.url,
+        status: mediaReview.status || (uploaded.live ? 'Review' : 'Local preview'),
+        visibility: 'public'
+      });
+    }
+    const charterRowData = {
+      id: biz.id,
+      ownerId: biz.ownerId,
+      businessId: biz.id,
+      name: biz.name,
+      area: biz.area,
+      species: biz.species,
+      boatType: biz.boatType,
+      tripTypes: biz.tripTypes,
+      availability: biz.availability,
+      priceFrom: biz.priceFrom,
+      priceTo: biz.priceTo,
+      websiteUrl: biz.websiteUrl,
+      bio: biz.campaign,
+      status: biz.status,
+      listingKind: biz.listingKind
+    };
+    state.charters = mergeById(state.charters || [], [charterRowData]);
+    user.role = user.role === 'Angler' ? 'Captain' : user.role;
+    state.opsLog.unshift(`${user.name} ${existing ? 'updated' : 'listed'} charter ${biz.name}.`);
+    closeModal();
+    await afterLocalWrite('Charter listing', async () => {
+      await liveUpsertBusiness(biz);
+      if (state.chartersTableReady) await liveUpsert('charters', charterTableRow(charterRowData), 'charter');
+      if (asset) await liveUpsert('media_assets', mediaAssetRow(asset), 'media asset');
+      return true;
+    });
+    nav('explore');
+    toast(uploaded.url
+      ? (mediaReview.needsReview ? 'Listing saved. Photo stays private until an operator approves it.' : 'Charter listing saved.')
+      : (biz.status === 'Pending review' ? 'Listing saved as pending review. Anglers can still inquire.' : 'Charter listing saved.'));
+  }
+
+  function bookingStatusCopy(status) {
+    const map = {
+      New: 'Sent. Waiting on the captain.',
+      Contacted: 'Captain started the conversation.',
+      Booked: 'Marked booked. Confirm details with the captain.',
+      Closed: 'Closed. Rebook if you want another date.'
+    };
+    return map[status] || status || 'New';
+  }
+
+  function openMyBookings() {
+    const user = currentUser();
+    if (!user) {
+      openAuth('Sign in to see inquiry status. Guests can still browse charters.');
+      return;
+    }
+    if (isBusinessRole()) return openBusinessLeads();
+    const rows = myCharterInquiries();
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Angler</span><h2>Your charter inquiries.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">Status comes from the captain inbox. We will not mark a trip booked unless they do.</p>
+      <div class="stack mt">${rows.map((b) => {
+        const listing = findCharter(b.charterId || b.businessId);
+        return `<div class="lead-row panel"><div><b>${safe(listing?.name || b.kind)}</b><small>${safe(bookingStatusCopy(b.status))} ${MID} ${safe(b.date || 'Flexible')}</small><small>${safe(b.notes || '')}</small></div><span class="chip">${safe(b.status || 'New')}</span><div class="row mt"><button class="btn dark small" type="button" data-action="open-charter-profile" data-charter-id="${safe(listing?.id || b.businessId)}">View charter</button>${b.status === 'Booked' || b.status === 'Closed' ? `<button class="btn soft small" type="button" data-action="open-charter-review" data-booking-id="${safe(b.id)}">After-trip next step</button>` : `<button class="btn primary small" type="button" data-action="open-charter-inquiry" data-charter-id="${safe(listing?.id || b.businessId)}">Follow up</button>`}</div></div>`;
+      }).join('') || '<div class="empty">No inquiries yet. Browse charters and ask a captain.</div>'}
+      </div>
+      <div class="row mt"><button class="btn primary" type="button" data-action="go" data-screen="explore">Find charters</button><button class="btn dark" type="button" data-action="close-modal">Close</button></div>`);
+  }
+
+  function openCharterReview(bookingId) {
+    if (!requireLogin('Sign in to leave a trip note.')) return;
+    const booking = (state.bookings || []).find((b) => b.id === bookingId);
+    if (!booking) return toast('Inquiry not found.', 'danger');
+    const listing = findCharter(booking.charterId || booking.businessId);
+    const canReview = Boolean(state.reviewsTableReady);
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">After the trip</span><h2>${safe(listing?.name || 'Your charter')}.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      ${canReview ? `
+        <p class="muted">Reviews start private. An operator publishes them. No fake 5-star wall.</p>
+        <div class="forms">
+          <input type="hidden" id="revBookingId" value="${safe(booking.id)}" />
+          <label class="label">Rating<select id="revRating" class="select"><option value="5">5 ${MID} would rebook</option><option value="4">4 ${MID} solid trip</option><option value="3">3 ${MID} mixed</option><option value="2">2 ${MID} issues</option><option value="1">1 ${MID} do not rebook</option></select></label>
+          <label class="label">What should the next angler know?<textarea id="revBody" name="review-body" class="field" placeholder="Window, crew, fish handling, kids, value."></textarea></label>
+          <button class="btn primary full" type="button" data-action="save-charter-review">Submit review</button>
+        </div>` : `
+        <p class="muted">Shared star reviews are not live on this project yet. Use a real next step instead of a fake rating wall.</p>
+        <div class="grid two mt">
+          <button class="panel" type="button" data-action="open-charter-inquiry" data-charter-id="${safe(listing?.id || booking.businessId)}"><h3>Rebook</h3><p class="muted">Ask this captain about another date.</p></button>
+          <button class="panel" type="button" data-action="open-feed-form" data-feed-type="Crew Recap"><h3>Log the trip</h3><p class="muted">Post a recap after you get home.</p></button>
+        </div>`}
+      <div class="row mt"><button class="btn dark" type="button" data-action="close-modal">Close</button></div>`);
+  }
+
+  async function saveCharterReview() {
+    if (!requireLogin()) return;
+    if (!state.reviewsTableReady) return toast('Shared reviews are not live yet.', 'danger');
+    const booking = (state.bookings || []).find((b) => b.id === $('#revBookingId')?.value);
+    if (!booking) return toast('Inquiry not found.', 'danger');
+    const listing = findCharter(booking.charterId || booking.businessId);
+    const user = currentUser();
+    const review = {
+      id: uid('rev'),
+      charterId: listing?.id || booking.businessId,
+      businessId: booking.businessId,
+      reviewerId: user.id,
+      reviewerName: user.name,
+      rating: Number($('#revRating')?.value || 0),
+      body: $('#revBody')?.value.trim() || '',
+      tripDate: booking.date || '',
+      status: 'Review',
+      createdAt: now()
+    };
+    if (!review.body && !review.rating) return toast('Add a rating or a note.', 'danger');
+    state.charterReviews = state.charterReviews || [];
+    state.charterReviews.unshift(review);
+    closeModal();
+    await afterLocalWrite('Charter review', async () => {
+      await liveUpsert('charter_reviews', reviewTableRow(review), 'charter review');
+      return true;
+    });
+    toast('Review saved for operator publish. It is not public yet.');
+  }
+
+  function openCreate() {
+    const captain = isBusinessRole();
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Create</span><h2>${captain ? 'Run the charter desk.' : 'Find or list a charter.'}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       <div class="grid two">
-        <button class="panel" type="button" data-action="open-trip-form"><h3>Fishing trip</h3><p class="muted">Open seats, cost split, private meetup after approval.</p></button>
-        <button class="panel" type="button" data-action="open-feed-form"><h3>Catch / recap</h3><p class="muted">Photo, video, or trip recap for the running feed.</p></button>
-        <button class="panel" type="button" data-action="open-business-form"><h3>Business post</h3><p class="muted">Tackle shop, charter, cruise, marina, or guide opportunity.</p></button>
-        <button class="panel" type="button" data-action="open-booking-form"><h3>Booking lead</h3><p class="muted">Charter/cruise inquiry or business lead.</p></button>
+        <button class="panel" type="button" data-action="go" data-screen="explore"><h3>Find charters</h3><p class="muted">Browse by water, species, date, and boat. Guest OK.</p></button>
+        <button class="panel" type="button" data-action="${captain ? 'open-charter-form' : 'open-captain-waitlist'}"><h3>${captain ? 'List a charter' : 'Captain waitlist'}</h3><p class="muted">${captain ? 'Trip types, price range, and approved photos.' : 'Ask to list. Operator review only.'}</p></button>
+        <button class="panel" type="button" data-action="open-trip-form"><h3>Crew trip</h3><p class="muted">Open seats after you have a boat. Sign in required.</p></button>
+        <button class="panel" type="button" data-action="open-feed-form"><h3>After-trip recap</h3><p class="muted">Log the trip. Not a substitute for charter discovery.</p></button>
       </div>`);
   }
 
   function openTripForm() {
     if (!requireLogin('Sign in to post trips, catches, photos, shop updates, charter openings, or cruise opportunities.')) return;
+    const captainDefaults = isBusinessRole();
+    const titlePlaceholder = captainDefaults ? '2 seats open â€” Sunday morning reef window' : 'Saturday inshore crew needed';
     modal(`
-      <div class="modal-head"><div><span class="eyebrow">Trip</span><h2>Post a fishing plan.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="modal-head"><div><span class="eyebrow">Trip</span><h2>${captainDefaults ? 'Post open seats.' : 'Post a fishing plan.'}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       <div class="forms">
-        <label class="label">Title<input id="tripTitle" name="trip-title" class="field" autocomplete="off" placeholder="Saturday inshore crew needed" /></label>
-        <div class="form-grid"><label class="label">Type<select id="tripType" class="select"><option>Boat</option><option>Pier</option><option>Kayak</option><option>Surf</option><option>Charter</option></select></label><label class="label">Area<input id="tripArea" name="trip-area" class="field" autocomplete="address-level2" value="${safe(userArea())}" /></label></div>
-        <div class="form-grid"><label class="label">Time<input id="tripTime" name="trip-time" class="field" autocomplete="off" value="Saturday ? 6:30 AM" /></label><label class="label">Open spots<input id="tripSpots" name="trip-spots" class="field" type="number" inputmode="numeric" autocomplete="off" min="0" value="2" /></label></div>
+        <label class="label">Title<input id="tripTitle" name="trip-title" class="field" autocomplete="off" placeholder="${safe(titlePlaceholder)}" /></label>
+        <div class="form-grid"><label class="label">Type<select id="tripType" class="select"><option>Boat</option><option>Pier</option><option>Kayak</option><option>Surf</option><option ${captainDefaults ? 'selected' : ''}>Charter</option></select></label><label class="label">Area<input id="tripArea" name="trip-area" class="field" autocomplete="address-level2" value="${safe(userArea())}" /></label></div>
+        <div class="form-grid"><label class="label">Time<input id="tripTime" name="trip-time" class="field" autocomplete="off" value="${captainDefaults ? `Sunday ${MID} 6:45 AM` : `Saturday ${MID} 6:30 AM`}" /></label><label class="label">Open spots<input id="tripSpots" name="trip-spots" class="field" type="number" inputmode="numeric" autocomplete="off" min="0" value="2" /></label></div>
         <label class="label">Target species<input id="tripSpecies" name="trip-species" class="field" autocomplete="off" placeholder="Redfish / Snook" /></label>
         <label class="label">Public location<input id="tripPublic" name="trip-public-location" class="field" autocomplete="off" placeholder="General area only" /></label>
         <label class="label">Private meetup location<input id="tripPrivate" name="trip-private-location" class="field" autocomplete="off" placeholder="Ramp/slip/meetup details for approved crew" /></label>
@@ -1821,6 +2877,66 @@
       </div>`);
   }
 
+  function clickDockAd(el) {
+    const ads = state.dockAds || { clicks: 0, inquiries: [] };
+    ads.clicks = Number(ads.clicks || 0) + 1;
+    state.dockAds = ads;
+    save(true);
+    const url = String(el?.dataset?.adUrl || '').trim();
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  function openDockAdInquiry(adId = '') {
+    const ad = adId && adId !== 'dock_ad_house'
+      ? (state.businesses || []).find((b) => b.id === adId)
+      : houseDockAd();
+    const listing = ad?.name || 'Tampa dock listing';
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Dock ad</span><h2>Ask about a Tampa listing.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">First-party only. No AdSense, no banner network. A shop or charter can sit in one labeled slot. We will not invent traffic numbers.</p>
+      <div class="forms">
+        <input type="hidden" id="dockAdListingId" value="${safe(ad?.id || 'dock_ad_house')}" />
+        <label class="label">Your name<input id="dockAdName" name="name" class="field" autocomplete="name" placeholder="Chris" /></label>
+        <label class="label">Business<input id="dockAdBusiness" name="organization" class="field" autocomplete="organization" placeholder="Tackle shop or charter" value="${safe(ad?.house ? '' : listing)}" /></label>
+        <label class="label">Email<input id="dockAdEmail" name="email" class="field" type="email" autocomplete="email" placeholder="you@shop.com" /></label>
+        <label class="label">What do you want to list?<textarea id="dockAdNote" name="notes" class="field" placeholder="Weekend bait special, open seats, marina slip..."></textarea></label>
+        <button class="btn primary full" type="button" data-action="save-dock-ad-inquiry">Save inquiry + open email</button>
+      </div>`);
+  }
+
+  function saveDockAdInquiry() {
+    const listingId = $('#dockAdListingId')?.value || 'dock_ad_house';
+    const name = $('#dockAdName')?.value.trim() || 'Dock inquiry';
+    const business = $('#dockAdBusiness')?.value.trim() || 'Tampa listing';
+    const email = $('#dockAdEmail')?.value.trim();
+    const note = $('#dockAdNote')?.value.trim() || 'Interested in a FishCrew dock ad.';
+    const row = { id: uid('adq'), listingId, name, business, email, note, createdAt: now() };
+    state.dockAds = state.dockAds || { clicks: 0, inquiries: [] };
+    state.dockAds.inquiries.unshift(row);
+    save(true);
+    closeModal();
+    const subject = encodeURIComponent(`FishCrew dock ad — ${business}`);
+    const body = encodeURIComponent(`Name: ${name}\nBusiness: ${business}\nEmail: ${email || 'not given'}\nListing: ${listingId}\n\n${note}\n\nSent from fishcrew.macksims.com`);
+    window.location.href = `mailto:support@macksims.com?subject=${subject}&body=${body}`;
+    toast('Inquiry saved. Your email app should open to support@macksims.com.');
+  }
+
+  function openRevenue() {
+    const ads = state.dockAds || { clicks: 0, inquiries: [] };
+    const billed = (state.businesses || []).reduce((sum, b) => sum + Number(b.revenue || 0), 0);
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Revenue</span><h2>Dock ads, not a banner farm.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">Google/AdMob stay off. This is first-party Tampa inventory. Billed dollars stay $0 until you invoice someone.</p>
+      <div class="grid two">
+        <div class="panel"><h3>${safe(ads.clicks || 0)}</h3><p class="muted">Dock ad site clicks</p></div>
+        <div class="panel"><h3>${safe((ads.inquiries || []).length)}</h3><p class="muted">Listing inquiries</p></div>
+        <div class="panel"><h3>$${safe(billed)}</h3><p class="muted">Recorded partner revenue</p></div>
+        <div class="panel"><h3>$0</h3><p class="muted">Ad network payout</p></div>
+      </div>
+      <div class="stack mt">${(ads.inquiries || []).slice(0, 12).map((q) => `<div class="lead-row"><div><b>${safe(q.business)}</b><small>${safe(q.name)} ${MID} ${safe(q.email || 'no email')}</small><small>${safe(q.note)}</small></div></div>`).join('') || '<p class="muted">No listing inquiries yet.</p>'}</div>
+    `);
+  }
+
   function openBusinessForm() {
     if (!requireBusiness('Business, captain, or operator access required to create partner posts.')) return;
     modal(`
@@ -1839,12 +2955,143 @@
       <div class="modal-head"><div><span class="eyebrow">Booking</span><h2>Capture the lead.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       <div class="forms">
         <label class="label">Customer name<input id="bookCustomer" name="customer-name" class="field" autocomplete="name" placeholder="New lead" /></label>
+        <label class="label">Phone (for SMS)<input id="bookPhone" name="tel" class="field" type="tel" inputmode="tel" autocomplete="tel" placeholder="8135550142" /></label>
         <div class="form-grid"><label class="label">Type<select id="bookKind" class="select"><option>Charter inquiry</option><option>Cruise inquiry</option><option>Tackle shop deal</option><option>Guide inquiry</option></select></label><label class="label">Date/time<input id="bookDate" name="booking-date" class="field" autocomplete="off" placeholder="Saturday morning" /></label></div>
         <label class="label">Business<select id="bookBusiness" class="select">${state.businesses.map((b)=>`<option value="${safe(b.id)}" ${businessId===b.id?'selected':''}>${safe(b.name)}</option>`).join('')}</select></label>
         <label class="label">Value<input id="bookValue" name="booking-value" class="field" type="number" inputmode="decimal" autocomplete="off" min="0" value="150" /></label>
         <label class="label">Notes<textarea id="bookNotes" name="booking-notes" class="field" autocomplete="off" placeholder="What does the customer want?"></textarea></label>
         <button class="btn primary full" type="button" data-action="save-booking">Save booking lead</button>
       </div>`);
+  }
+
+  function openBusinessLeads() {
+    if (!requireBusiness('Sign in as captain/partner to open leads.')) return;
+    const user = currentUser();
+    const myBizIds = new Set(
+      (state.businesses || [])
+        .filter((b) => isAdmin() || b.ownerId === user.id)
+        .map((b) => b.id)
+    );
+    const leads = (state.bookings || []).filter(
+      (b) => isAdmin() || myBizIds.has(b.businessId)
+    );
+    const bizName = (id) => (state.businesses || []).find((b) => b.id === id)?.name || 'Business';
+    const statusActions = (b) => {
+      const current = b.status || 'New';
+      return ['New', 'Contacted', 'Booked', 'Closed']
+        .filter((s) => s !== current)
+        .map((s) => `<button class="btn soft small" type="button" data-action="update-booking-status" data-booking-id="${safe(b.id)}" data-status="${safe(s)}">${safe(s)}</button>`)
+        .join('');
+    };
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Captain desk</span><h2>Booking leads inbox.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">Charter and partner inquiries tied to your listings. Update status, text or copy notes, or capture a new lead without leaving the dock.</p>
+      <div class="stack mt">${leads.map((b) => `
+        <div class="lead-row panel">
+          <div>
+            <b>${safe(b.customerName || 'Lead')}</b>
+            <small>${safe(b.kind)} ${MID} ${safe(b.status || 'New')} ${MID} ${safe(b.date || 'TBD')}</small>
+            <small>${safe(bizName(b.businessId))} ${MID} $${safe(b.value || 0)}</small>
+            <small>${safe(b.notes || 'No notes yet.')}</small>
+            ${b.phone ? `<small>Phone: ${safe(b.phone)}</small>` : '<small class="muted">No phone — SMS opens blank recipient</small>'}
+            <div class="lead-actions row mt">
+              ${statusActions(b)}
+              <button class="btn soft small" type="button" data-action="share-lead-sms" data-booking-id="${safe(b.id)}">SMS</button><button class="btn dark small" type="button" data-action="copy-lead-notes" data-booking-id="${safe(b.id)}">Copy</button>
+            </div>
+          </div>
+          <span class="chip">${safe(b.status || 'New')}</span>
+        </div>`).join('') || '<div class="empty">No leads yet for your listings.</div>'}
+      </div>
+      <div class="row mt">
+        <button class="btn primary" type="button" data-action="open-booking-form">Add lead</button>
+        <button class="btn soft" type="button" data-action="open-business-form">Add listing</button>
+        <button class="btn dark" type="button" data-action="close-modal">Close</button>
+      </div>`);
+  }
+
+  async function updateBookingStatus(bookingId, status) {
+    if (!requireBusiness()) return;
+    const booking = (state.bookings || []).find((b) => b.id === bookingId);
+    if (!booking) return toast('Lead not found.', 'danger');
+    const next = String(status || '').trim();
+    if (!['New', 'Contacted', 'Booked', 'Closed'].includes(next)) return toast('Unknown lead status.', 'danger');
+    const user = currentUser();
+    const biz = (state.businesses || []).find((b) => b.id === booking.businessId);
+    if (!isAdmin() && biz && biz.ownerId !== user.id) return toast('That lead belongs to another listing.', 'danger');
+    booking.status = next;
+    booking.updatedAt = now();
+    state.opsLog.unshift(`Lead ${booking.customerName || booking.id}: ${next}.`);
+    save();
+    openBusinessLeads();
+    await afterLocalWrite('Booking status', async () => {
+      await liveUpdate('bookings', { status: next }, 'id', booking.id, 'booking status');
+      return true;
+    });
+    toast(`Lead marked ${next}.`);
+  }
+
+  function leadShareText(booking) {
+    if (!booking) return '';
+    const biz = (state.businesses || []).find((b) => b.id === booking.businessId);
+    return [
+      `FishCrew lead: ${booking.customerName || 'Lead'}`,
+      booking.phone ? `Phone: ${booking.phone}` : '',
+      booking.kind || 'Inquiry',
+      booking.status || 'New',
+      booking.date || 'TBD',
+      biz?.name ? `Listing: ${biz.name}` : '',
+      booking.value != null ? `Value: $${booking.value}` : '',
+      booking.notes || ''
+    ].filter(Boolean).join('\n');
+  }
+
+  function normalizeSmsPhone(raw) {
+    const digits = String(raw || '').replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.length === 10) return `+1${digits}`;
+    if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+    if (String(raw || '').trim().startsWith('+') && digits.length >= 10) return `+${digits}`;
+    return digits.length >= 10 ? `+${digits}` : '';
+  }
+
+  async function copyLeadNotes(bookingId) {
+    const booking = (state.bookings || []).find((b) => b.id === bookingId);
+    if (!booking) return toast('Lead not found.', 'danger');
+    const text = leadShareText(booking);
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Lead copied.');
+    } catch (_) {
+      toast('Copy failed on this device.', 'danger');
+    }
+  }
+
+  async function shareLeadSms(bookingId) {
+    const booking = (state.bookings || []).find((b) => b.id === bookingId);
+    if (!booking) return toast('Lead not found.', 'danger');
+    const text = leadShareText(booking);
+    let copied = false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      }
+    } catch (_) { /* clipboard may be blocked; still try sms: */ }
+    const phone = normalizeSmsPhone(booking.phone);
+    const href = phone
+      ? `sms:${phone}?body=${encodeURIComponent(text)}`
+      : `sms:?body=${encodeURIComponent(text)}`;
+    try {
+      window.location.href = href;
+      toast(
+        phone
+          ? (copied ? 'Lead copied. Opening Messages to lead…' : 'Opening Messages to lead…')
+          : (copied ? 'Lead copied. Opening Messages (add phone on lead for direct SMS)…' : 'Opening Messages…')
+      );
+    } catch (_) {
+      if (copied) toast('Lead copied. SMS link blocked on this device.');
+      else toast('Share failed on this device.', 'danger');
+    }
   }
 
   function openPhotoProfile() {
@@ -1870,24 +3117,123 @@
       </div>`);
   }
 
-  function openTutorial() {
+  const TUTORIAL_STEPS = [
+    { title: 'Find water', body: 'Start on Home or Explore to see open trips, local partners, and area notes. Guest browse works before you sign in.' },
+    { title: 'Lock crew', body: 'Request a spot, wait for host approval, then unlock private meetup details and crew chat.' },
+    { title: 'Post proof', body: 'After the trip, post a catch report or successful trip to keep the bite board alive.' },
+    { title: 'Use Tools', body: `Guides, bait help, gear help, fish ID, and measurement assist live in Tools ${MID} always confirm local rules and official regulations.` }
+  ];
+  let tutorialStep = 0;
+
+  function openTutorial(step = 0) {
+    tutorialStep = Math.max(0, Math.min(Number(step) || 0, TUTORIAL_STEPS.length - 1));
     modalMode = 'tutorial';
+    const total = TUTORIAL_STEPS.length;
+    const current = TUTORIAL_STEPS[tutorialStep];
+    const isLast = tutorialStep >= total - 1;
     modal(`
-      <div class="modal-head"><div><span class="eyebrow">Welcome aboard</span><h2>FishCrew in 60 seconds.</h2></div><button class="x-btn" type="button" data-action="dismiss-tutorial">?</button></div>
+      <div class="modal-head"><div><span class="eyebrow">Welcome aboard ${tutorialStep + 1}/${total}</span><h2>${safe(current.title)}</h2></div><button class="x-btn" type="button" data-action="dismiss-tutorial" aria-label="Skip walk-through">${CLOSE_BTN}</button></div>
       <div class="tutorial-steps">
-        <div class="tutorial-card"><b>1</b><h3>Find water</h3><p class="muted">Start on Home or Explore to see open trips, local partners, and area notes.</p></div>
-        <div class="tutorial-card"><b>2</b><h3>Lock crew</h3><p class="muted">Request a spot, wait for host approval, then unlock private meetup details and crew chat.</p></div>
-        <div class="tutorial-card"><b>3</b><h3>Post proof</h3><p class="muted">After the trip, post a catch report or successful trip to keep the bite board alive.</p></div>
-        <div class="tutorial-card"><b>4</b><h3>Use Tools</h3><p class="muted">Guides, bait help, gear help, tutorials, fish ID, and measurement assist live here ${MID} always confirm local rules and official regulations.</p></div>
+        <div class="tutorial-card"><b>${tutorialStep + 1}</b><h3>${safe(current.title)}</h3><p class="muted">${safe(current.body)}</p></div>
       </div>
-      <div class="row mt"><button class="btn primary" type="button" data-action="go" data-screen="explore">Start exploring</button><button class="btn soft" type="button" data-action="go" data-screen="tools">Open tools</button><button class="btn dark" type="button" data-action="dismiss-tutorial">Skip for now</button></div>`);
+      <div class="row mt">
+        ${tutorialStep > 0 ? `<button class="btn soft" type="button" data-action="tutorial-back">Back</button>` : ''}
+        <button class="btn primary" type="button" data-action="${isLast ? 'tutorial-finish' : 'tutorial-next'}">${isLast ? 'Start exploring' : 'Next'}</button>
+        <button class="btn dark" type="button" data-action="dismiss-tutorial">Skip for now</button>
+      </div>`);
+  }
+
+  function tutorialNext() {
+    if (tutorialStep >= TUTORIAL_STEPS.length - 1) {
+      tutorialFinish();
+      return;
+    }
+    openTutorial(tutorialStep + 1);
+  }
+
+  function tutorialBack() {
+    openTutorial(Math.max(0, tutorialStep - 1));
+  }
+
+  function tutorialFinish() {
+    state.onboardingSeen = true;
+    closeModal();
+    save();
+    nav('explore');
+    toast('Walk-through saved. Reopen it anytime from Settings.');
   }
 
   function dismissTutorial() {
     state.onboardingSeen = true;
     closeModal();
     save();
-    toast('Tutorial saved. You can reopen it from Profile.');
+    toast('Tutorial saved. You can reopen it from Settings.');
+  }
+
+  function rateFishCrew() {
+    const playUrl = 'https://play.google.com/store/apps/details?id=com.chrissims.fishcrew';
+    const cap = window.Capacitor;
+    const review = cap?.Plugins?.InAppReview;
+    if (review && typeof review.requestReview === 'function') {
+      Promise.resolve(review.requestReview()).catch(() => {
+        window.open(playUrl, '_blank', 'noopener,noreferrer');
+      });
+      toast('If a store prompt does not appear, the Play listing will open.');
+      return;
+    }
+    window.open(playUrl, '_blank', 'noopener,noreferrer');
+    toast('Opening the FishCrew Play listing so you can rate the app.');
+  }
+
+  function openLegalPage(path) {
+    closeModal();
+    window.location.assign(path);
+  }
+
+  function confirmLeaveFishCrew() {
+    modalMode = 'exit-confirm';
+    modal(`<div class="modal-head"><div><span class="eyebrow">Leave FishCrew?</span><h2>Exit the fishing app?</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">This keeps you from backing out of Home by accident. You can stay and keep browsing trips, crew, and tools.</p>
+      <div class="row mt"><button class="btn primary" type="button" data-action="close-modal">Stay</button><button class="btn dark" type="button" data-action="leave-fishcrew">Leave</button></div>`);
+  }
+
+  function leaveFishCrew() {
+    const cap = window.Capacitor;
+    if (cap?.Plugins?.App && typeof cap.Plugins.App.exitApp === 'function') {
+      cap.Plugins.App.exitApp();
+      return;
+    }
+    closeModal();
+  }
+
+  function handleHardwareBack() {
+    if (modalMode === 'exit-confirm') {
+      closeModal();
+      return;
+    }
+    if (modalMode) {
+      if (modalMode === 'tutorial') dismissTutorial();
+      else closeModal();
+      return;
+    }
+    if (state.activeScreen !== 'home') {
+      nav('home');
+      return;
+    }
+    confirmLeaveFishCrew();
+  }
+
+  function setupHardwareBack() {
+    const cap = window.Capacitor;
+    const App = cap?.Plugins?.App;
+    if (App && typeof App.addListener === 'function') {
+      App.addListener('backButton', () => handleHardwareBack());
+    }
+    try { window.history.pushState({ fishcrew: 'boot' }, '', location.href); } catch {}
+    window.addEventListener('popstate', () => {
+      try { window.history.pushState({ fishcrew: 'guard' }, '', location.href); } catch {}
+      handleHardwareBack();
+    });
   }
 
   function openFishingGuides() {
@@ -1998,7 +3344,7 @@
     save(); render();
     modal(`<div class="modal-head"><div><span class="eyebrow">Measurement assist</span><h2>${safe(note)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       ${preview ? `<div class="card-media photo" style="background-image:url('${preview}')"></div>` : ''}
-      <div class="safe-note"><strong>Not legal measurement:</strong> This is an estimate for planning and logging only — not enforcement or legal proof. Use a physical measuring board for keep/release decisions and confirm official regulations.</div>
+      <div class="safe-note"><strong>Not legal measurement:</strong> This is an estimate for planning and logging only â€” not enforcement or legal proof. Use a physical measuring board for keep/release decisions and confirm official regulations.</div>
       <p class="muted">Units: ${safe(units)} ${MID} Reference: ${safe(ref)}</p>
       <button class="btn primary" type="button" data-action="close-modal">Done</button>`);
   }
@@ -2285,6 +3631,7 @@
             <button class="settings-tile" type="button" data-action="open-notifications"><b>Alerts ${unread ? `(${safe(unread)})` : ''}</b><span>Crew requests, approvals, and safety notes.</span></button>
             <button class="settings-tile" type="button" data-action="open-conditions"><b>Water window</b><span>Review conditions before you move.</span></button>
             <button class="settings-tile" type="button" data-action="open-tutorial"><b>Walk-through</b><span>Replay the first-run guide.</span></button>
+            <button class="settings-tile" type="button" data-action="rate-app"><b>Rate FishCrew</b><span>Leave a Play Store rating after a good session.</span></button>
             <button class="settings-tile" type="button" data-action="open-fishing-guides"><b>Guide library</b><span>Areas, bait, gear, and safety notes.</span></button>
           </div>
         </section>
@@ -2300,8 +3647,10 @@
         <section class="settings-card">
           <div class="settings-section-head"><span class="eyebrow">App readiness</span><h3>Privacy, support, and account control.</h3></div>
           <div class="settings-grid compact">
-            <button class="settings-tile" type="button" data-action="open-privacy-policy"><b>Privacy policy</b><span>Data, location, media, and account handling.</span></button>
-            <button class="settings-tile" type="button" data-action="open-terms"><b>Terms</b><span>Safety, marketplace, and user responsibilities.</span></button>
+            <button class="settings-tile" type="button" data-action="open-privacy-policy"><b>Privacy policy</b><span>In-app summary plus the full /privacy page.</span></button>
+            <button class="settings-tile" type="button" data-action="open-privacy-page"><b>Privacy page</b><span>Open the dedicated privacy policy page.</span></button>
+            <button class="settings-tile" type="button" data-action="open-terms"><b>Terms</b><span>In-app summary plus the full /terms page.</span></button>
+            <button class="settings-tile" type="button" data-action="open-terms-page"><b>Terms page</b><span>Open the dedicated terms of use page.</span></button>
             <button class="settings-tile" type="button" data-action="open-community-guidelines"><b>Community rules</b><span>Reports, blocking, moderation, and safe posts.</span></button>
             <button class="settings-tile" type="button" data-action="open-support-center"><b>Support</b><span>Contact, deletion help, and response paths.</span></button>
             <button class="settings-tile" type="button" data-action="open-blocked-users"><b>Blocked users</b><span>${safe((state.blockedUsers || []).length)} hidden profile${(state.blockedUsers || []).length === 1 ? '' : 's'}.</span></button>
@@ -2704,7 +4053,7 @@
     const normalized = String(provider || 'social').trim().toLowerCase() || 'social';
 
     if (normalized.includes('instagram')) {
-      toast('Instagram is a Profile connect — not a login. Use email/password, or open Profile → Connect Instagram.', 'warning');
+      toast('Instagram is a Profile connect â€” not a login. Use email/password, or open Profile â†’ Connect Instagram.', 'warning');
       return;
     }
 
@@ -2737,14 +4086,14 @@
   }
 
   async function completeSocialProfile(provider = 'social') {
-    // Production never invents @….oauth.local users. Demo mode only.
+    // Production never invents @â€¦.oauth.local users. Demo mode only.
     if (CONFIG.DEMO_MODE !== true) {
       toast('Social profile completion is disabled. Sign in with email/password, or enable a configured OAuth provider.', 'danger');
       return;
     }
     const source = String(provider || 'social').trim() || 'social';
     if (String(source).toLowerCase().includes('instagram')) {
-      toast('Instagram is not a login method in demo either — use email/password.', 'danger');
+      toast('Instagram is not a login method in demo either â€” use email/password.', 'danger');
       return;
     }
     const typedUsername = $('#socialUsername')?.value.trim() || '';
@@ -2833,7 +4182,7 @@
           updated_at: now()
         }, { onConflict: 'user_id,provider' });
       } catch (error) {
-        // Table may not exist yet — metadata + local state still hold the connection.
+        // Table may not exist yet â€” metadata + local state still hold the connection.
         console.warn('social_connections upsert skipped:', error?.message || error);
       }
     }
@@ -3090,9 +4439,6 @@
     }
     if (syncProfile && persistSession && supabaseClient) {
       try {
-        // Never write email into profiles — column is not client-selectable
-        // (PII leak via anon key). Username login resolves via SECURITY DEFINER
-        // RPC against auth.users / legacy profiles.email.
         const profileRow = () => ({
           id: user.id,
           username: user.username,
@@ -3141,9 +4487,9 @@
     state.notifications = [];
     state.notificationsLoading = false;
     state.notificationsFetchError = '';
-    scrubCrewChatLocalState();
     authTab = 'signin';
     authBusy = false;
+    scrubCrewChatLocalState();
     state.opsLog.unshift('User logged out.');
     save(); render(); toast('Logged out.');
   }
@@ -3213,12 +4559,102 @@
     return { id: p.id, author_id: p.authorId, author_name: p.authorName, post_type: p.type, title: p.title, body: p.body || '', area: p.area || '', media_url: p.media || null, media_type: p.mediaType || null, status: p.status || 'Live', reactions: Number(p.reactions || 0) };
   }
 
-  function businessRow(b) {
-    return { id: b.id, owner_id: b.ownerId || null, name: b.name, business_type: b.kind, area: b.area, status: b.status || 'Lead', lead_count: Number(b.leads || 0), revenue_cents: Math.round(Number(b.revenue || 0) * 100), campaign: b.campaign || '' };
+  function bookingRow(b) {
+    const row = {
+      id: b.id,
+      business_id: b.businessId || null,
+      customer_id: b.customerId || currentUser()?.id || null,
+      customer_name: b.customerName,
+      booking_type: b.kind,
+      status: b.status || 'New',
+      date_label: b.date || '',
+      value_cents: Math.round(Number(b.value || 0) * 100),
+      notes: b.notes || ''
+    };
+    if (b.phone) row.phone = b.phone;
+    if (b.charterId) row.charter_id = b.charterId;
+    return row;
   }
 
-  function bookingRow(b) {
-    return { id: b.id, business_id: b.businessId || null, customer_id: b.customerId || currentUser()?.id || null, customer_name: b.customerName, booking_type: b.kind, status: b.status || 'New', date_label: b.date || '', value_cents: Math.round(Number(b.value || 0) * 100), notes: b.notes || '' };
+  function businessRow(b) {
+    const packed = packCharterCampaign(b);
+    const row = {
+      id: b.id,
+      owner_id: b.ownerId || null,
+      name: b.name,
+      business_type: b.kind,
+      area: b.area,
+      status: b.status || 'Lead',
+      lead_count: Number(b.leads || 0),
+      revenue_cents: Math.round(Number(b.revenue || 0) * 100),
+      campaign: packed
+    };
+    if (b.websiteUrl) row.website_url = b.websiteUrl;
+    if (b.species) row.species = b.species;
+    if (b.boatType) row.boat_type = b.boatType;
+    if (b.tripTypes) row.trip_types = b.tripTypes;
+    if (b.availability) row.availability_notes = b.availability;
+    if (b.priceFrom != null) row.price_from_cents = Math.round(Number(b.priceFrom) * 100);
+    if (b.priceTo != null) row.price_to_cents = Math.round(Number(b.priceTo) * 100);
+    if (b.listingKind) row.listing_kind = b.listingKind;
+    return row;
+  }
+
+  function charterTableRow(c) {
+    return {
+      id: c.id,
+      owner_id: c.ownerId || currentUser()?.id || null,
+      business_id: c.businessId || c.id,
+      name: c.name,
+      area: c.area || '',
+      species: c.species || '',
+      boat_type: c.boatType || '',
+      trip_types: c.tripTypes || '',
+      availability_notes: c.availability || '',
+      price_from_cents: c.priceFrom != null ? Math.round(Number(c.priceFrom) * 100) : null,
+      price_to_cents: c.priceTo != null ? Math.round(Number(c.priceTo) * 100) : null,
+      website_url: c.websiteUrl || '',
+      bio: c.bio || '',
+      status: c.status || 'Pending review',
+      listing_kind: c.listingKind || 'operator'
+    };
+  }
+
+  function reviewTableRow(r) {
+    return {
+      id: r.id,
+      charter_id: r.charterId || null,
+      business_id: r.businessId || null,
+      reviewer_id: r.reviewerId || currentUser()?.id || null,
+      reviewer_name: r.reviewerName || currentUser()?.name || '',
+      rating: Number(r.rating || 0) || null,
+      body: r.body || '',
+      trip_date: r.tripDate || '',
+      status: r.status === 'Live' || r.status === 'Approved' ? 'Review' : (r.status || 'Review')
+    };
+  }
+
+  async function liveUpsertBusiness(b) {
+    const full = businessRow(b);
+    try {
+      await liveUpsert('businesses', full, 'business');
+      return true;
+    } catch (error) {
+      if (!/column|schema cache|could not find/i.test(error.message || '')) throw error;
+      const base = {
+        id: full.id,
+        owner_id: full.owner_id,
+        name: full.name,
+        business_type: full.business_type,
+        area: full.area,
+        status: full.status,
+        lead_count: full.lead_count,
+        revenue_cents: full.revenue_cents,
+        campaign: full.campaign
+      };
+      await liveUpsert('businesses', base, 'business');
+      return true;
+    }
   }
 
   function mediaAssetRow(a) {
@@ -3324,7 +4760,7 @@
       throw new Error(folder === 'avatars' ? 'Profile photos must be image files.' : 'Uploads must be photo or video files.');
     }
     const allowedTypes = kind === 'video' ? ALLOWED_VIDEO_TYPES : ALLOWED_IMAGE_TYPES;
-    if (type && !allowedTypes.includes(type)) {
+    if (!type || !allowedTypes.includes(type)) {
       throw new Error('Unsupported file type. Use JPG, PNG, WEBP, HEIC, GIF, MP4, MOV, or WEBM.');
     }
     const localImageLimit = Number(CONFIG.MAX_LOCAL_UPLOAD_MB || 6);
@@ -3412,6 +4848,12 @@
   async function uploadMedia(file, folder = 'media') {
     if (!file) return { url: '', type: '' };
     validateMediaFile(file, folder);
+    const ownerId = currentUser()?.id;
+    if (isLiveUploadMode() && !ownerId) {
+      const err = new Error('Sign in to upload photos or video.');
+      err.code = 'AUTH_REQUIRED';
+      throw err;
+    }
 
     if (isLiveUploadMode()) {
       const client = await ensureSupabaseAuthClient();
@@ -3422,7 +4864,8 @@
         err.retryable = true;
         throw err;
       }
-      const path = `${folder}/${currentUser()?.id || 'guest'}/${Date.now()}-${file.name.replace(/[^a-z0-9.\-_]/gi, '-')}`;
+      const safeFolder = ['charter', 'media', 'feed', 'trips', 'trip', 'profile', 'avatars'].includes(folder) ? folder : 'media';
+      const path = `${safeFolder}/${ownerId}/${Date.now()}-${file.name.replace(/[^a-z0-9.\-_]/gi, '-')}`;
       try {
         const { error } = await client.storage.from(bucket).upload(path, file, { upsert: true, contentType: file.type, cacheControl: '3600' });
         if (error) {
@@ -3602,9 +5045,7 @@
       if (tripReport) await liveInsertModeration(tripReport);
       return true;
     });
-    nav('explore');
-    toast(uploaded.url ? (mediaReview.needsReview ? 'Trip posted. Photo hidden from public Explore until approved.' : 'Trip posted. Photo auto-approved and reportable.') : 'Trip posted.');
-    setTimeout(() => shareTrip(trip.id), 280);
+    nav('explore'); toast(uploaded.url ? (mediaReview.needsReview ? 'Trip posted. Photo hidden from public Explore until approved.' : 'Trip posted. Photo auto-approved and reportable.') : 'Trip posted.');
   }
 
   async function saveFeedPost() {
@@ -3681,7 +5122,7 @@
   async function saveBooking() {
     if (!requireBusiness()) return;
     const bizId = $('#bookBusiness')?.value || state.businesses[0]?.id || '';
-    const booking = { id: uid('book'), businessId: bizId, customerId: currentUser()?.id || null, customerName: $('#bookCustomer')?.value.trim() || 'New customer', kind: $('#bookKind')?.value || 'Charter inquiry', status: 'New', date: $('#bookDate')?.value.trim() || 'TBD', value: Number($('#bookValue')?.value || 0), notes: $('#bookNotes')?.value.trim() || 'No notes yet.' };
+    const booking = { id: uid('book'), businessId: bizId, customerId: currentUser()?.id || null, customerName: $('#bookCustomer')?.value.trim() || 'New customer', phone: ($('#bookPhone')?.value || '').trim(), kind: $('#bookKind')?.value || 'Charter inquiry', status: 'New', date: $('#bookDate')?.value.trim() || 'TBD', value: Number($('#bookValue')?.value || 0), notes: $('#bookNotes')?.value.trim() || 'No notes yet.' };
     state.bookings.unshift(booking);
     const biz = state.businesses.find((b) => b.id === bizId);
     if (biz) { biz.leads = Number(biz.leads || 0) + 1; }
@@ -3748,7 +5189,16 @@
       await liveUpsert('feed_posts', feedRow(recap), 'trip recap');
       return true;
     });
-    nav('feed'); toast('Trip completed. Recap posted.');
+    const listing = findCharter(trip.hostId) || allCharters().find((c) => c.ownerId === trip.hostId);
+    nav('feed');
+    toast('Trip completed. Recap posted.');
+    if (listing) {
+      const booking = (state.bookings || []).find((b) => b.businessId === listing.businessId || b.charterId === listing.id);
+      setTimeout(() => {
+        if (booking) openCharterReview(booking.id);
+        else openCharterProfile(listing.id);
+      }, 400);
+    }
   }
 
   async function cancelTrip(tripId) {
@@ -3867,6 +5317,83 @@
     toast('Request declined.');
   }
 
+  function shareTextForTrip(trip) {
+    if (!trip) return 'Join my FishCrew trip.';
+    return `Crew needed: ${trip.title} ${EN_DASH} ${trip.area} (${trip.time}). Request a spot on FishCrew.`;
+  }
+
+  function shareTrip(tripId) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!trip) return toast('Trip not found.', 'danger');
+    const url = tripInviteUrl(trip.id);
+    modalMode = 'share-trip';
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Invite crew</span><h2>Share this trip link.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="share-preview panel light-panel"><span class="badge">${safe(trip.type)}</span><h3>${safe(trip.title)}</h3><p class="muted">${safe(trip.area)} ${MID} ${safe(trip.time)}</p><p class="tiny">${safe(url)}</p></div>
+      <p class="muted">Friends open the link, request a spot, and you approve them into chat and the private meetup.</p>
+      <div class="share-port-grid" aria-label="Trip invite sharing">
+        <button class="share-port native" type="button" data-action="share-trip-platform" data-platform="native" data-trip-id="${safe(trip.id)}"><b>Share</b><span>Phone share</span></button>
+        <button class="share-port facebook" type="button" data-action="share-trip-platform" data-platform="copy" data-trip-id="${safe(trip.id)}"><b>Copy</b><span>Copy link</span></button>
+        <button class="share-port twitter" type="button" data-action="share-trip-platform" data-platform="twitter" data-trip-id="${safe(trip.id)}"><b>X</b><span>X / Twitter</span></button>
+        <button class="share-port instagram" type="button" data-action="share-trip-platform" data-platform="sms" data-trip-id="${safe(trip.id)}"><b>SMS</b><span>Text message</span></button>
+      </div>`);
+  }
+
+  async function copyTripInvite(tripId) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!trip) return toast('Trip not found.', 'danger');
+    const url = tripInviteUrl(trip.id);
+    try {
+      await navigator.clipboard?.writeText(url);
+      toast('Invite link copied.');
+    } catch (_) {
+      toast(url, 'warning');
+    }
+    trackTripShare(trip, 'copy');
+  }
+
+  async function shareTripPlatform(tripId, platform) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!trip) return toast('Trip not found.', 'danger');
+    const text = shareTextForTrip(trip);
+    const url = tripInviteUrl(trip.id);
+    const encodedText = encodeURIComponent(`${text}\n${url}`);
+    if (platform === 'copy') return copyTripInvite(trip.id);
+    if (platform === 'twitter') {
+      window.open(`https://twitter.com/intent/tweet?text=${encodedText}`, '_blank', 'noopener,noreferrer');
+      trackTripShare(trip, 'twitter');
+      return toast('Opening X / Twitter share.');
+    }
+    if (platform === 'sms') {
+      window.open(`sms:?&body=${encodedText}`, '_self');
+      trackTripShare(trip, 'sms');
+      return toast('Opening Messages.');
+    }
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'FishCrew trip invite', text, url });
+        trackTripShare(trip, 'native');
+        return;
+      } catch (_) { /* fall through to copy */ }
+    }
+    return copyTripInvite(trip.id);
+  }
+
+  function trackTripShare(trip, provider) {
+    if (!trip) return;
+    state.opsLog.unshift(`Trip invite shared (${provider}): ${trip.title}`);
+    save();
+    if (!supabaseClient || !currentUser()) return;
+    liveInsert('external_share_events', {
+      user_id: currentUser().id,
+      provider,
+      source_type: 'trip',
+      source_id: trip.id,
+      share_url: tripInviteUrl(trip.id),
+      created_at: now()
+    }, 'trip invite share').catch(() => {});
+  }
+
   async function sendChat(tripId) {
     if (!requireLogin('Sign in to message the crew.')) return;
     const trip = state.trips.find((t) => t.id === tripId);
@@ -3896,9 +5423,7 @@
       <p class="lead">${safe(trip.publicLocation)} ${MID} ${safe(trip.time)}</p>
       <div class="condition-strip"><div class="stat"><span>Wind</span><strong>${safe(trip.wind)}</strong></div><div class="stat"><span>Waves</span><strong>${safe(trip.waves)}</strong></div><div class="stat"><span>Tide</span><strong>${safe(trip.tide)}</strong></div><div class="stat"><span>Water</span><strong>${safe(trip.water || '?')}</strong></div></div>
       <p class="mt"><strong>Private meetup:</strong> ${unlocked ? safe(trip.privateLocation) : 'Locked until host approval.'}</p>
-      <div class="row">${unlocked
-        ? `<button class="btn primary" type="button" data-action="open-trip-chat" data-trip-id="${safe(trip.id)}">Open crew chat</button>`
-        : `<button class="btn primary" type="button" data-action="request-trip" data-trip-id="${safe(trip.id)}">Request spot</button>`}<button class="btn dark" type="button" data-action="open-map" data-area="${safe(trip.area)}">Map area</button>${(user && (trip.hostId === user.id || isAdmin())) ? `<button class="btn soft" type="button" data-action="share-trip" data-trip-id="${safe(trip.id)}">Invite</button><button class="btn soft" type="button" data-action="open-host-controls" data-trip-id="${safe(trip.id)}">Host controls</button>` : ''}</div>`);
+      <div class="row"><button class="btn primary" type="button" data-action="request-trip" data-trip-id="${safe(trip.id)}">Request spot</button><button class="btn dark" type="button" data-action="open-trip-chat" data-trip-id="${safe(trip.id)}">Crew chat</button><button class="btn dark" type="button" data-action="open-map" data-area="${safe(trip.area)}">Map area</button>${(user && (trip.hostId === user.id || isAdmin())) ? `<button class="btn soft" type="button" data-action="share-trip" data-trip-id="${safe(trip.id)}">Invite</button><button class="btn soft" type="button" data-action="open-host-controls" data-trip-id="${safe(trip.id)}">Host controls</button>` : ''}</div>`);
   }
 
   function openTripChat(tripId) {
@@ -3946,85 +5471,6 @@
     toast('Reaction added.');
   }
 
-  function shareTextForTrip(trip) {
-    if (!trip) return 'Join my FishCrew trip.';
-    return `Crew needed: ${trip.title} — ${trip.area} (${trip.time}). Request a spot on FishCrew.`;
-  }
-
-  function shareTrip(tripId) {
-    const trip = state.trips.find((t) => t.id === tripId);
-    if (!trip) return toast('Trip not found.', 'danger');
-    const url = tripInviteUrl(trip.id);
-    const text = shareTextForTrip(trip);
-    modalMode = 'share-trip';
-    modal(`
-      <div class="modal-head"><div><span class="eyebrow">Invite crew</span><h2>Share this trip link.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
-      <div class="share-preview panel light-panel"><span class="badge">${safe(trip.type)}</span><h3>${safe(trip.title)}</h3><p class="muted">${safe(trip.area)} ${MID} ${safe(trip.time)}</p><p class="tiny">${safe(url)}</p></div>
-      <p class="muted">Friends open the link → request a spot → you approve → private meetup + crew chat unlock.</p>
-      <div class="share-port-grid" aria-label="Trip invite sharing">
-        <button class="share-port native" type="button" data-action="share-trip-platform" data-platform="native" data-trip-id="${safe(trip.id)}"><b>Share</b><span>Phone share</span></button>
-        <button class="share-port facebook" type="button" data-action="share-trip-platform" data-platform="copy" data-trip-id="${safe(trip.id)}"><b>Copy</b><span>Copy link</span></button>
-        <button class="share-port twitter" type="button" data-action="share-trip-platform" data-platform="twitter" data-trip-id="${safe(trip.id)}"><b>X</b><span>X / Twitter</span></button>
-        <button class="share-port instagram" type="button" data-action="share-trip-platform" data-platform="sms" data-trip-id="${safe(trip.id)}"><b>SMS</b><span>Text message</span></button>
-      </div>`);
-  }
-
-  async function copyTripInvite(tripId) {
-    const trip = state.trips.find((t) => t.id === tripId);
-    if (!trip) return toast('Trip not found.', 'danger');
-    const url = tripInviteUrl(trip.id);
-    try {
-      await navigator.clipboard?.writeText(url);
-      toast('Invite link copied.');
-    } catch (_) {
-      toast(url, 'warning');
-    }
-    trackTripShare(trip, 'copy');
-  }
-
-  async function shareTripPlatform(tripId, platform) {
-    const trip = state.trips.find((t) => t.id === tripId);
-    if (!trip) return toast('Trip not found.', 'danger');
-    const text = shareTextForTrip(trip);
-    const url = tripInviteUrl(trip.id);
-    const encodedText = encodeURIComponent(`${text}\n${url}`);
-    const encodedUrl = encodeURIComponent(url);
-    if (platform === 'copy') return copyTripInvite(trip.id);
-    if (platform === 'twitter') {
-      window.open(`https://twitter.com/intent/tweet?text=${encodedText}`, '_blank', 'noopener,noreferrer');
-      trackTripShare(trip, 'twitter');
-      return toast('Opening X / Twitter share.');
-    }
-    if (platform === 'sms') {
-      window.open(`sms:?&body=${encodedText}`, '_self');
-      trackTripShare(trip, 'sms');
-      return toast('Opening Messages.');
-    }
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: 'FishCrew trip invite', text, url });
-        trackTripShare(trip, 'native');
-        return;
-      } catch (_) { /* fall through to copy */ }
-    }
-    return copyTripInvite(trip.id);
-  }
-
-  function trackTripShare(trip, provider) {
-    if (!trip) return;
-    state.opsLog.unshift(`Trip invite shared (${provider}): ${trip.title}`);
-    save();
-    if (!supabaseClient || !currentUser()) return;
-    liveInsert('external_share_events', {
-      user_id: currentUser().id,
-      provider,
-      source_type: 'trip',
-      source_id: trip.id,
-      share_url: tripInviteUrl(trip.id),
-      created_at: now()
-    }, 'trip invite share').catch(() => {});
-  }
-
   function shareFeed(feedId) {
     const post = state.feed.find((p) => p.id === feedId);
     if (!post) return toast('Post not found.', 'danger');
@@ -4067,7 +5513,7 @@ ${url}`).catch(() => {});
     toast('Report sent for review.');
   }
 
-  function blockUser(userId) {
+  async function blockUser(userId) {
     if (!requireLogin('Sign in to block profiles and personalize the feed.')) return;
     const viewer = currentUser();
     const user = state.users.find((u) => u.id === userId);
@@ -4075,15 +5521,30 @@ ${url}`).catch(() => {});
     if (viewer?.id === user.id) return toast('You cannot block your own profile.', 'danger');
     state.blockedUsers = state.blockedUsers || [];
     if (!state.blockedUsers.includes(user.id)) state.blockedUsers.push(user.id);
-    state.opsLog.unshift(`${usernameFor(user)} blocked from this device.`);
-    save(); render(); toast(`${user.name} is hidden from your feed.`);
+    state.opsLog.unshift(`${usernameFor(user)} blocked.`);
+    save(); render();
+    await afterLocalWrite('Block', async () => {
+      const { error } = await supabaseClient.from('user_blocks').upsert({
+        id: `blk_${viewer.id}_${user.id}`,
+        blocker_id: viewer.id,
+        blocked_id: user.id
+      });
+      if (error && !/does not exist|schema cache/i.test(error.message || '')) throw error;
+      return true;
+    });
+    toast(`${user.name} is hidden from your charter board and feed.`);
   }
 
-  function unblockUser(userId) {
+  async function unblockUser(userId) {
     const user = state.users.find((u) => u.id === userId);
+    const viewer = currentUser();
     state.blockedUsers = (state.blockedUsers || []).filter((id) => id !== userId);
     state.opsLog.unshift(`${user ? usernameFor(user) : 'Profile'} unblocked.`);
-    save(); render(); openBlockedUsers(); toast('Profile unblocked.');
+    save(); render(); openBlockedUsers();
+    if (liveReady() && supabaseClient && viewer) {
+      await supabaseClient.from('user_blocks').delete().eq('blocker_id', viewer.id).eq('blocked_id', userId);
+    }
+    toast('Profile unblocked.');
   }
 
   function openBlockedUsers() {
@@ -4111,7 +5572,8 @@ ${url}`).catch(() => {});
         <div class="panel"><h3>Data we use</h3><p class="muted">Profile details, posts, trip requests, crew chat, business inquiries, uploaded media, reports, approximate or permission-based location, and device storage needed to keep the app working.</p></div>
         <div class="panel"><h3>Privacy controls</h3><p class="muted">Exact meetup locations stay private until crew approval. Users can report posts, block profiles, delete local accounts, and contact support for connected-data deletion.</p></div>
         <div class="panel"><h3>Contact</h3><p class="muted">Support: ${safe(supportEmail())}<br>Web policy: ${safe(canonicalUrl('/privacy.html'))}</p></div>
-      </div>`);
+      </div>
+      <div class="row mt"><a class="btn dark" href="/privacy.html">Open privacy page</a><button class="btn primary" type="button" data-action="close-modal">Close</button></div>`);
   }
 
   function openTerms() {
@@ -4121,7 +5583,8 @@ ${url}`).catch(() => {});
         <div class="panel"><h3>User responsibilities</h3><p class="muted">Keep exact spots private, use lawful content, respect captains and businesses, and verify species, size, season, bag limits, weather, and meetup details before acting.</p></div>
         <div class="panel"><h3>Marketplace</h3><p class="muted">Charter, cruise, guide, and shop inquiries are leads between users and partners. Confirm price, terms, cancellation policies, licenses, and safety expectations directly.</p></div>
         <div class="panel"><h3>Moderation</h3><p class="muted">FishCrew can remove unsafe, misleading, unlawful, abusive, spammy, or off-topic content and may restrict accounts that harm the community.</p></div>
-      </div>`);
+      </div>
+      <div class="row mt"><a class="btn dark" href="/terms.html">Open terms page</a><button class="btn primary" type="button" data-action="close-modal">Close</button></div>`);
   }
 
   function openCommunityGuidelines() {
@@ -4146,7 +5609,37 @@ ${url}`).catch(() => {});
     window.location.href = `mailto:${supportEmail()}?subject=${encodeURIComponent('FishCrew support')}`;
   }
 
+  async function persistAccountDeletionRequest(status = 'Requested') {
+    const user = currentUser();
+    if (!user) return false;
+    const row = {
+      id: uid('delete'),
+      userId: user.id,
+      email: user.email || '',
+      username: user.username || '',
+      createdAt: now(),
+      status
+    };
+    state.accountDeletionRequests = state.accountDeletionRequests || [];
+    state.accountDeletionRequests.unshift(row);
+    save();
+    if (!liveReady() || !supabaseClient) return false;
+    const { error } = await supabaseClient.from('account_deletion_requests').insert({
+      id: row.id,
+      user_id: row.userId,
+      email: row.email,
+      username: row.username,
+      status: row.status
+    });
+    if (error) {
+      console.warn('Deletion request sync failed', error);
+      return false;
+    }
+    return true;
+  }
+
   function openAccountDeleteRequest() {
+    persistAccountDeletionRequest('Requested');
     const user = currentUser();
     const subject = encodeURIComponent('Delete my FishCrew account');
     const body = encodeURIComponent([
@@ -4164,7 +5657,7 @@ ${url}`).catch(() => {});
   function openAccountDelete() {
     const user = currentUser();
     const signedOut = `<p class="lead">Sign in first to delete an account from this device. Connected shared-data accounts also require support to remove server-side profile, trips, feed, and media.</p><div class="row"><button class="btn primary" type="button" data-action="open-auth-signin">Sign in</button><button class="btn dark" type="button" data-action="open-support-email">Email support</button></div>`;
-    const signedIn = `<p class="lead">This removes ${safe(user?.name || 'your profile')} from this device and clears local posts, trips, requests, media, and messages tied to the profile.</p><div class="safe-note"><strong>Not full cloud deletion:</strong> In-app deletion clears this device only. Connected Supabase auth, profile rows, uploaded media, and shared records require a support follow-up for full removal.</div><div class="row mt"><button class="btn danger" type="button" data-action="confirm-delete-account">Delete from this device</button><button class="btn soft" type="button" data-action="open-account-delete-request">Request full cloud deletion</button><button class="btn dark" type="button" data-action="close-modal">Keep account</button></div>`;
+    const signedIn = `<p class="lead">This removes ${safe(user?.name || 'your profile')} from this device and wipes connected FishCrew profile, waitlist, media, and listing rows for your account.</p><div class="safe-note"><strong>In-app deletion:</strong> Signed-in deletion calls the server wipe, then signs you out. Limited safety or booking records may be retained for fraud and legal holds.</div><div class="row mt"><button class="btn danger" type="button" data-action="confirm-delete-account">Delete my account</button><button class="btn soft" type="button" data-action="open-account-delete-request">Email support too</button><button class="btn dark" type="button" data-action="close-modal">Keep account</button></div>`;
     modal(`<div class="modal-head"><div><span class="eyebrow">Account deletion</span><h2>Delete your FishCrew account.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>${user ? signedIn : signedOut}`);
   }
 
@@ -4176,16 +5669,9 @@ ${url}`).catch(() => {});
     const deletedTripIds = (state.trips || []).filter((t) => t.hostId === userId).map((t) => t.id);
     const deletedFeedIds = (state.feed || []).filter((p) => p.authorId === userId).map((p) => p.id);
     const deletedBusinessIds = (state.businesses || []).filter((b) => b.ownerId === userId).map((b) => b.id);
-    state.accountDeletionRequests = state.accountDeletionRequests || [];
-    state.accountDeletionRequests.unshift({
-      id: uid('delete'),
-      userId,
-      email: user.email || '',
-      username: user.username || '',
-      createdAt: now(),
-      status: hadConnectedBackend ? 'Pending server deletion' : 'Local deletion complete'
-    });
+    await persistAccountDeletionRequest(hadConnectedBackend ? 'Pending server deletion' : 'Local deletion complete');
     if (hadConnectedBackend) {
+      try { await supabaseClient.rpc('delete_own_account'); } catch (_) {}
       try { await supabaseClient.auth.signOut(); } catch (_) {}
     }
     state.users = (state.users || []).filter((u) => u.id !== userId);
@@ -4205,7 +5691,7 @@ ${url}`).catch(() => {});
     state.opsLog.unshift(`Account deletion completed for ${user.email || usernameFor(user)}.`);
     closeModal(); save(); render(); nav('home');
     toast(hadConnectedBackend
-      ? 'Account removed from this device. Email support to finish connected-data deletion.'
+      ? 'Account deleted. Connected profile and media rows were wiped.'
       : 'Account deleted from this device.');
   }
 
@@ -4219,9 +5705,71 @@ ${url}`).catch(() => {});
     toast('Business verified.');
   }
 
+  function openCaptainWaitlist() {
+    if (typeof window.FishCrewCaptainWaitlist === 'function') {
+      return window.FishCrewCaptainWaitlist({
+        modal,
+        toast,
+        currentUser: currentUser(),
+        requireLogin,
+        closeModal
+      });
+    }
+    const user = currentUser();
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Captains</span><h2>Early-access waitlist.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">Ask to list a charter. Status stays New until an operator reviews it. We do not auto-approve.</p>
+      <div class="forms">
+        <label class="label">Name<input id="waitName" name="name" class="field" autocomplete="name" value="${safe(user?.name || '')}" /></label>
+        <label class="label">Email<input id="waitEmail" name="email" class="field" type="email" autocomplete="email" value="${safe(user?.email || '')}" /></label>
+        <label class="label">Home water<input id="waitArea" name="address-level2" class="field" autocomplete="address-level2" value="${safe(user?.area || userArea())}" /></label>
+        <label class="label">Boat / trip note<textarea id="waitNote" name="waitlist-note" class="field" placeholder="USCG license, boat type, species, home marina"></textarea></label>
+        <button class="btn primary full" type="button" data-action="save-captain-waitlist">Join waitlist</button>
+      </div>`);
+  }
+
+  async function saveCaptainWaitlist() {
+    if (!requireLogin('Sign in to join the captain waitlist. This blocks anonymous spam.')) return;
+    const name = $('#waitName')?.value.trim() || currentUser()?.name || '';
+    const email = $('#waitEmail')?.value.trim() || currentUser()?.email || '';
+    const area = $('#waitArea')?.value.trim() || userArea();
+    const note = $('#waitNote')?.value.trim() || '';
+    if (!email && !currentUser()) return toast('Add an email or sign in so we can reach you.', 'danger');
+    const row = {
+      id: uid('wait'),
+      userId: currentUser()?.id || null,
+      name,
+      email,
+      area,
+      note,
+      status: 'New',
+      createdAt: now()
+    };
+    state.captainWaitlist = state.captainWaitlist || [];
+    state.captainWaitlist.unshift(row);
+    closeModal();
+    await afterLocalWrite('Captain waitlist', async () => {
+      const payload = {
+        id: row.id,
+        user_id: row.userId,
+        name: row.name,
+        email: row.email,
+        area: row.area,
+        note: row.note,
+        status: 'New'
+      };
+      const { error } = await supabaseClient.from('captain_waitlist').insert(payload);
+      if (error) throw new Error(error.message);
+      return true;
+    });
+    toast(liveReady() ? 'Waitlist request saved for operator review.' : 'Waitlist saved on this device. Sign in to sync.');
+  }
+
   function bookBusiness(businessId) {
-    if (!requireLogin('Sign in to send charter, cruise, guide, or tackle shop inquiries.')) return;
-    openBookingForm(businessId);
+    const listing = findCharter(businessId);
+    if (listing) return openCharterInquiry(listing.id);
+    if (!requireLogin('Sign in to send a real inquiry. Guests can still browse charters.')) return;
+    openCharterInquiry(businessId);
   }
 
   async function resolveReport(reportId) {
@@ -4320,11 +5868,58 @@ ${url}`).catch(() => {});
   }
 
 
+  async function pullCharterTables(generation) {
+    if (!supabaseClient) return;
+    const chartersRes = await supabaseClient.from('charters').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT);
+    if (generation != null && generation !== pullGeneration) return;
+    if (chartersRes.error) {
+      state.chartersTableReady = !/does not exist|schema cache|permission denied for table/i.test(chartersRes.error.message || '');
+    } else {
+      state.chartersTableReady = true;
+      state.charters = (chartersRes.data || []).map((c) => ({
+        id: c.id,
+        ownerId: c.owner_id || '',
+        businessId: c.business_id || c.id,
+        name: c.name,
+        area: c.area || '',
+        species: c.species || '',
+        boatType: c.boat_type || '',
+        tripTypes: c.trip_types || '',
+        availability: c.availability_notes || '',
+        priceFrom: c.price_from_cents != null ? Math.round(Number(c.price_from_cents) / 100) : null,
+        priceTo: c.price_to_cents != null ? Math.round(Number(c.price_to_cents) / 100) : null,
+        websiteUrl: c.website_url || '',
+        bio: c.bio || '',
+        status: c.status || 'Pending review',
+        listingKind: c.listing_kind || 'operator'
+      }));
+    }
+    const reviewsRes = await supabaseClient.from('charter_reviews').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT);
+    if (generation != null && generation !== pullGeneration) return;
+    if (reviewsRes.error) {
+      state.reviewsTableReady = !/does not exist|schema cache/i.test(reviewsRes.error.message || '');
+    } else {
+      state.reviewsTableReady = true;
+      state.charterReviews = (reviewsRes.data || []).map((r) => ({
+        id: r.id,
+        charterId: r.charter_id,
+        businessId: r.business_id,
+        reviewerId: r.reviewer_id,
+        reviewerName: r.reviewer_name || 'Angler',
+        rating: Number(r.rating || 0),
+        body: r.body || '',
+        tripDate: r.trip_date || '',
+        status: r.status || 'Review',
+        createdAt: r.created_at || now()
+      }));
+    }
+  }
+
   async function pullSupabase(options = {}) {
     if (!supabaseClient) await checkBackend();
     if (!supabaseClient) return;
 
-    // Cancel stale overlapping pulls — keep latest generation only.
+    // Cancel stale overlapping pulls â€” keep latest generation only.
     const generation = ++pullGeneration;
     if (pullInFlight) {
       try { await pullInFlight; } catch (_) { /* prior pull error already toasted */ }
@@ -4354,7 +5949,20 @@ ${url}`).catch(() => {});
           // Privacy: profile rows no longer include email. Keep any email we already
           // know locally (e.g. the signed-in user's auth email) keyed by user id.
           const knownEmailById = new Map(state.users.filter((u) => u.id && u.email).map((u) => [u.id, u.email]));
-          const merged = profilesRes.data.map((u) => ({ id: u.id, email: knownEmailById.get(u.id) || '', username: u.username || normalizeUsername(u.full_name || 'fishcrew_user'), name: u.full_name || 'FishCrew User', role: u.role || 'Angler', area: u.home_area || 'Tampa Bay', avatar: u.avatar_url || '', bio: u.bio || 'Here to fish more with a better crew.', fishingStyles: u.fishing_styles || 'Inshore, pier, weekend trips', profileTheme: u.profile_theme || 'Harbor Blue', password: '', createdAt: u.created_at || now() }));
+          const merged = profilesRes.data.map((u) => ({
+            id: u.id,
+            email: knownEmailById.get(u.id) || '',
+            username: u.username || normalizeUsername(u.full_name || 'fishcrew_user'),
+            name: u.full_name || 'FishCrew User',
+            role: u.role || 'Angler',
+            area: u.home_area || 'Tampa Bay',
+            avatar: u.avatar_url || '',
+            bio: u.bio || 'Here to fish more with a better crew.',
+            fishingStyles: u.fishing_styles || 'Inshore, pier, weekend trips',
+            profileTheme: u.profile_theme || 'Harbor Blue',
+            password: '',
+            createdAt: u.created_at || now()
+          }));
           const localDemo = state.users.filter((u) => u.demo === true || String(u.email || '').endsWith('@fishcrew.local'));
           state.users = [...localDemo, ...merged.filter((u) => !localDemo.some((d) => d.id === u.id))];
           if (sessionUser && !state.users.some((u) => u.id === sessionUser.id)) state.users.push(sessionUser);
@@ -4440,13 +6048,45 @@ ${url}`).catch(() => {});
           state.reports = reportsRes.data.map((r) => ({ id: r.id, type: r.item_type || 'Review', target: r.feed_post_id || r.id, status: r.status || 'Open', severity: r.severity || 'Low', note: r.title || 'Moderation item', reporterId: r.reporter_id || '', createdAt: r.created_at || now() }));
         }
         if (businessesRes.data?.length) {
-          state.businesses = businessesRes.data.map((b) => ({ id: b.id, ownerId: b.owner_id || '', name: b.name, kind: b.business_type || 'Business', area: b.area || 'Local', status: b.status || 'Lead', leads: Number(b.lead_count || 0), revenue: Math.round(Number(b.revenue_cents || 0) / 100), campaign: b.campaign || 'Local placement' }));
+          state.businesses = businessesRes.data.map((b) => hydrateBusinessListing({
+            id: b.id,
+            ownerId: b.owner_id || '',
+            name: b.name,
+            kind: b.business_type || 'Business',
+            area: b.area || 'Local',
+            status: b.status || 'Lead',
+            leads: Number(b.lead_count || 0),
+            revenue: Math.round(Number(b.revenue_cents || 0) / 100),
+            campaign: b.campaign || 'Local placement',
+            websiteUrl: b.website_url || '',
+            species: b.species || '',
+            boatType: b.boat_type || '',
+            tripTypes: b.trip_types || '',
+            availability: b.availability_notes || '',
+            priceFrom: b.price_from_cents != null ? Math.round(Number(b.price_from_cents) / 100) : null,
+            priceTo: b.price_to_cents != null ? Math.round(Number(b.price_to_cents) / 100) : null,
+            listingKind: b.listing_kind || ''
+          }));
         }
         if (bookingsRes.data?.length) {
-          state.bookings = bookingsRes.data.map((b) => ({ id: b.id, businessId: b.business_id, customerId: b.customer_id || null, customerName: b.customer_name, kind: b.booking_type || 'Inquiry', status: b.status || 'New', date: b.date_label || 'TBD', value: Math.round(Number(b.value_cents || 0) / 100), notes: b.notes || '' }));
+          state.bookings = bookingsRes.data.map((b) => ({
+            id: b.id,
+            businessId: b.business_id,
+            charterId: b.charter_id || b.business_id,
+            customerId: b.customer_id || null,
+            customerName: b.customer_name,
+            phone: b.phone || '',
+            kind: b.booking_type || 'Inquiry',
+            status: b.status || 'New',
+            date: b.date_label || 'TBD',
+            value: Math.round(Number(b.value_cents || 0) / 100),
+            notes: b.notes || ''
+          }));
         }
+        await pullCharterTables(generation);
         await fetchNotifications();
         if (generation !== pullGeneration) return;
+        mergeCuratedDirectory();
         state.opsLog.unshift(options.reason ? `Pulled shared data (${options.reason}).` : 'Pulled shared data into FishCrew.');
         save();
         render();
@@ -4786,28 +6426,6 @@ ${url}`).catch(() => {});
     save(); render(); nav('home'); toast('Browser data reset.');
   }
 
-  function openNotification(el) {
-    const tripId = el?.dataset?.tripId || '';
-    const linkPath = el?.dataset?.linkPath || '';
-    const type = (state.notifications || []).find((n) => n.id === el?.dataset?.notificationId)?.type || '';
-    closeModal();
-    if (tripId && state.trips.some((t) => t.id === tripId)) {
-      state.activeTripId = tripId;
-      if (String(type).includes('message') || String(linkPath).includes('chat')) state.crewPanel = 'chat';
-      else if (String(type).includes('request') || String(linkPath).includes('request')) state.crewPanel = 'requests';
-      else state.crewPanel = 'upcoming';
-      save();
-      nav('crew');
-      return;
-    }
-    if (linkPath) {
-      if (linkPath.includes('crew') || linkPath.includes('request') || linkPath.includes('chat')) return nav('crew');
-      if (linkPath.includes('feed')) return nav('feed');
-      if (linkPath.includes('explore')) return nav('explore');
-    }
-    nav('crew');
-  }
-
   function openNotifications() {
     if (!currentUser()) return openAuth('Sign in to view your FishCrew alerts.');
     const notes = state.notifications || [];
@@ -4815,7 +6433,7 @@ ${url}`).catch(() => {});
     const fetchError = state.notificationsFetchError;
     modal(`<div class="modal-head"><div><span class="eyebrow">Activity</span><h2>FishCrew alerts.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       <div class="stack">
-        ${loading ? '<div class="empty">Loading alerts...</div>' : fetchError ? `<div class="empty">Could not load alerts. ${safe(fetchError)}</div>` : notes.map((n)=>`<button class="panel notification-row text-left ${n.read ? 'read' : ''}" type="button" data-action="open-notification" data-notification-id="${safe(n.id)}" data-trip-id="${safe(n.entityId || '')}" data-link-path="${safe(n.linkPath || '')}"><div class="row"><span class="badge ${n.read ? '' : 'green'}">${safe(n.type || 'Alert')}</span><span class="chip">${new Date(n.createdAt || now()).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })}</span></div><h3>${safe(n.title)}</h3><p class="muted">${safe(n.body)}</p></button>`).join('') || '<div class="empty">No alerts yet. Trip, crew, and message activity will show here.</div>'}
+        ${loading ? '<div class="empty">Loading alerts...</div>' : fetchError ? `<div class="empty">Could not load alerts. ${safe(fetchError)}</div>` : notes.map((n)=>`<div class="panel notification-row ${n.read ? 'read' : ''}"><div class="row"><span class="badge ${n.read ? '' : 'green'}">${safe(n.type || 'Alert')}</span><span class="chip">${new Date(n.createdAt || now()).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })}</span></div><h3>${safe(n.title)}</h3><p class="muted">${safe(n.body)}</p></div>`).join('') || '<div class="empty">No alerts yet. Trip, crew, and message activity will show here.</div>'}
         <div class="row"><button class="btn primary" type="button" data-action="mark-notifications-read">Mark all read</button><button class="btn dark" type="button" data-action="open-user-settings">Notification settings</button></div>
       </div>`);
     if (supabaseClient && currentUser() && !loading) fetchNotifications();
@@ -4854,8 +6472,15 @@ ${url}`).catch(() => {});
     'open-auth-signin': () => openAuth('Create a profile to post, join, chat, upload photos, and save trips.', 'Angler', 'signin'),
     'open-auth-create': () => openAuth('Create your account when you are ready to post, join crews, chat, and save trips.', 'Angler', 'create'),
     'switch-auth-tab': (el) => switchAuthTab(el.dataset.authTab || 'signin'),
-    'open-tutorial': () => openTutorial(),
+    'open-tutorial': () => openTutorial(0),
     'dismiss-tutorial': () => dismissTutorial(),
+    'tutorial-next': () => tutorialNext(),
+    'tutorial-back': () => tutorialBack(),
+    'tutorial-finish': () => tutorialFinish(),
+    'rate-app': () => rateFishCrew(),
+    'open-privacy-page': () => openLegalPage('/privacy.html'),
+    'open-terms-page': () => openLegalPage('/terms.html'),
+    'leave-fishcrew': () => leaveFishCrew(),
     'auth-signin': () => authSignIn(),
     'auth-create': () => authCreate(),
     'auth-forgot': () => authForgot(),
@@ -4879,7 +6504,25 @@ ${url}`).catch(() => {});
     'save-booking': () => saveBooking(),
     'open-business-leads': () => openBusinessLeads(),
     'update-booking-status': (el) => updateBookingStatus(el.dataset.bookingId, el.dataset.status),
+    'copy-lead-notes': (el) => copyLeadNotes(el.dataset.bookingId),
+    'share-lead-sms': (el) => shareLeadSms(el.dataset.bookingId),
     'book-business': (el) => bookBusiness(el.dataset.businessId),
+    'share-trip': (el) => shareTrip(el.dataset.tripId),
+    'share-trip-platform': (el) => shareTripPlatform(el.dataset.tripId, el.dataset.platform || 'native'),
+    'copy-trip-invite': (el) => copyTripInvite(el.dataset.tripId),
+    'apply-charter-search': (el) => applyCharterSearch(el.dataset.source || 'explore'),
+    'clear-charter-search': () => clearCharterSearch(),
+    'refresh-charters': () => refreshCharters(),
+    'open-charter-profile': (el) => openCharterProfile(el.dataset.charterId),
+    'open-charter-inquiry': (el) => openCharterInquiry(el.dataset.charterId),
+    'save-charter-inquiry': () => saveCharterInquiry(),
+    'open-charter-form': (el) => openCharterForm(el.dataset.charterId || ''),
+    'save-charter-listing': () => saveCharterListing(),
+    'open-my-bookings': () => openMyBookings(),
+    'open-charter-review': (el) => openCharterReview(el.dataset.bookingId),
+    'save-charter-review': () => saveCharterReview(),
+    'open-captain-waitlist': () => openCaptainWaitlist(),
+    'save-captain-waitlist': () => saveCaptainWaitlist(),
     'request-trip': (el) => requestTrip(el.dataset.tripId),
     'trip-details': (el) => tripDetails(el.dataset.tripId),
     'open-host-controls': (el) => openHostControls(el.dataset.tripId),
@@ -4892,6 +6535,14 @@ ${url}`).catch(() => {});
     'approve-request': (el) => approveRequest(el.dataset.requestId),
     'decline-request': (el) => declineRequest(el.dataset.requestId),
     'trip-filter': (el) => { state.tripFilter = el.dataset.filter || 'All'; save(); render(); },
+    'toggle-captain-more': (el) => {
+      const id = el.dataset.captainId || '';
+      if (!id) return;
+      state.expandedCaptains = state.expandedCaptains || {};
+      state.expandedCaptains[id] = !state.expandedCaptains[id];
+      save(true);
+      render();
+    },
     'feed-filter': (el) => { state.feedFilter = el.dataset.filter || 'All'; save(); if (state.activeScreen === 'feed') renderFeed(); else render(); },
     'refresh-feed': () => refreshFeed(),
     'crew-panel': (el) => { state.crewPanel = el.dataset.panel || 'upcoming'; save(); render(); },
@@ -4902,10 +6553,6 @@ ${url}`).catch(() => {});
     'react-feed': (el) => reactFeed(el.dataset.feedId),
     'share-feed': (el) => shareFeed(el.dataset.feedId),
     'share-platform': (el) => sharePlatform(el.dataset.feedId, el.dataset.platform || 'native'),
-    'share-trip': (el) => shareTrip(el.dataset.tripId),
-    'share-trip-platform': (el) => shareTripPlatform(el.dataset.tripId, el.dataset.platform || 'native'),
-    'copy-trip-invite': (el) => copyTripInvite(el.dataset.tripId),
-    'open-notification': (el) => openNotification(el),
     'report-feed': (el) => reportFeed(el.dataset.feedId),
     'block-user': (el) => blockUser(el.dataset.userId),
     'unblock-user': (el) => unblockUser(el.dataset.userId),
@@ -4920,6 +6567,9 @@ ${url}`).catch(() => {});
     'run-ops': () => runOps(),
     'open-moderation': () => openModeration(),
     'open-revenue': () => openRevenue(),
+    'dock-ad-click': (el) => clickDockAd(el),
+    'open-dock-ad-inquiry': (el) => openDockAdInquiry(el?.dataset?.adId || ''),
+    'save-dock-ad-inquiry': () => saveDockAdInquiry(),
     'open-photo-profile': () => openPhotoProfile(),
     'save-profile-photo': () => saveProfilePhoto(),
     'open-edit-profile': () => openEditProfile(),
@@ -5036,15 +6686,26 @@ ${url}`).catch(() => {});
     return ['home', 'explore', 'crew', 'feed', 'tools', 'profile'].includes(screen) ? screen : '';
   }
 
+  function applyCaptainDeepLink() {
+    const params = new URLSearchParams(location.search || '');
+    const slug = String(params.get('charter') || params.get('captain') || '').trim();
+    if (!slug) return;
+    state.focusCaptain = slug;
+    state.activeScreen = 'explore';
+    const match = findCharter(slug) || (state.users || []).find((u) => normalizeUsername(u.username || '') === normalizeUsername(slug) || u.id === slug);
+    if (match) {
+      state.expandedCaptains = state.expandedCaptains || {};
+      state.expandedCaptains[match.id || match.captainId] = true;
+      state.focusCharterId = match.id || slug;
+    }
+    setTimeout(() => {
+      const el = document.getElementById(`captain-${normalizeUsername(slug)}`) || document.getElementById('explore-captains');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 220);
+  }
+
   function openDeepLinkModal() {
     const path = String(location.pathname || '').replace(/\/+$/, '').toLowerCase();
-    const tripId = tripIdFromUrl();
-    if (tripId) {
-      state.pendingTripId = tripId;
-      save();
-      openTripInvite(tripId);
-      return;
-    }
     if (path === '/privacy') openPrivacyPolicy();
     else if (path === '/terms') openTerms();
     else if (path === '/support') openSupportCenter();
@@ -5079,8 +6740,11 @@ ${url}`).catch(() => {});
       cleanupOldCaches();
       wireEvents();
       setupFluidChrome();
+      setupHardwareBack();
       applyScreenshotMode();
       applyScreenshotDemoData();
+      applyCaptainDemoMode();
+      applyGuestPath();
       applyBetaBannerState();
       if (CONFIG.USE_SUPABASE && CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY) {
         setBootStatus('Checking shared data...');
@@ -5090,25 +6754,36 @@ ${url}`).catch(() => {});
         if (backendResult === 'timeout') {
           state.backendMode = 'local';
           toast('Shared data is slow to respond. Browsing continues with local data.', 'danger');
-        } else {
-          // Pull public trips so Explore + invite deep links resolve without a manual sync.
-          setBootStatus('Loading open trips and crew boards...');
+        } else if (state.backendMode === 'supabase') {
+          setBootStatus('Loading the dock...');
           try {
             await Promise.race([
               pullSupabase({ silent: true, reason: 'boot' }),
               new Promise((resolve) => setTimeout(resolve, 8000))
             ]);
-          } catch (_) { /* browse continues with whatever we have locally */ }
+          } catch (_) { /* keep restored local boards */ }
         }
       }
       await maybeHandlePasswordRecovery();
       await maybeHandleInstagramOAuthCallback();
+      if (currentUser() && !state.onboardingSeen) state.onboardingSeen = true;
       setBootStatus('Setting the water window...');
+      applyCaptainDeepLink();
       state.activeScreen = screenFromUrl() || state.activeScreen || 'home';
       save(true);
       render();
       setDebug(`Screen: ${state.activeScreen}`);
-      setTimeout(() => { openDeepLinkModal(); }, 180);
+      if (state.focusCaptain || state.focusCharterId) {
+        setTimeout(() => {
+          const slug = normalizeUsername(state.focusCaptain || '');
+          const el = document.getElementById(`captain-${slug}`) || document.getElementById('explore-captains');
+          el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          if (state.focusCharterId) openCharterProfile(state.focusCharterId);
+        }, 280);
+      }
+      if (state.session?.demoCaptain) toast('Captain desk demo ready â€” open Leads inbox from Home.');
+      setTimeout(openDeepLinkModal, 180);
+      consumePendingTripInvite();
       if (!state.locationAsked && window.isSecureContext && navigator.geolocation) {
         state.locationAsked = true;
         save();

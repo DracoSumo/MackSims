@@ -12,7 +12,7 @@ const migration = readFileSync(
 const appJs = readFileSync(join(root, 'app.js'), 'utf8');
 
 function fnBody(name) {
-  const re = new RegExp(`(?:async )?function ${name}\\([\\s\\S]*?\\n  \\}\\n`);
+  const re = new RegExp(`(?:async )?function ${name}\\([\\s\\S]*?\\n  \\}\\r?\\n`);
   const match = appJs.match(re);
   assert.ok(match, `expected function ${name}`);
   return match[0];

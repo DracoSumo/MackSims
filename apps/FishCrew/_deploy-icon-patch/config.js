@@ -1,5 +1,5 @@
 window.FISHCREW_CONFIG = {
-  VERSION: '0.8.0',
+  VERSION: '0.9.1',
   // Demo/sample content (fake users, trips, feed posts) only loads when this
   // is explicitly true. Production/beta builds must keep it false.
   DEMO_MODE: false,
@@ -19,7 +19,7 @@ window.FISHCREW_CONFIG = {
   ENABLE_MEDIA_MODERATION: true,
   ENABLE_SUPABASE_LIVE_CORE: true,
   ENABLE_REALTIME_SYNC: true,
-  LIVE_CORE_VERSION: '0.8.0',
+  LIVE_CORE_VERSION: '0.9.1',
   SUPPORT_EMAIL: 'support@fishcrew.app',
   MAX_LOCAL_UPLOAD_MB: 6,
   MAX_IMAGE_UPLOAD_MB: 10,
@@ -34,7 +34,7 @@ window.FISHCREW_CONFIG = {
   // Meta Instagram Graph connect (NOT a login lane). Set META_APP_ID and flip
   // ENABLE_INSTAGRAM_OAUTH once the Meta app + Valid OAuth Redirect URI match.
   // Static SPA uses client-side response_type=token; production with a secret
-  // should prefer a server callback that exchanges code → long-lived token.
+  // should prefer a server callback that exchanges code â†’ long-lived token.
   META_APP_ID: '956207094120610',
   ENABLE_INSTAGRAM_OAUTH: true,
   META_INSTAGRAM_REDIRECT_URI: 'https://fishcrew.macksims.com/',

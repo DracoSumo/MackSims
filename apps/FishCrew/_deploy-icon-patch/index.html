@@ -4,14 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#061826" />
-  <meta name="description" content="FishCrew connects local anglers, charters, tackle shops, guides, and cruises." />
+  <meta name="description" content="Find fishing charters by water, species, date, and boat. Compare captains, send a real inquiry, then rebook." />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="FishCrew" />
   <title>FishCrew</title>
   <link rel="canonical" href="https://fishcrew.macksims.com/" />
   <meta property="og:title" content="FishCrew" />
-  <meta property="og:description" content="Find your fishing crew, post trips, share catches, and run local fishing operations." />
+  <meta property="og:description" content="Find fishing charters, send a real inquiry, and rebook the good ones." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://fishcrew.macksims.com/" />
   <meta property="og:image" content="https://fishcrew.macksims.com/icon-512.png" />
@@ -21,7 +21,8 @@
   <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png" />
   <link rel="icon" href="favicon-16.png" sizes="16x16" type="image/png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=0.9.1" />
+  <link rel="stylesheet" href="early-access.css?v=0.9.1" />
 </head>
 <body>
   <div id="bootScreen" class="boot-screen" role="status" aria-live="polite">
@@ -30,7 +31,7 @@
       <div>
         <span class="eyebrow">FishCrew</span>
         <h1>Opening the dock.</h1>
-        <p id="bootStatus">Loading trips, tools, and water windows...</p>
+        <p id="bootStatus">Loading charters and the water window...</p>
       </div>
       <div class="boot-bar" aria-hidden="true"><span></span></div>
     </div>
@@ -63,11 +64,11 @@
     </main>
   </div>
 
-  <button id="fab" class="fab" type="button" data-action="open-create" aria-label="Create post">+</button>
+  <button id="fab" class="fab" type="button" data-action="open-create" aria-label="Find or list a charter">+</button>
 
   <nav class="bottom-nav" aria-label="Main navigation">
     <button class="nav-btn active" type="button" data-action="go" data-screen="home"><span class="nav-icon nav-home" aria-hidden="true"></span><b>Home</b></button>
-    <button class="nav-btn" type="button" data-action="go" data-screen="explore"><span class="nav-icon nav-explore" aria-hidden="true"></span><b>Explore</b></button>
+    <button class="nav-btn" type="button" data-action="go" data-screen="explore"><span class="nav-icon nav-explore" aria-hidden="true"></span><b>Charters</b></button>
     <button class="nav-btn" type="button" data-action="go" data-screen="crew"><span class="nav-icon nav-crew" aria-hidden="true"></span><b>Crew</b></button>
     <button class="nav-btn" type="button" data-action="go" data-screen="feed"><span class="nav-icon nav-feed" aria-hidden="true"></span><b>Feed</b></button>
     <button class="nav-btn" type="button" data-action="go" data-screen="tools"><span class="nav-icon nav-tools" aria-hidden="true"></span><b>Tools</b></button>
@@ -76,9 +77,10 @@
 
   <div id="modalRoot" class="modal-root hidden" aria-hidden="true"></div>
   <div id="toast" class="toast hidden" role="status"></div>
-  <script src="config.js"></script>
+  <script src="config.js?v=0.9.1"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=0.9.1"></script>
+  <script src="early-access.js?v=0.9.1"></script>
 </body>
 </html>
 

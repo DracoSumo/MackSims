@@ -1,0 +1,63 @@
+[build]
+  publish = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+
+[[redirects]]
+  from = "/guest"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/captain"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/early-access"
+  to = "/early-access.html"
+  status = 200
+
+[[redirects]]
+  from = "/captains"
+  to = "/early-access.html"
+  status = 200
+
+[[redirects]]
+  from = "/charters"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/support"
+  to = "/support.html"
+  status = 200
+
+[[redirects]]
+  from = "/privacy"
+  to = "/privacy.html"
+  status = 200
+
+[[redirects]]
+  from = "/terms"
+  to = "/terms.html"
+  status = 200
+
+[[redirects]]
+  from = "/account-delete"
+  to = "/account-delete.html"
+  status = 200
+
+[[redirects]]
+  from = "/account-delete"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/account/delete"
+  to = "/index.html"
+  status = 200
