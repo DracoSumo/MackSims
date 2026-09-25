@@ -1,0 +1,10 @@
+/guest    /index.html    200
+/captain  /index.html    200
+/charters /index.html    200
+/account-delete /account-delete.html    200
+/support  /support.html  200
+/privacy  /privacy.html  200
+/terms    /terms.html    200
+/account-delete  /index.html  200
+/account/delete  /index.html  200
+/account-delete.html  /account-delete.html  200
