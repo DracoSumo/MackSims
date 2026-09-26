@@ -898,9 +898,27 @@
     }
   }
 
+  /**
+   * Drop directory rows and QA residue a previous build persisted onto this
+   * device. The registry is the source of truth: anything still flagged curated
+   * that the registry no longer lists was never a consenting captain, and would
+   * otherwise keep showing to this user as live inventory forever.
+   */
+  function purgeStaleLocalContent() {
+    const registry = curatedDirectoryContent();
+    const keepUsers = new Set((registry.users || []).map((u) => u.id));
+    const keepBusinesses = new Set((registry.businesses || []).map((b) => b.id));
+    state.users = (state.users || []).filter((u) => (u.curated ? keepUsers.has(u.id) : !isAuditListing(u)));
+    state.businesses = (state.businesses || []).filter((b) => (b.curated ? keepBusinesses.has(b.id) : !isAuditListing(b)));
+    state.charters = (state.charters || []).filter((c) => (c.curated ? keepUsers.has(c.ownerId) : !isAuditListing(c)));
+    state.trips = (state.trips || []).filter((t) => !isAuditListing(t));
+    state.feed = (state.feed || []).filter((p) => !isAuditListing(p));
+  }
+
   function normalizeState() {
     state.users = state.users || [];
     state.businesses = state.businesses || [];
+    purgeStaleLocalContent();
     mergeCuratedDirectory();
     const used = new Set();
     state.users.forEach((u) => {

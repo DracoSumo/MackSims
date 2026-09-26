@@ -201,9 +201,11 @@
         row.phone && `Phone: ${row.phone}`,
         row.website_url && `Site: ${row.website_url}`,
         row.instagram && `Instagram: ${row.instagram}`,
-        'Consent: yes',
         'Source: early-access'
       ].filter(Boolean).join(' | '),
+      // The table enforces consent = true, so the fallback must carry it too or
+      // every retry trips the guard.
+      consent: true,
       status: 'waitlist'
     };
 
