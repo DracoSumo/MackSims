@@ -224,7 +224,7 @@
     };
   }
 
-  /** Real Tampa captains/businesses (public web info). Not demo fakeries. */
+  /** Shape helper for a captain who has explicitly agreed to be listed. */
   function curatedCaptain(fields) {
     return {
       avatar: '',
@@ -249,142 +249,28 @@
     };
   }
 
+  /**
+   * Opted-in captain / charter directory.
+   *
+   * Intentionally EMPTY. This registry previously shipped seven real Tampa Bay
+   * charter businesses copied from their public websites. None of them had a
+   * FishCrew account, none had consented to being listed, and an inquiry sent
+   * from this app could never reach them, so guest browse implied inventory
+   * and partnerships that did not exist. Guest browse now shows an honest
+   * empty state plus the captain early-listing CTA instead.
+   *
+   * Only add an entry here for a captain who has explicitly agreed to be
+   * listed. Everything else must come from the charters table after a captain
+   * signs up through /early-access and is invited by an operator.
+   */
   function curatedDirectoryContent() {
-    const josh = curatedCaptain({
-      id: 'u_capt_josh_taylor',
-      name: 'Capt. Joshua Taylor',
-      username: 'salty_scales',
-      email: 'joshua@saltyscales.com',
-      role: 'Captain',
-      area: 'Tampa Bay (St. Pete / Ruskin / west-central Florida)',
-      bio: 'Tampa Bay charter captain with Salty Scales. Inshore and nearshore trips for snook, tarpon, redfish, and family crews. Book through saltyscalescharter.com.',
-      bioLong: 'Capt. Joshua Taylor runs Salty Scales Fishing Charters out of Tampa Bay. He fishes the grass flats, mangroves, oyster bars, and nearshore structure, with trips for seasoned anglers and first-timers. Boat: Avenger Marauder Custom 25. Apparel brand: Salty Scales performance fishing shirts. Bookings and reports live on his charter site — FishCrew is discovery only in this beta.',
-      fishingStyles: 'Charter, inshore flats/mangroves, nearshore structure, light tackle',
-      tripTypes: 'Inshore · nearshore · family / beginner-friendly · half-day & full-day',
-      experience: 'USCG-licensed captain; guiding Tampa Bay since 2013; 30+ years fishing these waters',
-      websiteUrl: 'https://saltyscalescharter.com/',
-      brandUrl: 'https://saltyscales.com/',
-      youtubeUrl: 'https://www.youtube.com/saltyscales',
-      instagramUrl: 'https://www.instagram.com/saltyscales/',
-      boat: 'Avenger Marauder Custom 25',
-      species: 'Snook, tarpon, redfish, speckled trout, mangrove snapper, grouper, flounder, cobia (seasonal)',
-      listingKind: 'partner'
-    });
-    const mattSantiago = curatedCaptain({
-      id: 'u_capt_matt_santiago',
-      name: 'Capt. Matt Santiago',
-      username: 'badfish_tampa',
-      role: 'Captain',
-      area: 'Ruskin / Tampa Bay',
-      bio: 'Badfish Charters out of Ruskin. Inshore, nearshore, tarpon, and goliath trips. Book on badfishtampa.com.',
-      bioLong: 'Capt. Matt Santiago runs Badfish Charters from Ruskin (3520 W Shell Point Rd). Public site lists inshore snook/redfish/trout, nearshore hogfish/kingfish, tarpon, and goliath grouper trips, plus a Custom-Built 2023 Sabalo 27. FishCrew is discovery only — book on their site.',
-      fishingStyles: 'Charter, inshore, nearshore, tarpon',
-      tripTypes: 'Inshore · nearshore · tarpon · goliath · family',
-      experience: 'Tampa native; public site cites 30+ years on the water and USCG-licensed captains',
-      websiteUrl: 'https://www.badfishtampa.com/',
-      boat: 'Custom-built 2023 Sabalo 27',
-      species: 'Snook, redfish, trout, tarpon, hogfish, kingfish, goliath grouper'
-    });
-    const brian = curatedCaptain({
-      id: 'u_capt_brian_lemelin',
-      name: 'Capt. Brian Lemelin',
-      username: 'optimus_fishing',
-      role: 'Captain',
-      area: 'Ruskin / Tampa Bay / St. Pete',
-      bio: 'Optimus Fishing Charters. Beginner through family trips from backwaters to coastal reefs. Meet at Sunset Grill, Ruskin. Book on their site.',
-      bioLong: 'Capt. Brian Lemelin runs Optimus Fishing Charters, launching from the Ruskin area (meet at Sunset Grill and Beach Bar, 602 Bahia Del Sol Dr). Public trips cover Tampa Bay mixed-species bites from backwaters to coastal grounds. FishCrew is discovery only.',
-      fishingStyles: 'Charter, inshore, coastal reef, family / beginner',
-      tripTypes: 'Beginner · family · mixed-species · half-day & longer',
-      experience: 'Public site: inshore Tampa Bay charters with a mate; fish cleaned after the trip',
-      websiteUrl: 'https://www.optimusfishingcharters.com/',
-      species: 'Snook, redfish, trout, snapper, cobia, mackerel, tarpon, sheepshead, shark'
-    });
-    const carl = curatedCaptain({
-      id: 'u_capt_carl_snodgrass',
-      name: 'Capt. Carl Snodgrass',
-      username: 'lucky_lauren',
-      role: 'Captain',
-      area: 'Tampa Bay (Weedon Island / Picnic Island / Skyway)',
-      bio: 'Lucky Lauren Charters. Private inshore trips for redfish, snook, and trout, plus beginner and sunset options. Book on luckylaurencharters.com.',
-      bioLong: 'Capt. Carl Snodgrass runs Lucky Lauren Charters, LLC. Public trips include 4-hour beginner and inshore charters, longer guided days, and a sunset cruise. License, bait, and tackle listed as included on their site. FishCrew is discovery only.',
-      fishingStyles: 'Charter, inshore flats, family / beginner',
-      tripTypes: 'Inshore · beginner · sunset cruise · half-day',
-      experience: 'Local Tampa Bay captain; family-friendly private charters (public site)',
-      websiteUrl: 'https://www.luckylaurencharters.com/',
-      species: 'Redfish, snook, spotted seatrout, tarpon, flounder, sheepshead, mangrove snapper, cobia'
-    });
-    const mattErcoli = curatedCaptain({
-      id: 'u_capt_matt_ercoli',
-      name: 'Capt. Matt Ercoli',
-      username: 'captain_matt',
-      role: 'Captain',
-      area: 'Anna Maria / Tampa Bay / Sarasota',
-      bio: 'Captain Matt Fishing Charters. Tarpon, inshore flats, and offshore days out of Anna Maria. Book on captainmatt.com.',
-      bioLong: 'Capt. Matt Ercoli runs Captain Matt Fishing Charters from Anna Maria, with public pages for tarpon, inshore snook/reds, and offshore. Site notes a custom Sheaffer tower boat and 20+ years of charter experience. FishCrew is discovery only.',
-      fishingStyles: 'Charter, tarpon, inshore flats, offshore',
-      tripTypes: 'Tarpon · inshore · offshore · fly',
-      experience: 'Public site: 20+ years, flats fishing national champion, custom tower boat',
-      websiteUrl: 'https://www.captainmatt.com/',
-      boat: 'Custom Sheaffer tower boat',
-      species: 'Tarpon, snook, redfish, kingfish, grouper, trout, permit'
-    });
-    const jason = curatedCaptain({
-      id: 'u_capt_jason_prieto',
-      name: 'Capt. Jason Prieto',
-      username: 'steady_action',
-      role: 'Captain',
-      area: 'Davis Islands / Tampa Bay (Ruskin, St. Pete, Bradenton)',
-      bio: 'Steady Action Fishing Charters. Inshore Tampa Bay trips for snook, redfish, and tarpon on custom bay boats. Book on their site.',
-      bioLong: 'Capt. Jason Prieto runs Steady Action from Davis Islands (430 W Davis Blvd). Public site covers inshore Tampa Bay and Boca Grande tarpon, typically up to four anglers, gear included. FishCrew is discovery only.',
-      fishingStyles: 'Charter, inshore, tarpon, custom bay boats',
-      tripTypes: 'Inshore · tarpon · family / first-timers',
-      experience: 'Tampa Bay inshore specialist; custom-built bay boats (public site)',
-      websiteUrl: 'https://www.steadyactionfishingcharters.com/',
-      boat: 'Custom-built bay boats',
-      species: 'Snook, redfish, tarpon, mangrove snapper, trout'
-    });
-    const christian = curatedCaptain({
-      id: 'u_capt_christian_lugo',
-      name: 'Capt. Christian Lugo',
-      username: 'family_ties',
-      role: 'Captain',
-      area: 'South Tampa / Riverview / Apollo Beach / Ruskin',
-      bio: 'Family Ties Fishing Charters. Family inshore trips for snook, redfish, and trout. Book on familytiesfishingcharter.com.',
-      bioLong: 'Capt. Christian Lugo runs Family Ties Fishing Charters from South Tampa (2406 South 46th Street). Public trips include half-day and full-day inshore, plus night fishing. Rods, licenses, tackle, and live bait listed as included. FishCrew is discovery only.',
-      fishingStyles: 'Charter, inshore, family / kids',
-      tripTypes: 'Half-day · full-day · night · family',
-      experience: 'Family-first Tampa Bay inshore guide (public site)',
-      websiteUrl: 'https://www.familytiesfishingcharter.com/',
-      species: 'Snook, redfish, trout, mangrove snapper, sheepshead'
-    });
-    const saltyBiz = curatedBusiness({
-      id: 'biz_salty_scales',
-      ownerId: josh.id,
-      name: 'Salty Scales Fishing Charters',
-      kind: 'Pro Charter',
-      area: josh.area,
-      status: 'Verified',
-      campaign: 'Book on saltyscalescharter.com',
-      websiteUrl: josh.websiteUrl,
-      brandUrl: josh.brandUrl,
-      listingKind: 'partner'
-    });
-    const businesses = [
-      saltyBiz,
-      curatedBusiness({ id: 'biz_badfish', ownerId: mattSantiago.id, name: 'Badfish Charters', kind: 'Pro Charter', area: mattSantiago.area, status: 'Directory', websiteUrl: mattSantiago.websiteUrl }),
-      curatedBusiness({ id: 'biz_optimus', ownerId: brian.id, name: 'Optimus Fishing Charters', kind: 'Pro Charter', area: brian.area, status: 'Directory', websiteUrl: brian.websiteUrl }),
-      curatedBusiness({ id: 'biz_lucky_lauren', ownerId: carl.id, name: 'Lucky Lauren Charters', kind: 'Pro Charter', area: carl.area, status: 'Directory', websiteUrl: carl.websiteUrl }),
-      curatedBusiness({ id: 'biz_captain_matt', ownerId: mattErcoli.id, name: 'Captain Matt Fishing Charters', kind: 'Pro Charter', area: mattErcoli.area, status: 'Directory', websiteUrl: mattErcoli.websiteUrl }),
-      curatedBusiness({ id: 'biz_steady_action', ownerId: jason.id, name: 'Steady Action Fishing Charters', kind: 'Pro Charter', area: jason.area, status: 'Directory', websiteUrl: jason.websiteUrl }),
-      curatedBusiness({ id: 'biz_family_ties', ownerId: christian.id, name: 'Family Ties Fishing Charters', kind: 'Pro Charter', area: christian.area, status: 'Directory', websiteUrl: christian.websiteUrl })
-    ];
     return {
-      users: [josh, mattSantiago, brian, carl, mattErcoli, jason, christian],
+      users: [],
       trips: [],
       requests: [],
       messages: {},
       feed: [],
-      businesses,
+      businesses: [],
       bookings: [],
       reports: [],
       mediaAssets: []
@@ -395,14 +281,27 @@
     return curatedDirectoryContent();
   }
 
+  /**
+   * Client-side quarantine for QA/security-audit residue left in shared data.
+   * Defence in depth only: these rows should be deleted server-side. Until they
+   * are, real users must never see them.
+   */
   function isAuditListing(item) {
     const name = String(item?.name || '');
     const title = String(item?.title || '');
     const body = String(item?.body || '');
     const author = String(item?.authorName || item?.userName || '');
+    const id = String(item?.id || '');
+    const media = String(item?.media || item?.mediaUrl || item?.publicUrl || item?.storagePath || '');
     const blob = `${name} ${title} ${body} ${author}`;
-    if (/\[AUDIT|Fake Verified|AUDIT ARTIFACT/i.test(blob)) return true;
-    if (/^(bypass|x)$/i.test(title.trim())) return true;
+    if (/\[AUDIT|AUDIT ARTIFACT|Fake Verified|security-audit/i.test(blob)) return true;
+    if (/^(bypass|x|pend\d*|probe\w*|test|live insert)$/i.test(title.trim())) return true;
+    if (/^(bypass|x|pend\d*|probe\w*|test)$/i.test(name.trim())) return true;
+    if (/^(audit|probe\w*|qa[_-]?\w*)$/i.test(author.trim())) return true;
+    if (/ZZ_INTERNAL_QA/i.test(blob)) return true;
+    // Placeholder/demo hosts never point at real captain media.
+    if (/(^|\/\/|\.)(example\.(com|org|net)|localhost|fishcrew\.local|test\.invalid)(\/|:|$)/i.test(media)) return true;
+    if (/_(audit|idor|probe|repro|pend\d*)_\d+$/i.test(id) || /^(biz|feed|asset|trip)_(audit|idor|probe|repro|b|a_owner|self|ver|pend\d*)_/i.test(id)) return true;
     return false;
   }
 
@@ -1850,14 +1749,15 @@
         <button class="home-command" type="button" data-action="go" data-screen="tools"><b>Water tools</b><span>Window, bait, and gear help</span></button>
       </section>`}
 
-      ${featuredCaptains.length ? `
       <section class="section app-section-tight" aria-label="Tampa Bay charters">
         <div class="section-head compact-head">
-          <div><span class="eyebrow">Charters</span><h2>Compare Tampa Bay boats</h2></div>
-          <button class="btn dark small" type="button" data-action="go" data-screen="explore">Browse all</button>
+          <div><span class="eyebrow">Charters</span><h2>${featuredCaptains.length ? 'Compare Tampa Bay boats' : `No charters listed yet in ${safe(userArea())}`}</h2></div>
+          ${featuredCaptains.length ? '<button class="btn dark small" type="button" data-action="go" data-screen="explore">Browse all</button>' : ''}
         </div>
-        <div class="grid cards v040-card-stack">${featuredCaptains.map((u) => charterCard(u)).join('')}</div>
-      </section>` : ''}
+        ${featuredCaptains.length
+          ? `<div class="grid cards v040-card-stack">${featuredCaptains.map((u) => charterCard(u)).join('')}</div>`
+          : `<div class="empty"><h3>No charters listed yet in your area.</h3><p>The board stays empty until a real captain lists a real boat. We do not invent boats, prices, or booked seats.</p><div class="row mt"><a class="btn primary" href="/early-access">Captains: request early listing</a><button class="btn dark" type="button" data-action="go" data-screen="explore">Browse all water</button></div></div>`}
+      </section>
       ${dockAdCard()}
 
       ${state.onboardingSeen || user ? '' : `<section class="section tutorial-nudge"><div class="panel launch-card"><div><span class="eyebrow">New here?</span><h2>Take the quick dock walk-through.</h2><p class="muted">See how to browse, join, chat, post proof, and use tools without getting hit by a login wall.</p></div><button class="btn primary" type="button" data-action="open-tutorial">Start tutorial</button></div></section>`}

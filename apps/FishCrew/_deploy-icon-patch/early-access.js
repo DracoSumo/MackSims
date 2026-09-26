@@ -182,19 +182,55 @@
       status: 'waitlist'
     };
 
+    // captain_waitlist has shipped in two shapes: a minimal table (id, user_id,
+    // name, email, area, note, status) and a wider one with dedicated captain
+    // columns. Try the rich row, then retry against the minimal shape with the
+    // extra detail folded into note, so a real captain's signup is never lost
+    // to a schema mismatch. If the row still cannot land, keep it on the device
+    // and say so instead of silently dropping it.
+    const minimalPayload = {
+      id: payload.id,
+      user_id: payload.user_id,
+      name: row.name,
+      email: row.email,
+      area: row.home_port,
+      note: [
+        row.home_port && `Home port: ${row.home_port}`,
+        row.vessel_name && `Vessel: ${row.vessel_name}`,
+        row.trip_types && `Trips/species: ${row.trip_types}`,
+        row.phone && `Phone: ${row.phone}`,
+        row.website_url && `Site: ${row.website_url}`,
+        row.instagram && `Instagram: ${row.instagram}`,
+        'Consent: yes',
+        'Source: early-access'
+      ].filter(Boolean).join(' | '),
+      status: 'waitlist'
+    };
+
+    const isSchemaMismatch = (error) => {
+      const blob = `${error?.code || ''} ${error?.message || ''}`;
+      return /PGRST204/i.test(blob) || /could not find the .* column/i.test(blob);
+    };
+
+    let saved = false;
+    let saveError = null;
     const sb = client();
     if (sb) {
-      const { error } = await sb.from('captain_waitlist').insert(payload);
-      if (error) {
-        toast(error.message || 'Could not save the waitlist row.', 'danger');
-        return;
+      let { error } = await sb.from('captain_waitlist').insert(payload);
+      if (error && isSchemaMismatch(error)) {
+        ({ error } = await sb.from('captain_waitlist').insert(minimalPayload));
       }
-    } else {
+      if (error) saveError = error;
+      else saved = true;
+    }
+
+    if (!saved) {
       try {
         const local = JSON.parse(localStorage.getItem('fc_waitlist_local') || '[]');
-        local.unshift(payload);
+        local.unshift(minimalPayload);
         localStorage.setItem('fc_waitlist_local', JSON.stringify(local.slice(0, 20)));
       } catch (_) {}
+      if (sb && saveError) console.warn('captain_waitlist insert failed', saveError);
     }
 
     markSubmitted();
@@ -215,10 +251,31 @@
         createdAt: new Date().toISOString()
       });
     }
-    toast(sb ? 'You are on the early-access list. An operator will invite you if we can list the boat.' : 'Saved on this device. Shared waitlist is offline right now.');
-    const close = window.__fishcrewCloseModal;
-    if (typeof close === 'function') close();
-    else $('[data-action="close-modal"]')?.click();
+    if (saved) {
+      toast('You are on the early-access list. An operator will invite you if we can list the boat.');
+      const close = window.__fishcrewCloseModal;
+      if (typeof close === 'function') close();
+      else $('[data-action="close-modal"]')?.click();
+      return;
+    }
+
+    // Shared waitlist rejected the row. Do not pretend it landed: keep the
+    // captain in the flow with a route that actually reaches a human.
+    toast('Saved on this device only — the shared waitlist did not accept it.', 'danger');
+    const support = window.FISHCREW_CONFIG?.SUPPORT_EMAIL || 'support@fishcrew.app';
+    const subject = encodeURIComponent(`FishCrew early listing: ${row.vessel_name || row.name}`);
+    const body = encodeURIComponent(minimalPayload.note.split(' | ').concat([`Name: ${row.name}`, `Email: ${row.email}`]).join('\n'));
+    const fallbackHost = formRoot && formRoot.nodeType === 1 ? formRoot : $('[data-ea-form]');
+    if (!fallbackHost) return;
+    fallbackHost.innerHTML = `
+      <div class="panel">
+        <span class="eyebrow">Not on the shared list yet</span>
+        <h3>We could not save your request to the server.</h3>
+        <p class="muted">Your details are held on this device only, so nobody on our side can see them yet. Send them straight to us and we will add you by hand — you keep your place in line.</p>
+        <div class="row mt">
+          <a class="btn primary" href="mailto:${safe(support)}?subject=${subject}&body=${body}">Email my details</a>
+        </div>
+      </div>`;
   }
 
   function statusBadge(status) {
