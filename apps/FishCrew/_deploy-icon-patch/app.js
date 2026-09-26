@@ -295,8 +295,10 @@
     const media = String(item?.media || item?.mediaUrl || item?.publicUrl || item?.storagePath || '');
     const blob = `${name} ${title} ${body} ${author}`;
     if (/\[AUDIT|AUDIT ARTIFACT|Fake Verified|security-audit/i.test(blob)) return true;
-    if (/^(bypass|x|pend\d*|probe\w*|test|live insert)$/i.test(title.trim())) return true;
-    if (/^(bypass|x|pend\d*|probe\w*|test)$/i.test(name.trim())) return true;
+    // QA probes/audits never describe a real boat or trip.
+    if (/\b(probe|audit|smoke ?test|idor)\b/i.test(`${title} ${name}`)) return true;
+    if (/^(bypass|x|pend\d*|test|live insert)$/i.test(title.trim())) return true;
+    if (/^(bypass|x|pend\d*|test)$/i.test(name.trim())) return true;
     if (/^(audit|probe\w*|qa[_-]?\w*)$/i.test(author.trim())) return true;
     if (/ZZ_INTERNAL_QA/i.test(blob)) return true;
     // Placeholder/demo hosts never point at real captain media.
