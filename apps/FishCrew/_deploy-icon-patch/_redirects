@@ -1,9 +1,12 @@
 # Repo files that ship inside the publish dir but must not be downloadable.
-# The migrations spell out the whole RLS policy map.
-/supabase/*  /index.html  404
-/*.test.mjs  /index.html  404
-/package.json  /index.html  404
-/README.md  /index.html  404
+# The trailing ! forces the rule ahead of static-file serving.
+/supabase/*  /index.html  404!
+/package.json  /index.html  404!
+/README.md  /index.html  404!
+/crew-chat-membership.test.mjs  /index.html  404!
+/profiles-hide-email.test.mjs  /index.html  404!
+/trip-invite-share.test.mjs  /index.html  404!
+/trip-members-host-gated-insert.test.mjs  /index.html  404!
 
 /guest    /index.html    200
 /captain  /index.html    200

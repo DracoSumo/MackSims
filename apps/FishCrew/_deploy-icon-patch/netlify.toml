@@ -7,6 +7,51 @@
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
 
+# The publish dir is the repo dir, so these repo files are otherwise reachable.
+# force = true is required: Netlify serves a matching static file before it
+# applies an unforced redirect, and the migrations spell out the RLS policy map.
+[[redirects]]
+  from = "/supabase/*"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/package.json"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/README.md"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/crew-chat-membership.test.mjs"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/profiles-hide-email.test.mjs"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/trip-invite-share.test.mjs"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/trip-members-host-gated-insert.test.mjs"
+  to = "/index.html"
+  status = 404
+  force = true
+
 [[redirects]]
   from = "/guest"
   to = "/index.html"
