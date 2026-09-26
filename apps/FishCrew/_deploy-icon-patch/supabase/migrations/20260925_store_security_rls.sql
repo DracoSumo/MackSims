@@ -84,6 +84,20 @@ ALTER TABLE IF EXISTS public.join_requests ENABLE ROW LEVEL SECURITY;
 -- ---------------------------------------------------------------------------
 -- Profiles
 -- ---------------------------------------------------------------------------
+-- Account lifecycle state read by profiles_select_visible and written by
+-- delete_own_account. Defaulting to 'Live' keeps every existing row visible.
+-- Deliberately not added to the anon/authenticated column SELECT grants in
+-- 20260828130000_profiles_hide_email_from_clients.sql; RLS can still read it.
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'Live';
+
+-- Superseded by the policies below. Left in place these OR in USING (true) for
+-- SELECT and a WITH CHECK-less UPDATE, so any signed-in user could still read
+-- removed profiles and set their own role to 'admin'.
+DROP POLICY IF EXISTS profiles_select_public ON public.profiles;
+DROP POLICY IF EXISTS profiles_select_authenticated ON public.profiles;
+DROP POLICY IF EXISTS profiles_update_self_or_admin ON public.profiles;
+
 DROP POLICY IF EXISTS profiles_select_visible ON public.profiles;
 CREATE POLICY profiles_select_visible ON public.profiles
   FOR SELECT
@@ -155,7 +169,7 @@ CREATE POLICY moderation_items_select ON public.moderation_items
   USING (
     public.is_admin()
     OR reporter_id = (auth.uid())::text
-    OR user_id = (auth.uid())::text
+    OR target_user_id = (auth.uid())::text
   );
 
 DROP POLICY IF EXISTS moderation_items_insert ON public.moderation_items;
@@ -163,9 +177,9 @@ CREATE POLICY moderation_items_insert ON public.moderation_items
   FOR INSERT
   TO authenticated
   WITH CHECK (
-    (reporter_id = (auth.uid())::text OR user_id = (auth.uid())::text)
+    (reporter_id = (auth.uid())::text OR target_user_id = (auth.uid())::text)
     AND COALESCE(status, 'Open') IN ('Open', 'New', 'Review')
-    AND char_length(COALESCE(note, '')) <= 2000
+    AND char_length(COALESCE(details, '')) <= 2000
   );
 
 DROP POLICY IF EXISTS moderation_items_update ON public.moderation_items;
@@ -328,12 +342,21 @@ CREATE POLICY notifications_owner ON public.notifications
   USING (user_id = (auth.uid())::text OR public.is_admin())
   WITH CHECK (user_id = (auth.uid())::text OR public.is_admin());
 
-DROP POLICY IF EXISTS social_connections_owner ON public.social_connections;
-CREATE POLICY social_connections_owner ON public.social_connections
-  FOR ALL
-  TO authenticated
-  USING (user_id = (auth.uid())::text OR public.is_admin())
-  WITH CHECK (user_id = (auth.uid())::text OR public.is_admin());
+-- social_connections is optional: app.js treats a failed upsert as skippable
+-- and this project has never created the table, so gate the policy on it.
+DO $$
+BEGIN
+  IF to_regclass('public.social_connections') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS social_connections_owner ON public.social_connections';
+    EXECUTE $p$
+      CREATE POLICY social_connections_owner ON public.social_connections
+        FOR ALL
+        TO authenticated
+        USING (user_id = (auth.uid())::text OR public.is_admin())
+        WITH CHECK (user_id = (auth.uid())::text OR public.is_admin())
+    $p$;
+  END IF;
+END $$;
 
 DROP POLICY IF EXISTS trip_private_details_members ON public.trip_private_details;
 CREATE POLICY trip_private_details_members ON public.trip_private_details
@@ -381,13 +404,26 @@ CREATE POLICY fishcrew_media_select_approved_or_owner ON storage.objects
     )
   );
 
+-- Leftovers from 20260925_store_grade_security.sql and earlier. RLS policies are
+-- permissive, so fishcrew_media_insert_authenticated (TO public, checking only
+-- auth.uid() IS NOT NULL) OR-ed away the owner and path-prefix rules below; the
+-- *_or_admin pair duplicates the authenticated policies with a wider role set.
+DROP POLICY IF EXISTS fishcrew_media_insert_authenticated ON storage.objects;
+DROP POLICY IF EXISTS fishcrew_media_update_owner_or_admin ON storage.objects;
+DROP POLICY IF EXISTS fishcrew_media_delete_owner_or_admin ON storage.objects;
+
 DROP POLICY IF EXISTS fishcrew_media_insert_owner ON storage.objects;
 CREATE POLICY fishcrew_media_insert_owner ON storage.objects
   FOR INSERT
   TO authenticated
   WITH CHECK (
     bucket_id = 'fishcrew-media'
-    AND owner = auth.uid()
+    -- storage-api is migrating owner (uuid) to owner_id (text). Accept either
+    -- binding, never an unowned object.
+    AND (
+      owner = auth.uid()
+      OR (owner IS NULL AND owner_id = (auth.uid())::text)
+    )
     AND (
       name LIKE ('charter/' || (auth.uid())::text || '/%')
       OR name LIKE ('media/' || (auth.uid())::text || '/%')
@@ -414,6 +450,7 @@ CREATE POLICY fishcrew_media_delete_owner ON storage.objects
 
 -- ---------------------------------------------------------------------------
 -- Account deletion RPC. DEFINER only to wipe owned rows; auth.uid() is required.
+-- Also anonymizes inquiry PII (legal/fraud rows may remain).
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.delete_own_account()
 RETURNS jsonb
@@ -435,7 +472,7 @@ BEGIN
   UPDATE public.profiles
   SET
     email = NULL,
-    name = 'Deleted user',
+    full_name = 'Deleted user',
     username = 'deleted_' || left(uid, 8),
     bio = NULL,
     avatar_url = NULL,
@@ -443,59 +480,9 @@ BEGIN
     role = 'Deleted'
   WHERE id = uid;
 
-  DELETE FROM public.social_connections WHERE user_id = uid;
-  DELETE FROM public.notifications WHERE user_id = uid;
-  DELETE FROM public.user_blocks WHERE blocker_id = uid OR blocked_id = uid;
-  DELETE FROM public.captain_waitlist WHERE user_id = uid;
-
-  UPDATE public.feed_posts SET status = 'Removed' WHERE author_id = uid;
-  UPDATE public.media_assets
-  SET status = 'Removed', moderation_status = 'Removed', visibility = 'private'
-  WHERE owner_id = uid;
-
-  UPDATE public.charters SET status = 'Removed' WHERE owner_id = uid;
-  UPDATE public.businesses SET status = 'Removed' WHERE owner_id = uid;
-
-  RETURN jsonb_build_object('ok', true, 'user_id', uid);
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.delete_own_account() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.delete_own_account() TO authenticated;
-
-COMMENT ON FUNCTION public.delete_own_account() IS
-  'FishCrew in-app account wipe. Callers must be signed in. Auth user purge is a follow-up operator step if GoTrue admin is unavailable.';
-
--- Anonymize inquiry PII on account wipe (legal/fraud rows may remain).
-CREATE OR REPLACE FUNCTION public.delete_own_account()
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-DECLARE
-  uid text := (auth.uid())::text;
-BEGIN
-  IF uid IS NULL OR uid = '' THEN
-    RAISE EXCEPTION 'not authenticated';
+  IF to_regclass('public.social_connections') IS NOT NULL THEN
+    EXECUTE 'DELETE FROM public.social_connections WHERE user_id = $1' USING uid;
   END IF;
-
-  INSERT INTO public.account_deletion_requests (id, user_id, status)
-  VALUES ('delete_' || uid || '_' || extract(epoch from now())::bigint, uid, 'Completed')
-  ON CONFLICT DO NOTHING;
-
-  UPDATE public.profiles
-  SET
-    email = NULL,
-    name = 'Deleted user',
-    username = 'deleted_' || left(uid, 8),
-    bio = NULL,
-    avatar_url = NULL,
-    status = 'Deleted',
-    role = 'Deleted'
-  WHERE id = uid;
-
-  DELETE FROM public.social_connections WHERE user_id = uid;
   DELETE FROM public.notifications WHERE user_id = uid;
   DELETE FROM public.user_blocks WHERE blocker_id = uid OR blocked_id = uid;
   DELETE FROM public.captain_waitlist WHERE user_id = uid;
@@ -524,6 +511,15 @@ BEGIN
   RETURN jsonb_build_object('ok', true, 'user_id', uid);
 END;
 $$;
+
+-- Supabase's default privileges grant EXECUTE to anon directly, which REVOKE
+-- ... FROM PUBLIC does not remove.
+REVOKE ALL ON FUNCTION public.delete_own_account() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.delete_own_account() FROM anon;
+GRANT EXECUTE ON FUNCTION public.delete_own_account() TO authenticated;
+
+COMMENT ON FUNCTION public.delete_own_account() IS
+  'FishCrew in-app account wipe. Callers must be signed in. Auth user purge is a follow-up operator step if GoTrue admin is unavailable.';
 
 -- Close leftover public waitlist/report policies from the companion migration.
 DROP POLICY IF EXISTS captain_waitlist_select_own ON public.captain_waitlist;
