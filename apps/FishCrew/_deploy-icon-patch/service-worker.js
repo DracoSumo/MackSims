@@ -1,4 +1,4 @@
-const FISHCREW_SW_VERSION = 'fishcrew-v0.9.1-store-grade';
+const FISHCREW_SW_VERSION = 'fishcrew-v0.9.2-store-grade';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
