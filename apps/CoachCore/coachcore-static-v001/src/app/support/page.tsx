@@ -22,6 +22,15 @@ export default function SupportPage() {
             coachcore7.netlify.app
           </a>
         </p>
+        <p className="mt-6 text-sm text-slate-400">
+          <Link href="/privacy" className="text-sky-300">
+            Privacy
+          </Link>
+          {" · "}
+          <Link href="/terms" className="text-sky-300">
+            Terms
+          </Link>
+        </p>
       </div>
     </main>
   );
