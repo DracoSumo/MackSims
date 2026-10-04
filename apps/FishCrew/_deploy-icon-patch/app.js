@@ -2313,7 +2313,7 @@
     const roleOptions = `<option ${suggestedRole==='Angler'?'selected':''}>Angler</option><option ${suggestedRole==='Captain'?'selected':''}>Captain</option><option ${suggestedRole==='Business'?'selected':''}>Business</option>`;
     const signInFields = `
         <div id="authSignInPanel" data-auth-panel="signin" class="auth-panel ${createMode ? 'hidden' : ''}">
-        <label class="label">Email or username<input id="authSignInIdentity" name="username" class="field" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" enterkeyhint="next" placeholder="email or username" /></label>
+        <label class="label">Email<input id="authSignInIdentity" name="email" type="email" class="field" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" enterkeyhint="next" placeholder="you@example.com" /></label>
         <label class="label">Password<input id="authSignInPassword" name="password" class="field" type="password" autocomplete="current-password" enterkeyhint="done" placeholder="Password" /></label>
         <p class="tiny auth-footnote">Use your email or username.</p>
         <div class="row auth-actions">
@@ -3754,7 +3754,7 @@
     return errors;
   }
 
-  const GENERIC_LOGIN_ERROR = 'Invalid username/email or password.';
+  const GENERIC_LOGIN_ERROR = 'Invalid email or password.';
   const SIGNUP_EMAIL_CONFIRM_MESSAGE = 'Account created. Check your email to confirm your account, then sign in.';
   const SIGNUP_WELCOME_MESSAGE = 'Account created. Welcome to FishCrew.';
   const PASSWORD_RESET_SUCCESS = 'If that email is registered, a password reset link has been sent.';
@@ -3808,13 +3808,9 @@
   }
 
   async function resolveLoginEmail(identity) {
-    // Email identifiers pass through. Username identifiers resolve through a
-    // narrow RPC that returns at most one email for the exact normalized
-    // username - never broad profile rows and never a list of users.
-    if (identity.includes('@')) return identity;
-    const { data, error } = await supabaseClient.rpc('login_identifier_for_username', { candidate: normalizeUsername(identity) });
-    if (error || !data) return null;
-    return String(data).toLowerCase();
+    // Sign-in is by email only. A username -> email lookup anyone can call
+    // lets attackers harvest every account's email, so it was removed.
+    return identity.includes('@') ? identity : null;
   }
 
   async function authSignIn() {
@@ -3826,13 +3822,13 @@
     try {
       const identity = ($('#authSignInIdentity')?.value || '').trim().toLowerCase();
       const password = $('#authSignInPassword')?.value || '';
-      if (!identity || !password) return showAuthError('Enter your username/email and password.');
+      if (!identity || !password) return showAuthError('Enter your email and password.');
       if (CONFIG.USE_SUPABASE) {
         const client = await ensureSupabaseAuthClient();
         if (!client) return showAuthError('Connected sign-in is unavailable right now. Try again in a moment.');
         try {
           const email = await resolveLoginEmail(identity);
-          if (!email) return showAuthError(GENERIC_LOGIN_ERROR);
+          if (!email) return showAuthError('Sign in with your account email (usernames are for your profile only).');
           const { data, error } = await client.auth.signInWithPassword({ email, password });
           if (error || !data?.user) return showAuthError(GENERIC_LOGIN_ERROR);
           await ensureUserFromSupabase(data.user, { name: email.split('@')[0], role: 'Angler', area: 'Tampa Bay' });
