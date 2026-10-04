@@ -2,24 +2,74 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>CoachCore</title>
     <style>
+      :root {
+        color-scheme: dark;
+      }
       body {
-        font-family: system-ui, sans-serif;
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
         display: grid;
         place-items: center;
         min-height: 100vh;
         margin: 0;
-        background: #0b1220;
+        padding: 24px;
+        background: #0a1628;
         color: #f8fafc;
+        box-sizing: border-box;
+      }
+      main {
+        max-width: 22rem;
+        text-align: center;
+      }
+      p {
+        margin: 0 0 1rem;
+        line-height: 1.5;
+        color: #cbd5e1;
+      }
+      .brand {
+        font-size: 1.75rem;
+        font-weight: 900;
+        letter-spacing: -0.02em;
+        margin-bottom: 0.5rem;
+      }
+      a {
+        color: #7dd3fc;
+        font-weight: 700;
       }
     </style>
   </head>
   <body>
-    <p>Loading CoachCore…</p>
+    <main>
+      <div class="brand">CoachCore</div>
+      <p id="status">Loading coach workspace…</p>
+      <p>
+        <a id="open" href="https://coachcore7.netlify.app/app/">Open CoachCore</a>
+      </p>
+    </main>
     <script>
-      location.replace('https://coachcore7.netlify.app/app');
+      (function () {
+        var TARGET = "https://coachcore7.netlify.app/app/";
+        var statusEl = document.getElementById("status");
+        var openEl = document.getElementById("open");
+        openEl.setAttribute("href", TARGET);
+
+        // Prefer navigating the WebView to the production app (trailing slash — no 301).
+        try {
+          location.replace(TARGET);
+        } catch (err) {
+          statusEl.textContent = "Could not auto-open. Tap the link below.";
+        }
+
+        // If still here after a few seconds, show recovery copy (error.html is used for load failures).
+        setTimeout(function () {
+          if (document.visibilityState === "visible") {
+            statusEl.textContent =
+              "Still loading… If nothing appears, check your connection and tap Open CoachCore.";
+          }
+        }, 4000);
+      })();
     </script>
   </body>
 </html>

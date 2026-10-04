@@ -161,7 +161,7 @@ export async function pushSeries(series: Series): Promise<{ series?: Series; err
 
   const { data, error } = await supabase
     .from("series")
-    .insert({ name: series.name, color: series.color })
+    .upsert({ id: series.id, name: series.name, color: series.color }, { onConflict: "id" })
     .select("*")
     .single();
 
@@ -171,6 +171,34 @@ export async function pushSeries(series: Series): Promise<{ series?: Series; err
   }
   setSyncMeta({ lastSyncedAt: new Date().toISOString(), lastError: null });
   return { series: data as Series };
+}
+
+export async function deleteSermonRemote(id: string): Promise<{ error?: string }> {
+  const supabase = await ensureSupabaseClient();
+  if (!supabase || !isSupabaseConfigured()) return { error: "Supabase not configured." };
+  if (!(await getAuthedUser())) return { error: "Sign in to delete cloud sermons." };
+
+  const { error } = await supabase.from("sermons").delete().eq("id", id);
+  if (error) {
+    setSyncMeta({ lastError: error.message });
+    return { error: error.message };
+  }
+  setSyncMeta({ lastSyncedAt: new Date().toISOString(), lastError: null });
+  return {};
+}
+
+export async function deleteSeriesRemote(id: string): Promise<{ error?: string }> {
+  const supabase = await ensureSupabaseClient();
+  if (!supabase || !isSupabaseConfigured()) return { error: "Supabase not configured." };
+  if (!(await getAuthedUser())) return { error: "Sign in to delete cloud series." };
+
+  const { error } = await supabase.from("series").delete().eq("id", id);
+  if (error) {
+    setSyncMeta({ lastError: error.message });
+    return { error: error.message };
+  }
+  setSyncMeta({ lastSyncedAt: new Date().toISOString(), lastError: null });
+  return {};
 }
 
 /** Merge remote library into local; local wins on id conflicts. */
@@ -208,9 +236,13 @@ export async function mergeOnSignIn(
     const series = mergeSeriesList(localSeries, remoteSeries);
 
     const remoteIds = new Set(remoteSermons.map((s) => s.id));
-    const pushResults = await Promise.all(
-      library.filter((s) => s.id && !s.cloudSynced && !remoteIds.has(s.id)).map((s) => pushSermon(s))
-    );
+    const remoteSeriesIds = new Set(remoteSeries.map((s) => s.id));
+    const pushResults = await Promise.all([
+      ...library.filter((s) => s.id && !s.cloudSynced && !remoteIds.has(s.id)).map((s) => pushSermon(s)),
+      ...series
+        .filter((s) => s.id && !(s as Series & { cloudSynced?: boolean }).cloudSynced && !remoteSeriesIds.has(s.id))
+        .map((s) => pushSeries(s)),
+    ]);
     const hadError = pushResults.some((r) => r.error);
 
     setSyncMeta({

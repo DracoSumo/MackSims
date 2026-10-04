@@ -33,11 +33,21 @@ export async function signOut(): Promise<string | null> {
   return error?.message ?? null;
 }
 
-export async function getCurrentUser(): Promise<User | null> {
+export async function getCurrentUser(timeoutMs = 2000): Promise<User | null> {
   const supabase = getSupabaseClient();
   if (!supabase) return null;
-  const { data } = await supabase.auth.getUser();
-  return data.user ?? null;
+
+  try {
+    const result = await Promise.race([
+      supabase.auth.getUser().then(({ data }) => data.user ?? null),
+      new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), timeoutMs);
+      }),
+    ]);
+    return result;
+  } catch {
+    return null;
+  }
 }
 
 export async function exchangeAuthCallbackCode(): Promise<string | null> {

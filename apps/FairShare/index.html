@@ -8,12 +8,33 @@
       content="CurbCue compares rides, spot surge pressure, and helps you choose smarter pickup options before prices jump."
     />
     <meta name="theme-color" content="#007a6e" />
+    <meta name="color-scheme" content="light" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap" rel="stylesheet" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/fairshare-icon.svg" type="image/svg+xml" />
     <title>CurbCue — Know where to ride before you book.</title>
+    <style>
+      /* Boot shell — visible before JS/CSS modules paint (avoids blank WebView). */
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        background: #eef6f4;
+        color: #0c2e36;
+      }
+      #root:empty {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+        font-weight: 700;
+        color: #007a6e;
+      }
+      #root:empty::before {
+        content: "Loading CurbCue…";
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

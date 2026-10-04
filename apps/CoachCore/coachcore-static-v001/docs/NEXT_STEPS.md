@@ -2,140 +2,42 @@
 
 ## Immediate Next Step
 
-Finish **CoachCore v0.4 — Demo Polish + Handoff Docs**.
+Apply **both** Supabase migrations on project `bfqfbkldxbojrrxeidcc`, then redeploy Netlify `coachcore7`:
 
-Required:
+1. `supabase/migrations/20260731210000_coach_scoped_roster_sync.sql`
+2. `supabase/migrations/20260731220000_org_team_bootstrap.sql`
 
-- README.md
-- Product brief
-- Version notes
-- Next steps doc
-- Internal app status page
-- Build check
-- Backup zip lock
+Verify: sign in → Status shows team context + cloud roster counts → Sync now.
 
-## Next Build: v0.5 — Static State Simulation
+## Completed: v0.7.5 — Org / team bootstrap
 
-Goal: Make the static app feel more interactive without backend.
+Done:
 
-Features:
+1. `organizations` / `teams` / `team_members` bootstrap on sign-in (`teamContext.ts`).
+2. Product upserts include `team_id` when context exists (still writes `owner_user_id`).
+3. Soft-fail when org tables are missing — owner-scoped sync keeps working.
+4. Sync now on Profile + Status panels.
 
-1. Add success banners to mock action pages.
-2. Add local component state for mock actions.
-3. Add "Mark Complete" buttons.
-4. Add fake activity timeline.
-5. Add simulated assignment status changes.
-6. Add mock AI generated workout output.
-7. Add mock note saved confirmation.
-8. Add mock meal log submitted confirmation.
+## Completed: v0.7.4 — Coach-scoped cloud sync
 
-No database yet.
+- `athlete_roster` + owner RLS
+- Push/pull roster, assignments, meals, notes on sign-in
 
-## Future Backend Build: v0.6
+## Completed: v0.7.3 — Local roster loop
 
-Potential backend stack:
+- Manual athlete roster + Team add / paste import
+- Check-in, notes, accountability, assign film/workout, nutrition on local stores
 
-- Supabase auth
-- Supabase database
-- Supabase storage for video/image uploads
-- Row-level security
-- Organization/team/role tables
+## Next Build
 
-Core backend tables:
-
-- users
-- organizations
-- teams
-- team_members
-- assignments
-- workouts
-- playbook_items
-- meal_logs
-- video_moments
-- engagement_events
-- coach_notes
-- integrations
-
-## Future Auth Rules
-
-Roles:
-
-- Coach
-- Athlete
-- Parent / Guardian
-- Organization Admin
-- Gym Owner
-- Trainer
-
-Rules:
-
-- Coaches can manage assigned teams.
-- Athletes can only see their teams and assignments.
-- Parents can only see approved youth-athlete information.
-- Admins can manage organization-level teams and settings.
-- Coach notes should be private to authorized staff.
-
-## Future Integrations
-
-Important: Do not connect real integrations until auth, database, and permissions are stable.
-
-Potential integrations:
-
-- Hudl
-- Apple Health
-- Google Health Connect
-- Garmin
-- Fitbit
-- WHOOP
-- Oura
-- Strava
-- TeamSnap
-- MaxPreps
-- Google Calendar
-
-Hudl language must stay careful:
-
-"Supported where API, export, embed, or licensed integration access is available."
-
-## Future Payments
-
-Potential pricing:
-
-- Solo coach
-- Team plan
-- Gym plan
-- School / club plan
-- Organization plan
-
-Do not add payments until:
-
-- Legal pages are drafted
-- Terms/privacy are reviewed
-- Auth and database are stable
-- Beta feedback confirms value
+- Athlete auth accounts linked into `team_members`
+- Multi-team picker when a coach owns more than one team
+- Live partner integrations only after beta sync is stable
 
 ## Safety Rules
 
-Do not touch:
-
-- FishCrew
-- ShutterBid
-- MackSims public-site
-
-Do not add:
-
-- Real credentials
-- Real API keys
-- Real payments
-- Real production deploys
-- Real customer/user data
-
-until explicitly approved.
+Do not add real credentials, payments, or fabricated production athletes.
 
 ## Current Demo URL
 
-Mobile demo:
-
 https://coachcore7.netlify.app
-
-Keep this labeled as a static demo until backend/auth/integrations are intentionally added.

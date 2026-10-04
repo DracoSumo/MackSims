@@ -33,7 +33,7 @@ export default function Home() {
           </div>
 
           <Link
-            href="/app"
+            href="/login"
             className="rounded-full border border-emerald-300/40 px-5 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-300/10"
           >
             Sign In
@@ -65,16 +65,16 @@ export default function Home() {
 
             <div className="mt-8 flex flex-wrap gap-4">
               <Link
-                href="/beta"
+                href="/app"
                 className="rounded-full bg-emerald-400 px-6 py-3 font-bold text-slate-950 shadow-lg shadow-emerald-500/20 hover:bg-emerald-300"
               >
                 Start Demo
               </Link>
               <Link
-                href="/app"
+                href="/beta"
                 className="rounded-full border border-white/15 px-6 py-3 font-bold text-white hover:bg-white/10"
               >
-                Open Dashboard
+                Request beta access
               </Link>
             </div>
           </div>

@@ -87,18 +87,20 @@ export function CrossLinkStrip({ current }: { current?: string }) {
   );
 }
 
+/** Landing / marketing only — never render inside /app after login. */
 export function DemoDisclaimerStrip() {
   return (
     <p className="rounded-[12px] border border-amber-300/25 bg-[rgba(249,115,22,0.12)] px-4 py-3 text-sm leading-6 text-amber-50/95 backdrop-blur-sm">
-      <span className="font-bold">Static demo.</span> {coachCoreConfig.safetyNote}
+      <span className="font-bold">External beta.</span> {coachCoreConfig.safetyNote}
     </p>
   );
 }
 
+/** Landing / status pages only — suppressed in the signed-in coach workspace. */
 export function FoundationNote() {
   return (
     <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 text-sm leading-6 text-slate-400">
-      <span className="font-bold text-slate-200">{coachCoreConfig.version} static demo:</span>{" "}
+      <span className="font-bold text-slate-200">{coachCoreConfig.version}:</span>{" "}
       {coachCoreConfig.safetyNote}
     </div>
   );

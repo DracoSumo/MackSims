@@ -13,6 +13,7 @@ const navItems = [
   { label: "Nutrition", href: "/app/nutrition" },
   { label: "Video", href: "/app/video" },
   { label: "Accountability", href: "/app/accountability" },
+  { label: "Timeline", href: "/app/timeline" },
   { label: "Integrations", href: "/app/integrations" },
   { label: "Profile", href: "/app/profile" },
 ];
@@ -21,8 +22,8 @@ const mobileNavItems = [
   { label: "Home", href: "/app" },
   { label: "Team", href: "/app/team" },
   { label: "Train", href: "/app/training" },
-  { label: "Fuel", href: "/app/nutrition" },
-  { label: "Proof", href: "/app/accountability" },
+  { label: "Chat", href: "/app/chat" },
+  { label: "Profile", href: "/app/profile" },
 ];
 
 function navClass(active: boolean) {
@@ -39,11 +40,15 @@ function mobileNavClass(active: boolean) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const path = (pathname || "").replace(/\/$/, "") || "/";
 
   return (
     <div className="min-h-screen text-white">
       <div className="mx-auto flex min-h-screen max-w-7xl">
-        <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-white/10 bg-[rgba(4,18,30,0.92)] p-6 backdrop-blur-xl lg:flex">
+        <aside
+          className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-white/10 bg-[var(--ms-surface)] p-6 backdrop-blur-xl lg:flex"
+          style={{ paddingTop: "env(safe-area-inset-top)" }}
+        >
           <Link href="/" className="block">
             <p className="text-xs font-bold uppercase tracking-[0.35em] text-teal-300">MackSims</p>
             <h1 className="mt-2 text-2xl font-black tracking-tight">CoachCore</h1>
@@ -54,8 +59,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {navItems.map((item) => {
               const active =
                 item.href === "/app"
-                  ? pathname === "/app"
-                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  ? path === "/app"
+                  : path === item.href || path.startsWith(`${item.href}/`);
               return (
                 <Link key={item.label} href={item.href} className={navClass(active)}>
                   {item.label}
@@ -65,13 +70,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
         </aside>
 
-        <main className="min-w-0 flex-1 pb-[calc(var(--ms-nav-h)+env(safe-area-inset-bottom)+12px)] lg:pb-0">
+        <main className="min-w-0 flex-1 pt-[env(safe-area-inset-top)] pb-[calc(var(--ms-nav-h)+env(safe-area-inset-bottom)+12px)] lg:pb-0">
           <DemoWalkthroughBanner />
           {children}
         </main>
 
         <nav
-          className="fixed inset-x-0 bottom-0 z-50 mx-auto grid max-w-lg grid-cols-5 gap-1 border border-white/10 bg-[rgba(5,25,39,0.96)] px-2 py-2 backdrop-blur-xl lg:hidden"
+          className="fixed inset-x-0 bottom-0 z-50 mx-auto grid max-w-lg grid-cols-5 gap-1 border border-white/10 bg-[var(--ms-surface)] px-2 py-2 backdrop-blur-xl lg:hidden"
           style={{
             marginBottom: "max(8px, env(safe-area-inset-bottom))",
             borderRadius: "14px",
@@ -84,8 +89,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {mobileNavItems.map((item) => {
             const active =
               item.href === "/app"
-                ? pathname === "/app"
-                : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                ? path === "/app"
+                : path === item.href || path.startsWith(`${item.href}/`);
             return (
               <Link key={item.label} href={item.href} className={mobileNavClass(active)}>
                 {item.label}

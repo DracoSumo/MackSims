@@ -4,13 +4,14 @@ import { formatCheckInTime, listCheckIns, saveCheckIn } from "./checkInStore";
 describe("checkInStore", () => {
   beforeEach(() => {
     const store: Record<string, string> = {};
-    vi.stubGlobal("window", {});
-    vi.stubGlobal("localStorage", {
+    const localStorageMock = {
       getItem: (key: string) => store[key] ?? null,
       setItem: (key: string, value: string) => {
         store[key] = value;
       },
-    });
+    };
+    vi.stubGlobal("localStorage", localStorageMock);
+    vi.stubGlobal("window", { localStorage: localStorageMock });
     vi.stubGlobal("crypto", {
       randomUUID: () => "test-uuid",
     });

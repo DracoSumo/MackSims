@@ -1,3 +1,5 @@
+import { localGet, localSet } from "@/lib/safeStorage";
+
 export type CoachActionLog = {
   id: string;
   label: string;
@@ -7,13 +9,19 @@ export type CoachActionLog = {
 
 const STORAGE_KEY = "coachcore.actionLog";
 
-export function listActionLog(): CoachActionLog[] {
-  if (typeof window === "undefined") return [];
+function parseActionLog(raw: string | null): CoachActionLog[] {
+  if (!raw) return [];
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as CoachActionLog[];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? (parsed as CoachActionLog[]) : [];
   } catch {
     return [];
   }
+}
+
+export function listActionLog(): CoachActionLog[] {
+  if (typeof window === "undefined") return [];
+  return parseActionLog(localGet(STORAGE_KEY));
 }
 
 export function logCoachAction(label: string, detail = ""): CoachActionLog {
@@ -24,7 +32,7 @@ export function logCoachAction(label: string, detail = ""): CoachActionLog {
     loggedAt: new Date().toISOString(),
   };
   const existing = listActionLog();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([record, ...existing].slice(0, 40)));
+  localSet(STORAGE_KEY, JSON.stringify([record, ...existing].slice(0, 40)));
   void import("./localDataEvents").then(({ notifyLocalDataChanged }) => notifyLocalDataChanged("actionLog"));
   void import("./supabaseSync").then(({ pushActionLog }) => pushActionLog(record));
   return record;
@@ -35,7 +43,7 @@ export function mergeActionLog(remote: CoachActionLog[]): CoachActionLog[] {
   const local = listActionLog();
   const localIds = new Set(local.map((r) => r.id));
   const merged = [...local, ...remote.filter((r) => !localIds.has(r.id))].slice(0, 40);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+  localSet(STORAGE_KEY, JSON.stringify(merged));
   void import("./localDataEvents").then(({ notifyLocalDataChanged }) => notifyLocalDataChanged("actionLog"));
   return merged;
 }

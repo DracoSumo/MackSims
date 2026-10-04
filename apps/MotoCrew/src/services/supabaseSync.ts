@@ -76,7 +76,11 @@ function loadDraftRides(): DraftRide[] {
 }
 
 function saveDraftRides(drafts: DraftRide[]): void {
-  localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
+  try {
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
+  } catch {
+    // best-effort
+  }
 }
 
 function loadJoinedRideIds(): string[] {
@@ -91,7 +95,11 @@ function loadJoinedRideIds(): string[] {
 }
 
 function saveJoinedRideIds(ids: string[]): void {
-  localStorage.setItem(JOINED_KEY, JSON.stringify(ids));
+  try {
+    localStorage.setItem(JOINED_KEY, JSON.stringify(ids));
+  } catch {
+    // best-effort
+  }
 }
 
 function rowToDraftRide(row: RideDraftRow): DraftRide {
@@ -156,6 +164,19 @@ export async function pushRideDraft(draft: DraftRide): Promise<SyncResult> {
   if (!uid) return "skipped";
 
   const { error } = await supabase.from("ride_drafts").upsert(draftToRow(draft, uid), { onConflict: "id" });
+  const result = error ? "error" : "ok";
+  setSyncMeta({ lastResult: result, lastError: error?.message ?? null });
+  return result;
+}
+
+export async function deleteRideDraft(draftId: string): Promise<SyncResult> {
+  if (!isSupabaseConfigured) return "skipped";
+  const supabase = getSupabaseClient();
+  if (!supabase) return "skipped";
+  const uid = await userId();
+  if (!uid) return "skipped";
+
+  const { error } = await supabase.from("ride_drafts").delete().eq("id", draftId).eq("user_id", uid);
   const result = error ? "error" : "ok";
   setSyncMeta({ lastResult: result, lastError: error?.message ?? null });
   return result;

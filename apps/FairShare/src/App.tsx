@@ -17,7 +17,7 @@ import { fareDataAdapter } from "./adapters";
 import { addRecentSearch, loadSavedComparisons, loadUserSettings, removeSavedComparison, saveComparisonTrip, saveSavedPlace, saveUserSettings, submitCrowdPoll, loadCrowdPolls } from "./lib/storage";
 import { getCurrentUser } from "./lib/auth";
 import { checkSupabaseConnection } from "./lib/supabaseClient";
-import { getSyncDashboard, pushCrowdPoll, pushSavedComparison } from "./lib/supabaseSync";
+import { getSyncDashboard, pushCrowdPoll, pushSavedComparison, deleteSavedComparisonRemote } from "./lib/supabaseSync";
 import {
   APP_NAME,
   APP_SHORT_DESCRIPTION,
@@ -211,17 +211,19 @@ export function App() {
         return <CanyonPage />;
       case "/settings":
         return <SettingsPage onNavigate={navigate} />;
-      case "/auth/callback":
-        return <AuthCallbackScreen onDone={navigate} />;
       case "/":
         return <HomePage navigate={navigate} />;
       default:
         if (HOME_ROUTE_ALIASES.has(rawPath)) {
           return <HomePage navigate={navigate} />;
         }
-        return <HomePage navigate={navigate} />;
+        return <NotFoundPage navigate={navigate} />;
     }
   }, [currentPath, rawPath, locationKey]);
+
+  if (rawPath === "/auth/callback") {
+    return <AuthCallbackScreen onDone={navigate} />;
+  }
 
   return (
     <BetaGate>
@@ -229,6 +231,23 @@ export function App() {
         {page}
       </AppShell>
     </BetaGate>
+  );
+}
+
+function NotFoundPage({ navigate }: { navigate: Navigate }) {
+  return (
+    <div className="page-stack">
+      <section className="page-header">
+        <div>
+          <p className="eyebrow">404</p>
+          <h1>Page not found</h1>
+          <p>That route is not part of this beta build.</p>
+          <button type="button" className="primary-action" onClick={() => navigate("/")}>
+            Home
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -306,7 +325,11 @@ function HomePage({ navigate }: { navigate: Navigate }) {
             </div>
           </div>
         </div>
-        <CrowdMeterCard signal={spotlightSignal} title="CrowdMeter preview" />
+        <CrowdMeterCard
+          signal={spotlightSignal}
+          title="CrowdMeter preview"
+          onOpen={() => navigate("/crowd-meter")}
+        />
       </section>
 
       <section className="panel">
@@ -482,17 +505,29 @@ function ComparePage({ navigate }: { navigate: Navigate }) {
 
   const saveComparison = () => {
     if (!bestValue) return;
+    const provider = getProvider(bestValue.providerId);
     const next = saveComparisonTrip({
       label: `${pickup} → ${dropoff}`,
       pickup,
       dropoff,
       zoneId: selectedZoneId,
       estimateId: bestValue.id,
+      fareLow: bestValue.fareLow,
+      fareHigh: bestValue.fareHigh,
+      providerName: provider?.name,
     });
     setSavedComparisons(next);
     const record = next[0];
     setPendingCloudRecord(record);
-    setSaveMessage("Saved locally on this device.");
+    if (signedIn && isSupabaseConfigured) {
+      void pushSavedComparison(record).then((result) => {
+        if (result === "ok") setSaveMessage("Saved locally and synced to Supabase.");
+        else if (result === "error") setSaveMessage("Saved locally; cloud sync failed — check sign-in and RLS.");
+        else setSaveMessage("Saved locally on this device.");
+      });
+    } else {
+      setSaveMessage("Saved locally on this device.");
+    }
   };
 
   async function saveComparisonToCloud() {
@@ -505,6 +540,11 @@ function ComparePage({ navigate }: { navigate: Navigate }) {
     } else {
       setSaveMessage("Saved locally — sign in and configure Supabase to sync to cloud.");
     }
+  }
+
+  function removeComparison(id: string) {
+    setSavedComparisons(removeSavedComparison(id));
+    void deleteSavedComparisonRemote(id);
   }
   const saveDropoffPlace = () => {
     saveSavedPlace({ label: dropoff, address: dropoff, zoneId: selectedZoneId });
@@ -612,22 +652,42 @@ function ComparePage({ navigate }: { navigate: Navigate }) {
             {savedComparisons.map((comparison) => {
               const estimate = estimates.find((item) => item.id === comparison.estimateId);
               const provider = estimate ? getProvider(estimate.providerId) : undefined;
+              const fareLabel = estimate
+                ? formatFareRange(estimate.fareLow, estimate.fareHigh, market)
+                : comparison.fareLow != null && comparison.fareHigh != null
+                  ? formatFareRange(comparison.fareLow, comparison.fareHigh, market)
+                  : "Re-open trip to refresh fare";
               return (
                 <div className="table-row table-row--compact" key={comparison.id}>
                   <strong>{comparison.label}</strong>
                   <small>
-                    {provider?.name ?? "Saved option"} —{" "}
-                    {estimate ? formatFareRange(estimate.fareLow, estimate.fareHigh, market) : "Re-open trip to refresh fare"}
+                    {provider?.name ?? comparison.providerName ?? "Saved option"} — {fareLabel}
                   </small>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!window.confirm("Remove this saved comparison from this device?")) return;
-                      setSavedComparisons(removeSavedComparison(comparison.id));
-                    }}
-                  >
-                    Remove
-                  </button>
+                  <div className="table-row-actions">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(
+                          buildCompareHref({
+                            pickup: comparison.pickup,
+                            dropoff: comparison.dropoff,
+                            zoneId: comparison.zoneId,
+                          }),
+                        )
+                      }
+                    >
+                      Re-open
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!window.confirm("Remove this saved comparison from this device?")) return;
+                        removeComparison(comparison.id);
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -641,7 +701,13 @@ function ComparePage({ navigate }: { navigate: Navigate }) {
       </section>
 
       <section className="split-layout">
-        {signal && <CrowdMeterCard signal={signal} title="CrowdMeter attached to trip" />}
+        {signal && (
+          <CrowdMeterCard
+            signal={signal}
+            title="CrowdMeter attached to trip"
+            onOpen={() => navigate("/crowd-meter")}
+          />
+        )}
         {currentZone && <PickupSuggestionCard currentZone={currentZone} suggestedZone={suggestedZone} signal={signal} />}
       </section>
 
@@ -843,7 +909,7 @@ function CrowdMeterPage() {
     <div className="page-stack">
       <section className="page-header">
         <div>
-          <p className="eyebrow">CrowdSense layer</p>
+          <p className="eyebrow">CrowdMeter layer</p>
           <h1>CrowdMeter</h1>
           <p>
             Destination-aware crowd, surge, pickup pressure, and demand intelligence for airports, bars, beaches,
@@ -1316,6 +1382,7 @@ function SettingsPage({ onNavigate }: { onNavigate: (href: string) => void }) {
   const [supabasePing, setSupabasePing] = useState("Checking Supabase…");
   const [syncInfo, setSyncInfo] = useState("");
   const [syncTick, setSyncTick] = useState(0);
+  const oauthReady = isSupabaseConfigured;
 
   useEffect(() => {
     checkSupabaseConnection().then((result) => {
@@ -1356,7 +1423,11 @@ function SettingsPage({ onNavigate }: { onNavigate: (href: string) => void }) {
         <div>
           <p className="eyebrow">Account &amp; preferences</p>
           <h1>Settings</h1>
-          <p>Sign in to sync saved trips. Profile fields below save on this device and sync when signed in.</p>
+          <p>
+            {oauthReady
+              ? "Sign in to sync saved trips. Profile fields below save on this device and sync when signed in."
+              : "This beta build runs local-only. Preferences and saved trips stay on this device until Supabase is configured."}
+          </p>
         </div>
       </section>
 
@@ -1364,8 +1435,13 @@ function SettingsPage({ onNavigate }: { onNavigate: (href: string) => void }) {
         <div className="panel">
           <div className="section-heading">
             <p className="eyebrow">Account</p>
-            <h2>Sign in</h2>
+            <h2>{oauthReady ? "Sign in" : "Local-only mode"}</h2>
           </div>
+          {!oauthReady && (
+            <p className="muted">
+              OAuth sign-in is unavailable in this build. Use the profile fields below — everything saves on this device.
+            </p>
+          )}
           <OAuthSignIn />
           <div className="section-heading" style={{ marginTop: "1.5rem" }}>
             <p className="eyebrow">Local profile</p>

@@ -1,5 +1,5 @@
 export const APP_NAME = 'MotoCrew'
-export const VERSION_LABEL = 'v0.2'
+export const VERSION_LABEL = 'v0.3-map'
 export const BUILD_TARGET = 'web'
 export const DEFAULT_MARKET = 'Local Pilot'
 export const APP_TAGLINE = 'Crew up. Check in. Ride home.'
@@ -7,4 +7,4 @@ export const FEEDBACK_EMAIL = 'feedback@macksims.com'
 export const CONCEPT_LINEAGE = 'MotoCrew is the current branding of the Throttle / ThrottleLink concept.'
 export const SAFETY_NOTICE = 'Do not use this app while riding. Set everything up before kickstands-up. Eyes on the road.'
 export const DEMO_NOTICE =
-  'External beta. Ride catalog stays empty until live pack data is connected. Your local drafts and contacts stay on this device.'
+  'External beta. Ride planning, checklists, and local drafts work on this device. Live pack listings, GPS tracking, pack voice, and emergency dispatch are not connected yet.'

@@ -77,26 +77,35 @@ export function OAuthSignIn() {
     );
   }
 
+  if (!configured) {
+    return (
+      <div className="oauth-panel">
+        <p className="subtle-copy">
+          Cloud sign-in is not available in this build. Saved trips and preferences stay on this device only.
+        </p>
+        <p className="muted">Add Supabase URL + anon key at build time to enable Google or GitHub OAuth.</p>
+        {message && <p className="muted">{message}</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="oauth-panel">
-      <p className="subtle-copy">Sign in with Google or GitHub when Supabase is configured.</p>
+      <p className="subtle-copy">Sign in with Google or GitHub to sync saved trips across devices.</p>
       <div className="oauth-actions">
         {providers.map(({ id, label }) => (
           <button
             key={id}
             type="button"
             className="primary-action"
-            disabled={!configured || busy !== null}
-            title={configured ? label : "Supabase not configured"}
+            disabled={busy !== null}
+            title={label}
             onClick={() => handleSignIn(id)}
           >
             {busy === id ? "Redirecting…" : label}
           </button>
         ))}
       </div>
-      {!configured && (
-        <p className="muted">OAuth unavailable until URL + anon key are set at build time.</p>
-      )}
       {message && <p className="muted">{message}</p>}
     </div>
   );

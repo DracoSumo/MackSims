@@ -46,9 +46,9 @@ export function MockActionPage({
             actionLabel={actionLabel ?? title}
             timelineItems={
               timelineItems ?? [
-                "Mock action staged in CoachCore.",
-                "Demo timeline updated locally.",
-                "No backend, database, notification, or external API was used.",
+                "Action saved in CoachCore.",
+                "Activity timeline updated on this device.",
+                "Appears on the accountability board when athletes check in.",
               ]
             }
           />

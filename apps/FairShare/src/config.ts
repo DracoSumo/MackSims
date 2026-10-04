@@ -15,6 +15,12 @@ export const BUILD_TARGET = "web";
 export const VERSION_LABEL = "v0.3";
 export const FEEDBACK_EMAIL = "feedback@macksims.com";
 export const BETA_LABEL = "External Beta";
+
+/**
+ * Wave 2 gate: keep live provider quotes off until Wave 1 external feedback.
+ * Composite adapter stays tariff-model + labeled demo companions only.
+ */
+export const LIVE_FARE_ADAPTER_ENABLED = false;
 /** Set via VITE_SUPABASE_* at build time — project assigned, anon key required to connect. */
 /** Accept VITE_* or NEXT_PUBLIC_* (Netlify currently uses NEXT_PUBLIC_* on all sites). */
 function readSupabaseEnv(name: "URL" | "ANON_KEY"): string {

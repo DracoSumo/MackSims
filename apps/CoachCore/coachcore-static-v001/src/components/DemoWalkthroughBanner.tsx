@@ -1,20 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { isSupabaseConfigured } from "@/config/backend";
 import { enableDemoFixtures } from "@/config/demoFixtures";
 import { coachCoreConfig } from "@/config/coachcore";
+import { useWorkspaceSession } from "@/hooks/useWorkspaceSession";
+import { sessionGet, sessionSet } from "@/lib/safeStorage";
 
 const DISMISS_KEY = "coachcore.demoWalkthroughDismissed";
 
+/**
+ * Tourist banner for visitors who land on /app without a workspace session.
+ * Hidden after sign-in or Enter Demo Dashboard — no filler after login.
+ */
 export function DemoWalkthroughBanner() {
-  const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return sessionStorage.getItem(DISMISS_KEY) === "1";
-  });
+  const { ready, inWorkspace } = useWorkspaceSession();
+  const [dismissed, setDismissed] = useState(false);
 
-  if (dismissed) return null;
+  useEffect(() => {
+    setDismissed(sessionGet(DISMISS_KEY) === "1");
+  }, []);
+
+  if (!ready || inWorkspace || dismissed) return null;
 
   const live = isSupabaseConfigured;
 
@@ -35,8 +43,8 @@ export function DemoWalkthroughBanner() {
         {enableDemoFixtures
           ? "Example roster fixtures are enabled for this build only."
           : live
-            ? "Sign in from Profile to sync check-ins and coach actions. Empty states mean your team data is not imported yet — not fake athletes."
-            : "Set Supabase env vars to enable sign-in. Roster screens stay empty until real team data is connected."}
+            ? "Add athletes on Team, then sign in from Profile to sync roster, check-ins, assignments, meals, and notes. Empty states are not fake athletes."
+            : "Set Supabase env vars to enable sign-in. Add athletes on Team — data stays local until sync is connected."}
       </p>
       <div className="mt-3 flex flex-wrap gap-3 text-xs">
         <Link href={live ? "/login" : "/beta"} className="font-bold text-sky-200 underline">
@@ -46,7 +54,7 @@ export function DemoWalkthroughBanner() {
           type="button"
           className={`font-bold underline ${live ? "text-emerald-100" : "text-amber-100"}`}
           onClick={() => {
-            sessionStorage.setItem(DISMISS_KEY, "1");
+            sessionSet(DISMISS_KEY, "1");
             setDismissed(true);
           }}
         >

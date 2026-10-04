@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { coachCoreConfig } from "@/config/coachcore";
 import "./globals.css";
@@ -18,6 +18,14 @@ export const metadata: Metadata = {
   description: coachCoreConfig.accountabilityDefinition,
 };
 
+export const viewport: Viewport = {
+  themeColor: "#0a1628",
+  colorScheme: "dark",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -28,7 +36,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col bg-[var(--ms-bg)] text-[var(--ms-ink)]">
         {/* Netlify form detection — must be in server-rendered HTML at build time */}
         <form name="coachcore-beta" data-netlify="true" data-netlify-honeypot="bot-field" hidden>
           <input type="hidden" name="form-name" value="coachcore-beta" />
