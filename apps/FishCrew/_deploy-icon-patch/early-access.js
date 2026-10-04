@@ -18,6 +18,16 @@
     return (root || document).querySelector(sel);
   }
 
+  /** Only plain https URLs are ever used in links or window.open (blocks javascript:/data:). */
+  function httpsUrl(value) {
+    try {
+      const url = new URL(String(value || '').trim());
+      return url.protocol === 'https:' ? url.toString() : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
   function safe(value) {
     return String(value ?? '')
       .replace(/&/g, '&amp;')
@@ -302,7 +312,7 @@
         <div class="row">
           ${status === 'waitlist' ? `<button class="btn primary small" type="button" data-action="invite-captain-waitlist" data-waitlist-id="${safe(row.id)}">Invite to listing</button>` : ''}
           ${status === 'invited' ? `<button class="btn success small" type="button" data-action="list-captain-waitlist" data-waitlist-id="${safe(row.id)}">Mark listed</button>` : ''}
-          ${row.website_url || row.websiteUrl ? `<a class="btn dark small" href="${safe(row.website_url || row.websiteUrl)}" target="_blank" rel="noopener">Site</a>` : ''}
+          ${httpsUrl(row.website_url || row.websiteUrl) ? `<a class="btn dark small" href="${safe(httpsUrl(row.website_url || row.websiteUrl))}" target="_blank" rel="noopener noreferrer">Site</a>` : ''}
         </div>
       </article>`;
   }

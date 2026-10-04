@@ -10,6 +10,16 @@
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
   const now = () => new Date().toISOString();
   const uid = (prefix = 'fc') => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+  /** Only plain https URLs are ever used in links or window.open (blocks javascript:/data:). */
+  function httpsUrl(value) {
+    try {
+      const url = new URL(String(value || '').trim());
+      return url.protocol === 'https:' ? url.toString() : '';
+    } catch (_) {
+      return '';
+    }
+  }
   const safe = (value) => String(value ?? '').replace(/[&<>'"]/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
   const shortTime = () => new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const isDataUrl = (v) => typeof v === 'string' && v.startsWith('data:');
@@ -2461,7 +2471,7 @@
       </div>
       <div class="row mt">
         <button class="btn primary" type="button" data-action="open-charter-inquiry" data-charter-id="${safe(listing.id)}">Request this trip</button>
-        ${listing.websiteUrl ? `<a class="btn dark" href="${safe(listing.websiteUrl)}" target="_blank" rel="noopener noreferrer">Captain site</a>` : ''}
+        ${httpsUrl(listing.websiteUrl) ? `<a class="btn dark" href="${safe(httpsUrl(listing.websiteUrl))}" target="_blank" rel="noopener noreferrer">Captain site</a>` : ''}
         ${owner ? `<button class="btn soft" type="button" data-action="open-charter-form" data-charter-id="${safe(listing.id)}">Edit listing</button>` : ''}
         ${listing.ownerId ? `<button class="btn danger" type="button" data-action="block-user" data-user-id="${safe(listing.ownerId)}">Block</button>` : ''}
       </div>`);
@@ -2802,7 +2812,7 @@
     ads.clicks = Number(ads.clicks || 0) + 1;
     state.dockAds = ads;
     save(true);
-    const url = String(el?.dataset?.adUrl || '').trim();
+    const url = httpsUrl(el?.dataset?.adUrl);
     if (url) window.open(url, '_blank', 'noopener,noreferrer');
   }
 

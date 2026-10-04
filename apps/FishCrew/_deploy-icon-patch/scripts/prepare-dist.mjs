@@ -19,6 +19,12 @@ const files = [
   'privacy.html',
   'terms.html',
   'support.html',
+  'account-delete.html',
+  'early-access.html',
+  'early-access.css',
+  'early-access.js',
+  '_redirects',
+  'vendor/supabase-js-2.117.2.js',
   'favicon.svg',
   'favicon-16.png',
   'favicon-32.png',
@@ -33,6 +39,7 @@ for (const file of files) {
     console.warn(`skip missing ${file}`);
     continue;
   }
+  mkdirSync(dirname(join(dist, file)), { recursive: true });
   cpSync(src, join(dist, file));
 }
 
