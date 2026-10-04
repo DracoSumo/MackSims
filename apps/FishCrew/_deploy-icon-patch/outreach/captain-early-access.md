@@ -4,7 +4,7 @@ Use these as copy. Do not scrape charter directories. Do not send bulk email fro
 
 Live: https://fishcrew.macksims.com  
 Waitlist: https://fishcrew.macksims.com/early-access  
-Support: support@fishcrew.app
+Support: support@macksims.com
 
 **What early buy-in means (say this every time):** FishCrew is putting charter discovery in one app. Getting in early means you can be listed first and you help shape the product. It is not a paid boost, not a guaranteed #1 ranking, and not a claim that the app already books trips.
 
@@ -69,7 +69,7 @@ Not a booking desk yet. No invented trip counts.
 
 Scan or type: **fishcrew.macksims.com/early-access**
 
-Questions: support@fishcrew.app
+Questions: support@macksims.com
 
 ---
 

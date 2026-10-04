@@ -34,7 +34,7 @@ FishCrew is an external beta. Weather and maps are planning aids only — confir
 - Not for emergency, navigation, boating, weather, or safety-critical decisions
 
 ## Support
-support@fishcrew.app
+support@macksims.com
 https://fishcrew.macksims.com/support.html
 
 ## Privacy

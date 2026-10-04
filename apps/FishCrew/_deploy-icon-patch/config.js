@@ -20,7 +20,7 @@ window.FISHCREW_CONFIG = {
   ENABLE_SUPABASE_LIVE_CORE: true,
   ENABLE_REALTIME_SYNC: true,
   LIVE_CORE_VERSION: '0.9.2',
-  SUPPORT_EMAIL: 'support@fishcrew.app',
+  SUPPORT_EMAIL: 'support@macksims.com',
   MAX_LOCAL_UPLOAD_MB: 6,
   MAX_IMAGE_UPLOAD_MB: 10,
   MAX_VIDEO_UPLOAD_MB: 50,

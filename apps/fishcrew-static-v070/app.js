@@ -565,7 +565,7 @@
   }
 
   function supportEmail() {
-    return CONFIG.SUPPORT_EMAIL || 'support@fishcrew.app';
+    return CONFIG.SUPPORT_EMAIL || 'support@macksims.com';
   }
 
   function canonicalUrl(path = '') {

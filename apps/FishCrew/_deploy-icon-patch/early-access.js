@@ -133,7 +133,7 @@
           </div>
           <label class="ea-consent"><input id="eaConsent" type="checkbox" /> <span>I agree FishCrew may contact me about an early listing. I understand this is a waitlist, not a live booking desk, and no seats are reserved.</span></label>
           <button class="btn primary full" type="button" data-action="save-captain-early-access">${standalone ? 'Request early listing' : 'Join the captain waitlist'}</button>
-          <p class="tiny">Questions: <a href="mailto:${safe(CONFIG.SUPPORT_EMAIL || 'support@fishcrew.app')}">${safe(CONFIG.SUPPORT_EMAIL || 'support@fishcrew.app')}</a> · ${safe(LIVE_URL)}</p>
+          <p class="tiny">Questions: <a href="mailto:${safe(CONFIG.SUPPORT_EMAIL || 'support@macksims.com')}">${safe(CONFIG.SUPPORT_EMAIL || 'support@macksims.com')}</a> · ${safe(LIVE_URL)}</p>
         </div>
       </div>`;
   }
@@ -264,7 +264,7 @@
     // Shared waitlist rejected the row. Do not pretend it landed: keep the
     // captain in the flow with a route that actually reaches a human.
     toast('Saved on this device only — the shared waitlist did not accept it.', 'danger');
-    const support = window.FISHCREW_CONFIG?.SUPPORT_EMAIL || 'support@fishcrew.app';
+    const support = window.FISHCREW_CONFIG?.SUPPORT_EMAIL || 'support@macksims.com';
     const subject = encodeURIComponent(`FishCrew early listing: ${row.vessel_name || row.name}`);
     const body = encodeURIComponent(minimalPayload.note.split(' | ').concat([`Name: ${row.name}`, `Email: ${row.email}`]).join('\n'));
     const fallbackHost = formRoot && formRoot.nodeType === 1 ? formRoot : $('[data-ea-form]');
