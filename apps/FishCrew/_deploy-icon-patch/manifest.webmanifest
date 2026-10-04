@@ -1,9 +1,9 @@
 {
   "name": "FishCrew",
   "short_name": "FishCrew",
-  "id": "/?v=0.9.4",
+  "id": "/?v=0.9.5",
   "description": "Find fishing charters by water, species, date, and boat. Inquire and rebook.",
-  "start_url": "/?screen=explore&v=0.9.4",
+  "start_url": "/?screen=explore&v=0.9.5",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

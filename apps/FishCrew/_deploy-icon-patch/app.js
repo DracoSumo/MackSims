@@ -930,11 +930,16 @@
     state.businesses = state.businesses || [];
     purgeStaleLocalContent();
     mergeCuratedDirectory();
+    if (state.instagramConnection) delete state.instagramConnection.accessToken;
     const used = new Set();
     state.users.forEach((u) => {
       // Migration: older saved states shipped demo accounts with plaintext
       // passwords. Strip them so demo accounts can never be logged into.
       if (u.demo) delete u.password;
+      // Supabase owns passwords in production; never keep a local copy. Older builds also
+      // saved the Meta access token in localStorage, so scrub that too.
+      if (CONFIG.USE_SUPABASE) delete u.password;
+      if (u.instagramConnection) delete u.instagramConnection.accessToken;
       let base = normalizeUsername(u.username || u.email?.split('@')[0] || u.name || u.id);
       let candidate = base;
       let n = 2;
@@ -4061,11 +4066,16 @@
       return;
     }
     const user = currentUser();
-    const stateToken = `ig_${user.id}_${Date.now().toString(36)}`;
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    const stateToken = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
     try {
       sessionStorage.setItem('fishcrew.ig.oauth.state', stateToken);
       sessionStorage.setItem('fishcrew.ig.oauth.uid', user.id);
-    } catch (_) { /* sessionStorage may be blocked */ }
+    } catch (_) {
+      toast('Instagram connect needs browser storage enabled. Allow site data and try again.', 'danger');
+      return;
+    }
     toast('Opening Meta Instagram connect...');
     window.location.href = buildInstagramOAuthUrl(stateToken);
   }
@@ -4077,11 +4087,17 @@
     return new URLSearchParams(cleaned);
   }
 
+  // The Meta access token lives only in memory for this tab. It is never written to
+  // localStorage or the database, so a stolen backup or leaked row cannot reuse it.
+  let instagramSessionToken = null;
+
   async function storeInstagramConnection(connection) {
     const user = currentUser();
     if (!user) return;
-    user.instagramConnection = connection;
-    state.instagramConnection = connection;
+    const { accessToken, ...publicConnection } = connection;
+    instagramSessionToken = accessToken ? { userId: user.id, token: accessToken, expiresAt: connection.expiresAt } : null;
+    user.instagramConnection = publicConnection;
+    state.instagramConnection = publicConnection;
     save(true);
     if (supabaseClient) {
       try {
@@ -4103,7 +4119,7 @@
           username: connection.username || null,
           provider_user_id: connection.igUserId || null,
           page_id: connection.pageId || null,
-          access_token: connection.accessToken || null,
+          access_token: null,
           expires_at: connection.expiresAt || null,
           updated_at: now()
         }, { onConflict: 'user_id,provider' });
@@ -4145,10 +4161,18 @@
     const accessToken = hashParams.get('access_token');
     const stateToken = hashParams.get('state') || '';
     let expected = '';
-    try { expected = sessionStorage.getItem('fishcrew.ig.oauth.state') || ''; } catch (_) {}
-    if (expected && stateToken && expected !== stateToken) {
-      toast('Instagram connect state mismatch. Try again from Profile.', 'danger');
-      history.replaceState(null, '', location.pathname || '/');
+    let expectedUid = '';
+    try {
+      expected = sessionStorage.getItem('fishcrew.ig.oauth.state') || '';
+      expectedUid = sessionStorage.getItem('fishcrew.ig.oauth.uid') || '';
+      sessionStorage.removeItem('fishcrew.ig.oauth.state');
+      sessionStorage.removeItem('fishcrew.ig.oauth.uid');
+    } catch (_) {}
+    // Strip the token from the address bar before anything else can read or log it.
+    history.replaceState(null, '', location.pathname || '/');
+    const user = currentUser();
+    if (!expected || expected.length < 32 || stateToken !== expected || !user || user.id !== expectedUid) {
+      toast('Instagram connect could not be verified. Start again from Profile.', 'danger');
       return;
     }
 
@@ -4179,12 +4203,15 @@
   async function importInstagramMedia() {
     if (!requireLogin('Sign in to import Instagram media.')) return;
     const connection = currentUser()?.instagramConnection || state.instagramConnection;
-    if (!connection?.accessToken || !connection?.igUserId) {
-      return toast('Connect Instagram first, then import.', 'danger');
+    const session = instagramSessionToken;
+    const sessionValid = session && session.userId === currentUser()?.id
+      && (!session.expiresAt || Date.parse(session.expiresAt) > Date.now());
+    if (!connection?.igUserId || !sessionValid) {
+      return toast('Reconnect Instagram from Profile, then import.', 'warning');
     }
     try {
       const version = CONFIG.META_GRAPH_VERSION || 'v21.0';
-      const res = await fetch(`https://graph.facebook.com/${version}/${encodeURIComponent(connection.igUserId)}/media?fields=id,caption,media_type,media_url,permalink,timestamp&limit=6&access_token=${encodeURIComponent(connection.accessToken)}`);
+      const res = await fetch(`https://graph.facebook.com/${version}/${encodeURIComponent(connection.igUserId)}/media?fields=id,caption,media_type,media_url,permalink,timestamp&limit=6&access_token=${encodeURIComponent(session.token)}`);
       const payload = await res.json();
       if (!res.ok) throw new Error(payload?.error?.message || 'Import failed.');
       const items = (payload.data || []).filter((item) => item.media_url && (item.media_type === 'IMAGE' || item.media_type === 'CAROUSEL_ALBUM'));
@@ -4342,8 +4369,7 @@
             provider: 'meta_instagram_graph',
             username: meta.instagram_username || '',
             igUserId: meta.instagram_user_id || '',
-            connectedAt: meta.instagram_connected_at || now(),
-            accessToken: ''
+            connectedAt: meta.instagram_connected_at || now()
           }
         : undefined
     };
