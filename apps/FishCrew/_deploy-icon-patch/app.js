@@ -3925,6 +3925,23 @@
           if (error?.code === 'user_banned' || /user is banned/i.test(error?.message || '')) {
             return showAuthError(`This account is suspended or banned. Questions: ${supportEmail()}`);
           }
+          // Supabase answers "Email not confirmed" only after the password matched, so naming
+          // it leaks nothing. It used to show as "Invalid email or password", which left new
+          // accounts stuck with no hint that one click in their inbox was all they needed.
+          if (error?.code === 'email_not_confirmed' || /email not confirmed/i.test(error?.message || '')) {
+            let resent = false;
+            try {
+              const { error: resendError } = await client.auth.resend({
+                type: 'signup',
+                email,
+                options: { emailRedirectTo: fishcrewOAuthRedirectUrl() }
+              });
+              resent = !resendError;
+            } catch (_) { /* the original email still works */ }
+            return showAuthError(resent
+              ? `Confirm your email first. We just sent a new link to ${email}; open it, then sign in.`
+              : `Confirm your email first. Open the link we sent to ${email}, then sign in.`);
+          }
           if (error || !data?.user) return showAuthError(GENERIC_LOGIN_ERROR);
           await ensureUserFromSupabase(data.user, { name: email.split('@')[0], role: 'Angler', area: 'Tampa Bay' });
           closeModal();

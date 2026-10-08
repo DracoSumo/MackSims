@@ -99,3 +99,12 @@ test('a customer inquiry no longer writes someone else\'s business row', () => {
   assert.doesNotMatch(body, /\n\s+if \(biz && String\(biz\.id\)\.startsWith\('biz_'\)\) await liveUpsertBusiness/);
   assert.match(fnBody('ensureCharterBusiness'), /localOnly: true/);
 });
+
+test('an unconfirmed email gets told to confirm, not "invalid email or password"', () => {
+  const body = fnBody('authSignIn');
+  const confirmAt = body.indexOf("error?.code === 'email_not_confirmed'");
+  const genericAt = body.indexOf('if (error || !data?.user) return showAuthError(GENERIC_LOGIN_ERROR);');
+  assert.ok(confirmAt > 0 && genericAt > confirmAt, 'unconfirmed check must come before the generic error');
+  assert.match(body, /client\.auth\.resend\(\{\s+type: 'signup'/);
+  assert.match(body, /Confirm your email first/);
+});
