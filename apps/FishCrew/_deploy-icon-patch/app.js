@@ -149,6 +149,9 @@
     banners: [],
     bannerEditId: '',
     bannerDraft: null,
+    charters: [],
+    charterEditId: '',
+    charterDraft: null,
     skipDraftOnce: false,
     log: [],
     loading: false,
@@ -373,6 +376,11 @@
 
   function isCharterKind(kind) {
     return /pro charter|guide service|charter|guide/i.test(String(kind || ''));
+  }
+
+  /** Listed by the operator for a captain who agreed, and not yet claimed by them. */
+  function isManagedListing(listing) {
+    return Boolean(listing) && listing.listingKind === 'managed' && !listing.ownerId;
   }
 
   function unpackCharterCampaign(campaign) {
@@ -1892,7 +1900,7 @@
     return `
       <article class="admin-card captain-card charter-card${listing.curated ? ' captain-card-curated' : ''}${focus ? ' captain-card-focus' : ''}" id="captain-${safe(normalizeUsername(listing.username || listing.id))}" data-charter-id="${safe(listing.id)}">
         ${photo ? `<div class="card-media photo" style="background-image:url('${cssUrl(photo)}')"></div>` : `<div class="card-media media-sketch boat" aria-hidden="true"><span class="sketch-sun"></span><span class="sketch-wave one"></span><span class="sketch-mark"></span></div>`}
-        <span class="badge green">${listing.listingKind === 'partner' ? 'Early partner' : listing.curated ? 'Public listing' : listing.status === 'Pending review' ? 'Pending' : 'Charter'}</span>
+        <span class="badge green">${isManagedListing(listing) ? 'Managed by FishCrew' : listing.listingKind === 'partner' ? 'Early partner' : listing.curated ? 'Public listing' : listing.status === 'Pending review' ? 'Pending' : 'Charter'}</span>
         <h3>${safe(listing.name)}</h3>
         <p class="muted">${safe(listing.captainName && listing.captainName !== listing.name ? `${listing.captainName} ${MID} ` : '')}${safe(listing.area)}${listing.boat ? ` ${MID} ${safe(listing.boat)}` : ''}</p>
         <p class="muted">${safe(listing.bio)}</p>
@@ -2519,7 +2527,8 @@
     modal(`
       <div class="modal-head"><div><span class="eyebrow">Charter</span><h2>${safe(listing.name)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       ${photo ? `<div class="card-media photo charter-hero-photo" style="background-image:url('${cssUrl(photo)}')"></div>` : ''}
-      <p class="muted">${safe(listing.captainName)} ${MID} ${safe(listing.area)}</p>
+      <p class="muted">${isManagedListing(listing) ? 'Managed by FishCrew' : safe(listing.captainName)} ${MID} ${safe(listing.area)}</p>
+      ${isManagedListing(listing) ? '<p class="tiny">The captain agreed to be listed and has not set up their FishCrew account yet. FishCrew passes inquiries straight to them.</p>' : ''}
       <p>${safe(listing.bioLong || listing.bio)}</p>
       ${listing.experience ? `<p class="tiny">${safe(listing.experience)}</p>` : ''}
       <div class="meta">
@@ -2549,8 +2558,10 @@
     const user = currentUser();
     const f = charterFilterState();
     modal(`
-      <div class="modal-head"><div><span class="eyebrow">Inquiry</span><h2>Ask ${safe(listing.captainName || listing.name)}.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
-      <p class="muted">This writes a real lead. Status stays New until the captain marks Contacted, Booked, or Closed.</p>
+      <div class="modal-head"><div><span class="eyebrow">Inquiry</span><h2>Ask ${safe(isManagedListing(listing) ? listing.name : (listing.captainName || listing.name))}.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">${isManagedListing(listing)
+        ? 'This writes a real lead. FishCrew manages this listing for the captain and passes your inquiry to them.'
+        : 'This writes a real lead. Status stays New until the captain marks Contacted, Booked, or Closed.'}</p>
       <div class="forms">
         <input type="hidden" id="inqCharterId" value="${safe(listing.id)}" />
         <div class="form-grid">
@@ -2585,7 +2596,10 @@
       priceTo: listing.priceTo,
       availability: listing.availability,
       websiteUrl: listing.websiteUrl,
-      listingKind: listing.listingKind || 'operator'
+      listingKind: listing.listingKind || 'operator',
+      // Made on this device for the inquiry; it exists on the server only if its
+      // owner saves it, so a customer's inquiry must not point at it.
+      localOnly: true
     };
     state.businesses.unshift(biz);
     return biz.id;
@@ -2621,13 +2635,24 @@
     if (biz) biz.leads = Number(biz.leads || 0) + 1;
     state.opsLog.unshift(`${user.name} inquired on ${listing.name}.`);
     closeModal();
-    await afterLocalWrite('Charter inquiry', async () => {
-      if (biz && String(biz.id).startsWith('biz_')) await liveUpsertBusiness(biz);
+    // Only the listing's owner (or the operator) may write its business row; the
+    // database refuses anyone else, and that refusal used to stop the inquiry itself
+    // from being saved. The inquiry row is all a customer needs to write.
+    const canWriteBiz = Boolean(biz) && (biz.ownerId === user.id || isAdmin());
+    const liveBiz = Boolean(biz) && (!biz.localOnly || canWriteBiz);
+    if (booking.businessId && !liveBiz) booking.businessId = null;
+    const saved = await afterLocalWrite('Charter inquiry', async () => {
+      if (canWriteBiz && liveBiz && await liveUpsertBusiness(biz)) delete biz.localOnly;
       await liveUpsert('bookings', bookingRow(booking), 'booking');
-      if (biz) await liveUpdate('businesses', { lead_count: Number(biz.leads || 0) }, 'id', biz.id, 'business lead count');
+      if (canWriteBiz && liveBiz) await liveUpdate('businesses', { lead_count: Number(biz.leads || 0) }, 'id', biz.id, 'business lead count');
       return true;
     });
-    toast(liveReady() && currentUser() ? 'Inquiry saved. The captain can update status from their inbox.' : 'Inquiry saved on this device. Sign in with shared data to sync.');
+    if (!saved) return;
+    toast(!(liveReady() && currentUser())
+      ? 'Inquiry saved on this device. Sign in with shared data to sync.'
+      : isManagedListing(listing)
+        ? 'Inquiry sent. FishCrew passes it to the captain.'
+        : 'Inquiry saved. The captain can update status from their inbox.');
   }
 
   function openCharterForm(charterId = '') {
@@ -4514,9 +4539,39 @@
       }
     }
     if (persistSession && supabaseClient) {
+      await claimWaitingCharters(user);
       await fetchNotifications();
       startRealtime();
     }
+  }
+
+  /**
+   * Hands over any charter the operator listed for this account's email. The server
+   * only matches a confirmed email (claim_my_charters in 20261010_charter_claims.sql),
+   * so this is safe to call on every sign-in; it is a no-op almost every time.
+   */
+  async function claimWaitingCharters(user) {
+    if (!supabaseClient || !user?.id) return [];
+    let rows = [];
+    try {
+      const { data, error } = await supabaseClient.rpc('claim_my_charters');
+      if (error) return [];
+      rows = Array.isArray(data) ? data : [];
+    } catch (_) {
+      return [];
+    }
+    if (!rows.length) return rows;
+    const local = state.users.find((u) => u.id === user.id);
+    if (local && (!local.role || local.role === 'Angler')) local.role = 'Captain';
+    state.opsLog.unshift(`${user.name || 'Captain'} claimed ${rows.map((r) => r.name).join(', ')}.`);
+    save();
+    try { await pullSupabase({ silent: true, reason: 'charter-claim' }); } catch (_) { /* the next refresh picks it up */ }
+    const names = rows.map((r) => r.name || 'your charter');
+    toast(rows.length === 1
+      ? `${names[0]} is now yours. Edit it from Explore any time.`
+      : `${rows.length} charters are now yours: ${names.join(', ')}.`, 'success');
+    holdToastUntil = Date.now() + 5000;
+    return rows;
   }
 
   async function logout() {
@@ -6786,6 +6841,7 @@ ${url}`).catch(() => {});
     ['reports', 'Reports'],
     ['people', 'People'],
     ['content', 'Content'],
+    ['charters', 'Charters'],
     ['banners', 'Banners'],
     ['log', 'Log']
   ];
@@ -6811,7 +6867,10 @@ ${url}`).catch(() => {});
     user_restriction_lifted: 'Lifted restriction',
     announcement_created: 'Created banner',
     announcement_updated: 'Updated banner',
-    announcement_deleted: 'Deleted banner'
+    announcement_deleted: 'Deleted banner',
+    charter_created: 'Listed charter',
+    charter_updated: 'Edited charter',
+    charter_claimed: 'Captain claimed charter'
   };
 
   function adminErrorText(error) {
@@ -6890,7 +6949,8 @@ ${url}`).catch(() => {});
           adminCache.content = rows;
           adminCache.contentFor = filter;
         }
-      } else if (tab === 'banners') adminCache.banners = await adminSelect('announcements', '*', 50);
+      } else if (tab === 'charters') adminCache.charters = await adminRpc('admin_list_charters') || [];
+      else if (tab === 'banners') adminCache.banners = await adminSelect('announcements', '*', 50);
       else if (tab === 'log') adminCache.log = await adminSelect('admin_events', 'id, actor_id, event_type, target_type, target_id, body, details, created_at', 80);
       if (token === adminLoadToken) adminCache.error = '';
     } catch (error) {
@@ -6936,6 +6996,7 @@ ${url}`).catch(() => {});
     if (type === 'user') return adminPersonName(id);
     if (type === 'report') return 'Report';
     if (type === 'announcement') return 'Banner';
+    if (type === 'charter') return `Charter: ${(adminCache.charters || []).find((c) => c.charter_id === id)?.name || allCharters().find((c) => c.id === id)?.name || id || ''}`;
     return type || '';
   }
 
@@ -6999,13 +7060,17 @@ ${url}`).catch(() => {});
     const typedSearch = $('#adminPeopleSearch');
     if (typedSearch && !options.keepSearch) adminCache.peopleSearch = typedSearch.value;
     if (adminCache.skipDraftOnce) adminCache.skipDraftOnce = false;
-    else captureBannerDraft();
+    else {
+      captureBannerDraft();
+      captureCharterDraft();
+    }
     const previous = $('#modalRoot .modal');
     const scrollTop = previous && !options.resetScroll ? previous.scrollTop : 0;
     const tab = adminCache.tab;
     const body = tab === 'reports' ? adminReportsHtml()
       : tab === 'people' ? adminPeopleHtml()
         : tab === 'content' ? adminContentHtml()
+          : tab === 'charters' ? adminChartersHtml()
           : tab === 'banners' ? adminBannersHtml()
             : tab === 'log' ? adminLogHtml()
               : adminOverviewHtml();
@@ -7199,6 +7264,91 @@ ${url}`).catch(() => {});
       }).join('');
     }
     return `${filters}<div class="stack">${items}</div>`;
+  }
+
+  const CHARTER_FIELDS = [
+    ['name', 'adminCharterName'], ['area', 'adminCharterArea'], ['species', 'adminCharterSpecies'],
+    ['boat', 'adminCharterBoat'], ['trips', 'adminCharterTrips'], ['availability', 'adminCharterAvail'],
+    ['priceFrom', 'adminCharterPriceFrom'], ['priceTo', 'adminCharterPriceTo'], ['site', 'adminCharterSite'],
+    ['bio', 'adminCharterBio'], ['email', 'adminCharterEmail'], ['consent', 'adminCharterConsent'],
+    ['status', 'adminCharterStatus']
+  ];
+
+  /** Keeps a half-typed charter when the console redraws. */
+  function captureCharterDraft() {
+    if (!$('#adminCharterName')) return;
+    const draft = { forId: adminCache.charterEditId || '' };
+    CHARTER_FIELDS.forEach(([key, id]) => { draft[key] = $(`#${id}`)?.value ?? ''; });
+    const blank = !draft.forId && CHARTER_FIELDS.every(([key]) => key === 'status' || !String(draft[key]).trim());
+    adminCache.charterDraft = blank ? null : draft;
+  }
+
+  function charterInviteText(row) {
+    const site = CONFIG.WEB_CANONICAL_URL || 'https://fishcrew.macksims.com/';
+    return [
+      `Hi from FishCrew! ${row.name || 'Your charter'} is now listed on FishCrew, and anglers can already send inquiries.`,
+      `To take it over: open ${site} and tap Create account using ${row.claim_email || 'the email you gave us'}.`,
+      'Confirm the email we send you, then sign in. The listing, and any inquiries so far, move to your account on their own, and you can edit prices, photos and availability.',
+      'Questions? Reply to this message.'
+    ].join('\n\n');
+  }
+
+  function adminChartersHtml() {
+    const rows = adminCache.charters || [];
+    const editing = rows.find((r) => r.charter_id === adminCache.charterEditId) || null;
+    const draft = adminCache.charterDraft && adminCache.charterDraft.forId === (adminCache.charterEditId || '') ? adminCache.charterDraft : null;
+    const pick = (key, fallback) => (draft ? draft[key] : fallback);
+    const v = {
+      name: pick('name', editing?.name || ''),
+      area: pick('area', editing?.area || ''),
+      species: pick('species', editing?.species || ''),
+      boat: pick('boat', editing?.boat_type || ''),
+      trips: pick('trips', editing?.trip_types || ''),
+      availability: pick('availability', editing?.availability_notes || ''),
+      priceFrom: pick('priceFrom', editing?.price_from ?? ''),
+      priceTo: pick('priceTo', editing?.price_to ?? ''),
+      site: pick('site', editing?.website_url || ''),
+      bio: pick('bio', editing?.bio || ''),
+      email: pick('email', editing?.claim_email || ''),
+      consent: pick('consent', editing?.consent_note || ''),
+      status: pick('status', editing?.status === 'Pending review' ? 'Pending review' : 'Verified')
+    };
+    const claimed = Boolean(editing?.owner_id);
+    const form = `<div class="panel admin-charter-form">
+      <h3>${editing ? `Edit ${safe(editing.name)}` : 'List a charter for a captain'}</h3>
+      <p class="tiny">Only list captains who said yes. The listing shows as Managed by FishCrew and its inquiries come to you until the captain creates an account with the email below and confirms it. Then the listing and its inquiries move to them.</p>
+      <div class="forms">
+        <label class="label">Charter name<input id="adminCharterName" class="field" maxlength="80" value="${safe(v.name)}" placeholder="Salty Scales Charter" /></label>
+        <div class="form-grid">
+          <label class="label">Home water<input id="adminCharterArea" class="field" maxlength="80" value="${safe(v.area)}" placeholder="Tampa Bay" /></label>
+          <label class="label">Boat type<input id="adminCharterBoat" class="field" maxlength="80" value="${safe(v.boat)}" placeholder="Bay boat" /></label>
+        </div>
+        <label class="label">Target species<input id="adminCharterSpecies" class="field" maxlength="120" value="${safe(v.species)}" placeholder="Snook, redfish, trout" /></label>
+        <label class="label">Trip types<input id="adminCharterTrips" class="field" maxlength="120" value="${safe(v.trips)}" placeholder="Half-day, full-day" /></label>
+        <label class="label">Availability<input id="adminCharterAvail" class="field" maxlength="120" value="${safe(v.availability)}" placeholder="Weekends, mornings" /></label>
+        <div class="form-grid">
+          <label class="label">Price from ($)<input id="adminCharterPriceFrom" class="field" type="number" inputmode="numeric" min="0" step="1" value="${safe(v.priceFrom)}" placeholder="Leave blank if unknown" /></label>
+          <label class="label">Price to ($)<input id="adminCharterPriceTo" class="field" type="number" inputmode="numeric" min="0" step="1" value="${safe(v.priceTo)}" placeholder="Optional" /></label>
+        </div>
+        <label class="label">Website (https)<input id="adminCharterSite" class="field" type="url" inputmode="url" autocomplete="off" value="${safe(v.site)}" placeholder="https://" /></label>
+        <label class="label">Listing summary<textarea id="adminCharterBio" class="field" maxlength="1000" placeholder="Only what the captain told you or publishes themselves">${safe(v.bio)}</textarea></label>
+        <label class="label">Captain's email (they claim with it)<input id="adminCharterEmail" class="field" type="email" inputmode="email" autocomplete="off" maxlength="254" value="${safe(v.email)}" ${claimed ? 'disabled' : ''} placeholder="captain@example.com" /></label>
+        <label class="label">How they agreed<input id="adminCharterConsent" class="field" maxlength="500" value="${safe(v.consent)}" ${claimed ? 'disabled' : ''} placeholder="Email reply, 24 Aug: welcome to set it up" /></label>
+        <label class="label">Who sees it<select id="adminCharterStatus" class="select"><option value="Verified" ${v.status !== 'Pending review' ? 'selected' : ''}>Public on Explore</option><option value="Pending review" ${v.status === 'Pending review' ? 'selected' : ''}>Hidden draft</option></select></label>
+        <div class="row"><button class="btn primary small" type="button" data-action="admin-save-charter">${editing ? 'Save changes' : 'List charter'}</button>${editing || draft ? '<button class="btn dark small" type="button" data-action="admin-cancel-charter">Clear</button>' : ''}</div>
+      </div>
+    </div>`;
+    const list = rows.map((r) => {
+      const isClaimed = Boolean(r.owner_id);
+      const claimBadge = isClaimed
+        ? `<span class="badge green">Claimed${r.owner_name ? ` by ${safe(r.owner_name)}` : ''}</span>`
+        : r.claim_email ? '<span class="badge orange">Waiting for captain</span>' : '<span class="badge">Captain listed</span>';
+      const visibility = ['Live', 'Verified', 'Directory', 'Approved'].includes(r.status) ? 'Public' : (r.status || 'Hidden');
+      return `<article class="qa-note admin-row" data-admin-charter="${safe(r.charter_id)}"><div class="row">${claimBadge}<span class="chip">${safe(visibility)}</span>${r.area ? `<span class="chip">${safe(r.area)}</span>` : ''}<span class="chip">${safe(Number(r.inquiries || 0))} inquir${Number(r.inquiries || 0) === 1 ? 'y' : 'ies'}</span></div>
+        <p><strong>${safe(r.name)}</strong><br><span class="muted">${isClaimed ? `Claimed ${safe(fmtDay(r.claimed_at))}` : r.claim_email ? `Claim email: ${safe(r.claim_email)}` : 'No claim email'}${r.consent_note ? ` ${MID} Agreed: ${safe(r.consent_note)}` : ''}</span></p>
+        <div class="row"><button class="btn dark small" type="button" data-action="admin-edit-charter" data-charter-id="${safe(r.charter_id)}">Edit</button>${!isClaimed && r.claim_email ? `<button class="btn soft small" type="button" data-action="admin-copy-charter-invite" data-charter-id="${safe(r.charter_id)}">Copy invite</button>` : ''}<button class="btn soft small" type="button" data-action="open-charter-profile" data-charter-id="${safe(r.charter_id)}">View</button></div></article>`;
+    }).join('');
+    return `${form}<div class="stack">${list || `<div class="empty">${adminCache.loading ? 'Loading charters...' : 'No charters yet.'}</div>`}</div>`;
   }
 
   function adminBannersHtml() {
@@ -7464,6 +7614,82 @@ ${url}`).catch(() => {});
     renderAdminConsole();
   }
 
+  function adminCharterNumber(id) {
+    const raw = String($(`#${id}`)?.value ?? '').trim();
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? Math.round(n) : NaN;
+  }
+
+  async function adminSaveCharter() {
+    const editing = (adminCache.charters || []).find((r) => r.charter_id === adminCache.charterEditId) || null;
+    const name = ($('#adminCharterName')?.value || '').trim();
+    const email = ($('#adminCharterEmail')?.value || '').trim();
+    const consent = ($('#adminCharterConsent')?.value || '').trim();
+    const siteRaw = ($('#adminCharterSite')?.value || '').trim();
+    const priceFrom = adminCharterNumber('adminCharterPriceFrom');
+    const priceTo = adminCharterNumber('adminCharterPriceTo');
+    if (!name) return toast('Add the charter name first.', 'danger');
+    if (!editing && !email) return toast('Add the captain\'s email so they can claim it.', 'danger');
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast('That email does not look right.', 'danger');
+    if (!editing && consent.length < 3) return toast('Note how the captain agreed to be listed.', 'danger');
+    const site = siteRaw ? httpsUrl(siteRaw) : '';
+    if (siteRaw && !site) return toast('Website must start with https://', 'danger');
+    if (Number.isNaN(priceFrom) || Number.isNaN(priceTo)) return toast('Prices must be whole dollar amounts.', 'danger');
+    if (priceFrom != null && priceTo != null && priceTo < priceFrom) return toast('Price to must be at least price from.', 'danger');
+    await adminRun(async () => {
+      await adminRpc('admin_save_managed_charter', {
+        p_id: adminCache.charterEditId || '',
+        p_name: name,
+        p_area: ($('#adminCharterArea')?.value || '').trim(),
+        p_species: ($('#adminCharterSpecies')?.value || '').trim(),
+        p_boat_type: ($('#adminCharterBoat')?.value || '').trim(),
+        p_trip_types: ($('#adminCharterTrips')?.value || '').trim(),
+        p_availability: ($('#adminCharterAvail')?.value || '').trim(),
+        p_price_from: priceFrom,
+        p_price_to: priceTo,
+        p_website_url: site,
+        p_bio: ($('#adminCharterBio')?.value || '').trim(),
+        p_claim_email: editing?.owner_id ? '' : email,
+        p_consent_note: editing?.owner_id ? '' : consent,
+        p_status: $('#adminCharterStatus')?.value === 'Pending review' ? 'Pending review' : 'Verified'
+      });
+      adminCache.charterEditId = '';
+      adminCache.charterDraft = null;
+      adminCache.skipDraftOnce = true;
+      toast(editing ? 'Charter saved.' : 'Charter listed. Copy the invite and send it to the captain.');
+      try { await pullSupabase({ silent: true, reason: 'admin-charter' }); } catch (_) { /* Explore refreshes on its own */ }
+    });
+  }
+
+  function adminEditCharter(id) {
+    adminCache.charterEditId = id || '';
+    adminCache.charterDraft = null;
+    adminCache.skipDraftOnce = true;
+    renderAdminConsole({ resetScroll: true });
+  }
+
+  function adminClearCharter() {
+    adminCache.charterEditId = '';
+    adminCache.charterDraft = null;
+    adminCache.skipDraftOnce = true;
+    renderAdminConsole();
+  }
+
+  async function adminCopyCharterInvite(id) {
+    const row = (adminCache.charters || []).find((r) => r.charter_id === id);
+    if (!row) return;
+    const text = charterInviteText(row);
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Invite copied. Paste it into a text or email to the captain.');
+    } catch (_) {
+      modal(`<div class="modal-head"><div><span class="eyebrow">Invite</span><h2>Send this to the captain</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+        <textarea class="field" rows="9" readonly>${safe(text)}</textarea>
+        <p class="tiny">Copy it from the box, then reopen the admin console.</p>`);
+    }
+  }
+
   const ACTIONS = {
     go: (el) => { const screen = el.dataset.screen; if (el.closest('.modal')) { if (modalMode === 'tutorial') { state.onboardingSeen = true; save(); } closeModal(); } nav(screen); },
     nav: (el) => { const screen = el.dataset.screen; if (el.closest('.modal')) closeModal(); nav(screen); },
@@ -7646,6 +7872,10 @@ ${url}`).catch(() => {});
     'admin-moderate': (el) => adminModerate(el),
     'admin-content-filter': (el) => switchAdminContent(el.dataset.filter),
     'admin-save-banner': () => adminSaveBanner(),
+    'admin-save-charter': () => adminSaveCharter(),
+    'admin-edit-charter': (el) => adminEditCharter(el.dataset.charterId),
+    'admin-cancel-charter': () => adminClearCharter(),
+    'admin-copy-charter-invite': (el) => adminCopyCharterInvite(el.dataset.charterId),
     'admin-edit-banner': (el) => adminEditBanner(el.dataset.bannerId),
     'admin-cancel-banner': () => adminClearBanner(),
     'admin-toggle-banner': (el) => adminToggleBanner(el),

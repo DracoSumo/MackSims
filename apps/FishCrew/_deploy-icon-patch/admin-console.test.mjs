@@ -7,7 +7,10 @@ import test from 'node:test';
 const root = dirname(fileURLToPath(import.meta.url));
 const appJs = readFileSync(join(root, 'app.js'), 'utf8');
 const indexHtml = readFileSync(join(root, 'index.html'), 'utf8');
-const migration = readFileSync(join(root, 'supabase/migrations/20261008_admin_console.sql'), 'utf8');
+// Admin functions live in the 0.9.6 console migration and later ones (charters in 0.9.8).
+const migration = ['20261008_admin_console.sql', '20261010_charter_claims.sql']
+  .map((file) => readFileSync(join(root, 'supabase/migrations', file), 'utf8'))
+  .join('\n');
 
 function fnBody(name) {
   const start = Math.max(appJs.indexOf(`async function ${name}(`), appJs.indexOf(`function ${name}(`));
