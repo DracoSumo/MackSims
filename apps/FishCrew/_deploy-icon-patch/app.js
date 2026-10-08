@@ -128,6 +128,29 @@
   let lastHandledAt = 0;
   let lastHandledAction = '';
   let scrollLockY = 0;
+  // Admin console data: fetched fresh from the server, never saved to this device.
+  let adminCache = {
+    tab: 'overview',
+    stats: null,
+    reports: [],
+    reportFilter: 'open',
+    people: [],
+    peopleSearch: '',
+    peopleOffset: 0,
+    peopleDone: false,
+    contentFilter: 'trips',
+    contentFor: '',
+    content: [],
+    banners: [],
+    bannerEditId: '',
+    bannerDraft: null,
+    skipDraftOnce: false,
+    log: [],
+    loading: false,
+    error: ''
+  };
+  let adminLoadToken = 0;
+  let adminBusy = false;
 
 
   function wikiFile(name) {
@@ -317,8 +340,16 @@
     return false;
   }
 
+  /** Trips the operator hid (or removed) stay off every public board, for the operator too. */
+  function isModeratedTrip(trip) {
+    return ['Hidden', 'Removed', 'Deleted'].includes(String(trip?.status || ''));
+  }
+
+  /** Public trip boards: moderated trips left out, operator-featured trips first. */
   function publicTrips() {
-    return (state.trips || []).filter((t) => !isAuditListing(t));
+    return (state.trips || [])
+      .filter((t) => !isAuditListing(t) && !isModeratedTrip(t))
+      .sort((a, b) => Number(Boolean(b.adminFeatured)) - Number(Boolean(a.adminFeatured)));
   }
 
   function directoryCaptains() {
@@ -1373,7 +1404,7 @@
     return `
       <article class="trip-card">
         ${mediaBlock(trip, trip.type === 'Pier' ? 'pier' : 'boat')}
-        <div class="row">${scoreBadge(trip.score)} ${trip.urgent ? '<span class="badge orange">Last-minute</span>' : ''} ${trip.adminFeatured ? '<span class="chip">Featured</span>' : ''} <span class="chip">${safe(trip.type)}</span> <span class="chip">${safe(trip.status)}</span></div>
+        <div class="row">${scoreBadge(trip.score)} ${trip.urgent ? '<span class="badge orange">Last-minute</span>' : ''} ${trip.adminFeatured ? '<span class="chip">Featured</span>' : ''} ${isModeratedTrip(trip) ? '<span class="badge red">Hidden by FishCrew</span>' : ''} <span class="chip">${safe(trip.type)}</span> <span class="chip">${safe(trip.status)}</span></div>
         <h3>${safe(trip.title)}</h3>
         <p class="muted">${safe(trip.area)} ${MID} ${safe(trip.time)}</p>
         <div class="meta">
@@ -1957,6 +1988,18 @@
       </section>`;
   }
 
+  function chatBubble(m) {
+    const viewer = currentUser();
+    const mine = Boolean(viewer && viewer.id === m.senderId);
+    const hidden = Boolean(m.hiddenAt);
+    let tools = '';
+    if (m.senderId !== 'system') {
+      if (isAdmin()) tools = adminModerateButton('message', m.id, hidden ? 'restore' : 'hide', hidden ? 'Restore' : 'Hide', 'dark');
+      else if (viewer && !mine) tools = `<button class="bubble-link" type="button" data-action="report-content" data-target-type="message" data-target-id="${safe(m.id)}">Report</button>`;
+    }
+    return `<div class="bubble ${mine ? 'mine' : ''} ${hidden ? 'is-hidden' : ''}"><strong>${safe(m.senderName)}${hidden ? ` ${MID} hidden` : ''}</strong>${safe(m.body)}${tools ? `<span class="bubble-tools">${tools}</span>` : ''}</div>`;
+  }
+
   function renderCrewBody(visibleTrips, reqs, trip) {
     if (state.crewPanel === 'requests') {
       return `<div class="grid">${reqs.map((r) => {
@@ -1969,8 +2012,10 @@
       if (!trip) return `<div class="empty">No active trip selected.</div>`;
       const member = isTripCrewMember(trip);
       const messages = member ? (state.messages[trip.id] || []) : [];
+      // Messages an operator hid stay visible (dimmed) to operators only.
+      const shownMessages = isAdmin() ? messages : messages.filter((m) => !m.hiddenAt);
       const chatLog = member
-        ? `<div class="chat-log">${messages.map((m) => `<div class="bubble ${currentUser()?.id === m.senderId ? 'mine' : ''}"><strong>${safe(m.senderName)}</strong>${safe(m.body)}</div>`).join('')}</div>`
+        ? `<div class="chat-log">${shownMessages.map((m) => chatBubble(m)).join('')}</div>`
         : `<div class="safe-note mt"><strong>Crew chat locked:</strong> Messages stay private until the host approves you.</div>`;
       const chatComposer = member
         ? `<div class="chat-form"><input id="chatInput" name="chat-message" class="field" autocomplete="off" enterkeyhint="send" placeholder="Message the crew" /><button class="btn primary" type="button" data-action="send-chat" data-trip-id="${safe(trip.id)}">Send</button></div>`
@@ -2153,8 +2198,16 @@
   }
 
   function renderAdminOnlyProfileControls() {
+    const s = adminCache.stats;
+    const consoleSummary = s
+      ? `${safe(s.reports_open || 0)} open reports ${MID} ${safe(s.media_pending || 0)} media to review ${MID} ${safe(s.users_total || 0)} people`
+      : 'Reports, people, trips, posts, chat, banners, and a log of every admin action.';
     return `<section class="section admin-only-controls">
       <div class="section-head"><div><span class="eyebrow">Operator tools</span><h2>Operations controls</h2></div><div class="row"><button class="btn dark small" type="button" data-action="open-store-readiness">Store readiness</button><button class="btn dark small" type="button" data-action="open-backend-help">Connections</button></div></div>
+      <div class="panel admin-console-entry">
+        <div><span class="eyebrow">Admin console</span><h3>Run FishCrew from your phone.</h3><p class="muted">${consoleSummary}</p></div>
+        <div class="row"><button class="btn primary small" type="button" data-action="open-admin-console">Open admin console</button><button class="btn dark small" type="button" data-action="open-admin-console" data-tab="reports">Reports</button><button class="btn dark small" type="button" data-action="open-admin-console" data-tab="people">People</button><button class="btn dark small" type="button" data-action="open-admin-console" data-tab="banners">Banners</button></div>
+      </div>
       <div class="grid three">
         <div class="panel"><h3>Data connection</h3><p class="muted">${state.backendMode === 'supabase' ? 'Shared data is configured.' : 'Browser data is active. Shared data can be connected when ready.'}</p><div class="row"><button class="btn soft small" type="button" data-action="check-backend">Check</button><button class="btn dark small" type="button" data-action="pull-supabase">Pull</button><button class="btn dark small" type="button" data-action="sync-supabase">Push</button></div></div>
         <div class="panel"><h3>Launch checks</h3><p class="muted">${safe(state.supabasePrep?.releaseGate || 'Not run yet.')}</p><button class="btn primary small" type="button" data-action="run-release-gate">Run checks</button></div>
@@ -2230,7 +2283,7 @@
     const deletionRequests = (state.accountDeletionRequests || []).length;
     const blockedCount = (state.blockedUsers || []).length;
     const deviceStatus = state.deviceHub?.lastFix ? formatGpsFix(state.deviceHub) : (state.deviceHub?.source || 'No device connected');
-    return `<section class="section"><div class="section-head"><div><span class="eyebrow">Bridge</span><h2>Operations console</h2></div><button class="btn primary small" type="button" data-action="run-ops">Run morning ops</button></div>
+    return `<section class="section"><div class="section-head"><div><span class="eyebrow">Bridge</span><h2>Operations console</h2></div><div class="row">${isAdmin() ? '<button class="btn soft small" type="button" data-action="open-admin-console">Admin console</button>' : ''}<button class="btn primary small" type="button" data-action="run-ops">Run morning ops</button></div></div>
       <div class="grid three">
         <div class="admin-card"><span class="badge">Bookings</span><h3>${state.bookings.length}</h3><p class="muted">Charter, cruise, and trip inquiries.</p><div class="row"><button class="btn dark small" type="button" data-action="open-business-leads">Inbox</button><button class="btn soft small" type="button" data-action="open-booking-form">Add</button></div></div>
         <div class="admin-card"><span class="badge orange">Moderation</span><h3>${openReports}</h3><p class="muted">Reports, media reviews, and removed-content audit.</p><div class="row"><button class="btn dark small" type="button" data-action="open-moderation">Queue</button><button class="btn soft small" type="button" data-action="open-admin-audit">Audit</button></div></div>
@@ -2248,6 +2301,7 @@
 
   function render() {
     hydrateHeader();
+    renderAnnouncementBanner();
     const screen = state.activeScreen || 'home';
     // Only rebuild the active screen â€” inactive screens keep prior DOM (social-app sticky feel).
     const renderers = {
@@ -2781,6 +2835,7 @@
 
   function openTripForm() {
     if (!requireLogin('Sign in to post trips, catches, photos, shop updates, charter openings, or cruise opportunities.')) return;
+    if (blockIfRestricted()) return;
     const captainDefaults = isBusinessRole();
     const titlePlaceholder = captainDefaults ? '2 seats open â€” Sunday morning reef window' : 'Saturday inshore crew needed';
     modal(`
@@ -2801,6 +2856,7 @@
 
   function openFeedForm(type = 'Crew Recap') {
     if (!requireLogin('Sign in to post photos, videos, GIFs, and catch reports.')) return;
+    if (blockIfRestricted()) return;
     modal(`
       <div class="modal-head"><div><span class="eyebrow">Feed</span><h2>Post proof.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       <div class="forms">
@@ -3043,7 +3099,7 @@
       <div class="modal-head"><div><span class="eyebrow">Profile</span><h2>Edit your fishing card.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       <div class="forms">
         <div class="form-grid"><label class="label">Name<input id="editName" name="name" class="field" autocomplete="name" value="${safe(u.name)}" /></label><label class="label">Username<input id="editUsername" name="username" class="field" autocomplete="username" autocapitalize="none" spellcheck="false" value="${safe(u.username || normalizeUsername(u.name))}" /></label></div>
-        <div class="form-grid"><label class="label">Role<select id="editRole" class="select"><option ${u.role==='Angler'?'selected':''}>Angler</option><option ${u.role==='Captain'?'selected':''}>Captain</option><option ${u.role==='Business'?'selected':''}>Business</option><option value="Admin" ${u.role==='Admin'?'selected':''}>Operator</option></select></label><label class="label">Home water<input id="editArea" name="address-level2" class="field" autocomplete="address-level2" value="${safe(u.area)}" /></label></div>
+        <div class="form-grid"><label class="label">Role<select id="editRole" class="select"><option ${u.role==='Angler'?'selected':''}>Angler</option><option ${u.role==='Captain'?'selected':''}>Captain</option><option ${u.role==='Business'?'selected':''}>Business</option>${u.role === 'Admin' ? `<option value="Admin" selected>Operator</option>` : ''}</select></label><label class="label">Home water<input id="editArea" name="address-level2" class="field" autocomplete="address-level2" value="${safe(u.area)}" /></label></div>
         <label class="label">Bio<textarea id="editBio" name="profile-bio" class="field" autocomplete="off" placeholder="Tell crews how you fish.">${safe(u.bio || '')}</textarea></label>
         <label class="label">Fishing style<input id="editStyles" name="fishing-style" class="field" autocomplete="off" placeholder="Inshore, pier, kayak, charter" value="${safe(u.fishingStyles || '')}" /></label>
         <label class="label">Profile theme<select id="editTheme" class="select"><option ${u.profileTheme==='Harbor Blue'?'selected':''}>Harbor Blue</option><option ${u.profileTheme==='Seafoam'?'selected':''}>Seafoam</option><option ${u.profileTheme==='Sunrise'?'selected':''}>Sunrise</option><option ${u.profileTheme==='Dockside'?'selected':''}>Dockside</option><option ${u.profileTheme==='Mangrove'?'selected':''}>Mangrove</option></select></label>
@@ -3551,7 +3607,7 @@
       ? `<button class="settings-tile" type="button" data-action="go" data-screen="profile"><b>Profile card</b><span>Edit your public fishing card.</span></button><button class="settings-tile" type="button" data-action="logout"><b>Log out</b><span>Leave this local session.</span></button>`
       : `<button class="settings-tile" type="button" data-action="open-auth-signin"><b>Sign in</b><span>Use your existing FishCrew profile.</span></button><button class="settings-tile" type="button" data-action="open-auth-create"><b>Create profile</b><span>Join trips, chat, and post proof.</span></button>`;
     const adminTools = isAdmin()
-      ? `<section class="settings-card"><div class="settings-section-head"><span class="eyebrow">Operator tools</span><h3>System utilities</h3></div><div class="settings-grid compact"><button class="settings-tile" type="button" data-action="run-health-check"><b>Health check</b><span>Routes, IDs, and button wiring.</span></button><button class="settings-tile" type="button" data-action="run-readiness-check"><b>Readiness board</b><span>Connections and launch prep.</span></button><button class="settings-tile" type="button" data-action="open-backend-diagnostics"><b>Data connection</b><span>Sync, probes, and realtime tools.</span></button></div></section>`
+      ? `<section class="settings-card"><div class="settings-section-head"><span class="eyebrow">Operator tools</span><h3>System utilities</h3></div><div class="settings-grid compact"><button class="settings-tile" type="button" data-action="open-admin-console"><b>Admin console</b><span>Reports, people, content, banners.</span></button><button class="settings-tile" type="button" data-action="run-health-check"><b>Health check</b><span>Routes, IDs, and button wiring.</span></button><button class="settings-tile" type="button" data-action="run-readiness-check"><b>Readiness board</b><span>Connections and launch prep.</span></button><button class="settings-tile" type="button" data-action="open-backend-diagnostics"><b>Data connection</b><span>Sync, probes, and realtime tools.</span></button></div></section>`
       : '';
     modal(`<div class="modal-head settings-modal-head"><div><span class="eyebrow">Settings</span><h2>FishCrew control ring.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       <div class="settings-menu">
@@ -3835,6 +3891,9 @@
           const email = await resolveLoginEmail(identity);
           if (!email) return showAuthError('Sign in with your account email (usernames are for your profile only).');
           const { data, error } = await client.auth.signInWithPassword({ email, password });
+          if (error?.code === 'user_banned' || /user is banned/i.test(error?.message || '')) {
+            return showAuthError(`This account is suspended or banned. Questions: ${supportEmail()}`);
+          }
           if (error || !data?.user) return showAuthError(GENERIC_LOGIN_ERROR);
           await ensureUserFromSupabase(data.user, { name: email.split('@')[0], role: 'Angler', area: 'Tampa Bay' });
           closeModal();
@@ -4375,6 +4434,30 @@
     };
     if (!user.instagramConnection) delete user.instagramConnection;
     if (user.instagramConnection?.username) state.instagramConnection = { ...(state.instagramConnection || {}), ...user.instagramConnection };
+    // Once a profile row exists it is the source of truth. Sign-in used to
+    // overwrite it from the sign-up metadata, which undid profile edits and
+    // role changes made by the operator.
+    let existingProfile = null;
+    if (syncProfile && persistSession && supabaseClient) {
+      try {
+        const { data: row, error: readError } = await supabaseClient
+          .from('profiles')
+          .select('id, username, full_name, role, status, home_area, avatar_url, bio, fishing_styles, profile_theme')
+          .eq('id', authUser.id)
+          .maybeSingle();
+        if (!readError && row) existingProfile = row;
+      } catch (_) { /* fall back to the sign-up metadata */ }
+    }
+    if (existingProfile) {
+      user.name = existingProfile.full_name || user.name;
+      user.username = existingProfile.username || user.username;
+      user.role = existingProfile.role || user.role;
+      user.area = existingProfile.home_area || user.area;
+      user.avatar = existingProfile.avatar_url || user.avatar;
+      user.bio = existingProfile.bio || user.bio;
+      user.fishingStyles = existingProfile.fishing_styles || user.fishingStyles;
+      user.profileTheme = existingProfile.profile_theme || user.profileTheme;
+    }
     const idx = state.users.findIndex((u) => u.id === user.id || (Boolean(user.email) && u.email === user.email));
     if (idx >= 0) state.users[idx] = { ...state.users[idx], ...user };
     else state.users.push(user);
@@ -4389,7 +4472,7 @@
       }
       save(); render();
     }
-    if (syncProfile && persistSession && supabaseClient) {
+    if (syncProfile && persistSession && supabaseClient && !existingProfile) {
       try {
         const profileRow = () => ({
           id: user.id,
@@ -4436,6 +4519,7 @@
       await supabaseClient.auth.signOut().catch(() => {});
     }
     state.session = null;
+    state.restriction = null;
     state.notifications = [];
     state.notificationsLoading = false;
     state.notificationsFetchError = '';
@@ -4737,15 +4821,29 @@
 
   async function liveInsertModeration(report) {
     if (!report || !(await canWriteLive())) return false;
-    const { error } = await supabaseClient.from('moderation_items').insert({
+    const target = String(report.target || '');
+    const targetType = report.targetType || '';
+    const base = {
       id: report.id,
       item_type: report.type,
-      title: report.note || report.type,
+      title: String(report.note || report.type).slice(0, 200),
       severity: report.severity || 'Low',
       status: report.status || 'Open',
       reporter_id: report.reporterId || currentUser()?.id || null,
-      feed_post_id: report.target?.startsWith('feed') ? report.target : null
+      feed_post_id: targetType === 'feed' || (!targetType && target.startsWith('feed')) ? target : null,
+      target_user_id: report.targetUserId || null,
+      reason_code: report.reason || null,
+      details: report.details ? String(report.details).slice(0, 2000) : null
+    };
+    let { error } = await supabaseClient.from('moderation_items').insert({
+      ...base,
+      target_type: targetType || null,
+      target_id: targetType ? target : null
     });
+    // Before the admin-console database update, moderation_items has no target_type/target_id.
+    if (error && /target_type|target_id|schema cache/i.test(error.message || '')) {
+      ({ error } = await supabaseClient.from('moderation_items').insert(base));
+    }
     if (error) throw new Error(`moderation: ${error.message}`);
     return true;
   }
@@ -4892,6 +4990,7 @@
 
   async function saveProfile() {
     if (!requireLogin()) return;
+    if (blockIfRestricted()) return;
     const user = currentUser();
     const typedUsername = $('#editUsername')?.value.trim() || '';
     if (typedUsername) {
@@ -4948,6 +5047,7 @@
 
   async function saveTrip() {
     if (!requireLogin()) return;
+    if (blockIfRestricted()) return;
     const file = getFile('tripMedia');
     let uploaded = { url: '', type: '' };
     let mediaReview = autoModerateMedia(file, 'trips');
@@ -5002,6 +5102,7 @@
 
   async function saveFeedPost() {
     if (!requireLogin()) return;
+    if (blockIfRestricted()) return;
     const file = getFile('feedMedia');
     let uploaded = { url: '', type: '' };
     let mediaReview = autoModerateMedia(file, 'feed');
@@ -5209,6 +5310,7 @@
     const trip = state.trips.find((t) => t.id === tripId);
     if (!trip) return toast('Trip not found.', 'danger');
     if (!requireLogin('Sign in to request a spot and unlock chat after the host approves you.')) return;
+    if (blockIfRestricted()) return;
     const user = currentUser();
     if (String(trip.status || 'Open') !== 'Open' || Number(trip.spots || 0) <= 0) return toast('This trip is closed for new requests.', 'danger');
     if (trip.members?.includes(user.id)) {
@@ -5348,6 +5450,7 @@
 
   async function sendChat(tripId) {
     if (!requireLogin('Sign in to message the crew.')) return;
+    if (blockIfRestricted()) return;
     const trip = state.trips.find((t) => t.id === tripId);
     const user = currentUser();
     if (!trip) return;
@@ -5368,14 +5471,26 @@
     if (!trip) return;
     const user = currentUser();
     const unlocked = isTripCrewMember(trip, user);
+    const hiddenNote = isModeratedTrip(trip)
+      ? `<div class="safe-note"><strong>Hidden by FishCrew.</strong> ${isAdmin() ? 'Only the host and operators can see this trip.' : `This trip is not shown on the board. Questions: ${safe(supportEmail())}`}</div>`
+      : '';
+    const operatorTools = isAdmin()
+      ? `<div class="row mt admin-trip-tools"><span class="eyebrow">Operator</span>${trip.adminFeatured ? adminModerateButton('trip', trip.id, 'unfeature', 'Unfeature', 'dark') : adminModerateButton('trip', trip.id, 'feature', 'Feature on the board', 'soft')}${isModeratedTrip(trip) ? adminModerateButton('trip', trip.id, 'restore', 'Restore trip', 'success') : adminModerateButton('trip', trip.id, 'hide', 'Hide trip', 'danger', 'Hide this trip from everyone?')}</div>`
+      : '';
+    const reportButton = user && trip.hostId !== user.id && !isAdmin()
+      ? `<button class="btn dark" type="button" data-action="report-content" data-target-type="trip" data-target-id="${safe(trip.id)}">Report</button>`
+      : '';
+    modalMode = 'trip-details';
     modal(`
       <div class="modal-head"><div><span class="eyebrow">Trip details</span><h2>${safe(trip.title)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      ${hiddenNote}
       ${mediaBlock(trip, trip.type === 'Pier' ? 'pier' : 'boat')}
       <div class="row">${scoreBadge(trip.score)}<span class="chip">${safe(trip.type)}</span><span class="chip">${safe(trip.spots)} spots</span></div>
       <p class="lead">${safe(trip.publicLocation)} ${MID} ${safe(trip.time)}</p>
       <div class="condition-strip"><div class="stat"><span>Wind</span><strong>${safe(trip.wind)}</strong></div><div class="stat"><span>Waves</span><strong>${safe(trip.waves)}</strong></div><div class="stat"><span>Tide</span><strong>${safe(trip.tide)}</strong></div><div class="stat"><span>Water</span><strong>${safe(trip.water || '?')}</strong></div></div>
       <p class="mt"><strong>Private meetup:</strong> ${unlocked ? safe(trip.privateLocation) : 'Locked until host approval.'}</p>
-      <div class="row"><button class="btn primary" type="button" data-action="request-trip" data-trip-id="${safe(trip.id)}">Request spot</button><button class="btn dark" type="button" data-action="open-trip-chat" data-trip-id="${safe(trip.id)}">Crew chat</button><button class="btn dark" type="button" data-action="open-map" data-area="${safe(trip.area)}">Map area</button>${(user && (trip.hostId === user.id || isAdmin())) ? `<button class="btn soft" type="button" data-action="share-trip" data-trip-id="${safe(trip.id)}">Invite</button><button class="btn soft" type="button" data-action="open-host-controls" data-trip-id="${safe(trip.id)}">Host controls</button>` : ''}</div>`);
+      <div class="row"><button class="btn primary" type="button" data-action="request-trip" data-trip-id="${safe(trip.id)}">Request spot</button><button class="btn dark" type="button" data-action="open-trip-chat" data-trip-id="${safe(trip.id)}">Crew chat</button><button class="btn dark" type="button" data-action="open-map" data-area="${safe(trip.area)}">Map area</button>${(user && (trip.hostId === user.id || isAdmin())) ? `<button class="btn soft" type="button" data-action="share-trip" data-trip-id="${safe(trip.id)}">Invite</button><button class="btn soft" type="button" data-action="open-host-controls" data-trip-id="${safe(trip.id)}">Host controls</button>` : ''}${reportButton}</div>
+      ${operatorTools}`);
   }
 
   function openTripChat(tripId) {
@@ -5456,13 +5571,88 @@ ${url}`).catch(() => {});
     copy(); toast('Share caption copied.');
   }
 
-  async function reportFeed(feedId) {
+  function reportFeed(feedId) {
     if (!requireLogin('Sign in to report posts and keep the feed clean.')) return;
-    const post = state.feed.find((p) => p.id === feedId);
-    if (!post) return toast('Post not found.', 'danger');
-    const report = queueModeration('User report', post.id, `Reported feed post: ${post.title}`);
-    await afterLocalWrite('User report', async () => liveInsertModeration(report));
-    toast('Report sent for review.');
+    openReportForm('feed', feedId);
+  }
+
+  const REPORT_REASONS = [
+    ['spam', 'Spam or scam'],
+    ['harassment', 'Harassment or hate'],
+    ['unsafe', 'Unsafe or illegal activity'],
+    ['inappropriate', 'Inappropriate photo or language'],
+    ['other', 'Something else']
+  ];
+
+  /** The message object itself (not a copy) plus the trip it belongs to. */
+  function findMessage(messageId) {
+    for (const [tripId, list] of Object.entries(state.messages || {})) {
+      const message = (list || []).find((m) => m.id === messageId);
+      if (message) return { message, tripId };
+    }
+    return null;
+  }
+
+  function reportTargetInfo(type, id) {
+    if (type === 'trip') {
+      const trip = (state.trips || []).find((t) => t.id === id);
+      return trip ? { label: 'trip', title: trip.title, ownerId: trip.hostId } : null;
+    }
+    if (type === 'message') {
+      const found = findMessage(id);
+      return found ? { label: 'crew message', title: String(found.message.body || '').slice(0, 120), ownerId: found.message.senderId } : null;
+    }
+    if (type === 'feed') {
+      const post = (state.feed || []).find((p) => p.id === id);
+      return post ? { label: 'post', title: post.title, ownerId: post.authorId } : null;
+    }
+    return null;
+  }
+
+  function openReportForm(type, id) {
+    if (!requireLogin('Sign in to report content and keep FishCrew safe.')) return;
+    const info = reportTargetInfo(type, id);
+    if (!info) return toast('That item is no longer available.', 'danger');
+    if (info.ownerId && info.ownerId === currentUser()?.id) return toast('That is your own post.', 'danger');
+    modalMode = 'report';
+    modal(`<div class="modal-head"><div><span class="eyebrow">Report</span><h2>Report this ${safe(info.label)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">&ldquo;${safe(info.title)}&rdquo;</p>
+      <div class="forms">
+        <label class="label">What is wrong?<select id="reportReason" class="select">${REPORT_REASONS.map(([value, label]) => `<option value="${value}">${safe(label)}</option>`).join('')}</select></label>
+        <label class="label">Details (optional)<textarea id="reportDetails" class="field" maxlength="1000" placeholder="Anything that helps us review it"></textarea></label>
+        <p class="tiny">Reports go to the FishCrew team, who review them and remove content that breaks the community rules. The person is not told who reported them. You can also block them.</p>
+        <button class="btn primary full" type="button" data-action="save-report" data-target-type="${safe(type)}" data-target-id="${safe(id)}">Send report</button>
+      </div>`);
+  }
+
+  async function saveReport(el) {
+    const user = currentUser();
+    if (!user) return requireLogin();
+    const type = el?.dataset?.targetType || '';
+    const id = el?.dataset?.targetId || '';
+    const info = reportTargetInfo(type, id);
+    if (!info) return toast('That item is no longer available.', 'danger');
+    const reason = $('#reportReason')?.value || 'other';
+    const details = ($('#reportDetails')?.value || '').trim().slice(0, 1000);
+    const report = {
+      id: uid('rep'),
+      type: 'User report',
+      target: id,
+      targetType: type,
+      targetUserId: info.ownerId || '',
+      status: 'Open',
+      severity: ['unsafe', 'harassment'].includes(reason) ? 'High' : reason === 'spam' ? 'Medium' : 'Low',
+      note: `Reported ${info.label}: ${info.title}`.slice(0, 200),
+      reason,
+      details,
+      reporterId: user.id,
+      createdAt: now()
+    };
+    state.reports = state.reports || [];
+    state.reports.unshift(report);
+    closeModal();
+    await afterLocalWrite('Report', async () => liveInsertModeration(report));
+    toast('Thanks. Your report is with the FishCrew team.');
   }
 
   async function blockUser(userId) {
@@ -5894,7 +6084,12 @@ ${url}`).catch(() => {});
           supabaseClient.from('bookings').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT)
         ]);
         if (generation !== pullGeneration) return;
-        const errors = [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes].map((r) => r.error).filter(Boolean);
+        // Guests (and anyone signed out) are not allowed to read crew-only tables. Those
+        // answers come back as "permission denied" and simply leave that board as it was;
+        // any other error still stops the pull.
+        const errors = [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes]
+          .map((r) => r.error)
+          .filter((e) => e && !isPermissionError(e));
         if (errors.length) throw errors[0];
         if (profilesRes.data?.length) {
           const sessionUser = currentUser();
@@ -5919,7 +6114,9 @@ ${url}`).catch(() => {});
           state.users = [...localDemo, ...merged.filter((u) => !localDemo.some((d) => d.id === u.id))];
           if (sessionUser && !state.users.some((u) => u.id === sessionUser.id)) state.users.push(sessionUser);
         }
-        if (tripsRes.data?.length) {
+        // An empty answer is real (for example, the operator hid the last trip), except
+        // when sample content is loaded on purpose.
+        if (Array.isArray(tripsRes.data) && (tripsRes.data.length || !state.demoContentLoaded)) {
           const privateByTrip = Object.fromEntries((privateDetailsRes.data || []).map((d) => [d.trip_id, d.private_location]));
           state.trips = tripsRes.data.map((t) => ({
             id: t.id,
@@ -5942,6 +6139,7 @@ ${url}`).catch(() => {});
             water: 'Live',
             media: t.media_url || '',
             mediaModerationStatus: t.media_moderation_status || (t.media_url ? 'Approved' : 'Approved'),
+            adminFeatured: Boolean(t.featured),
             members: [],
             createdAt: t.created_at || now()
           }));
@@ -5958,14 +6156,14 @@ ${url}`).catch(() => {});
         if (requestsRes.data?.length) {
           state.requests = requestsRes.data.map((r) => ({ id: r.id, tripId: r.trip_id, userId: r.requester_id, userName: r.requester_name || state.users.find((u) => u.id === r.requester_id)?.name || 'FishCrew user', message: r.message || '', status: r.status || 'Pending', createdAt: r.created_at || now() }));
         }
-        if (messagesRes.data?.length) {
+        if (Array.isArray(messagesRes.data) && (messagesRes.data.length || !state.demoContentLoaded)) {
           state.messages = {};
           messagesRes.data.forEach((m) => {
             if (!state.messages[m.trip_id]) state.messages[m.trip_id] = [];
-            state.messages[m.trip_id].push({ id: m.id, senderId: m.sender_id, senderName: m.sender_name || 'FishCrew user', body: m.body || '', createdAt: m.created_at || now() });
+            state.messages[m.trip_id].push({ id: m.id, senderId: m.sender_id, senderName: m.sender_name || 'FishCrew user', body: m.body || '', createdAt: m.created_at || now(), hiddenAt: m.hidden_at || null });
           });
         }
-        if (Array.isArray(feedRes.data) && feedRes.data.length) {
+        if (Array.isArray(feedRes.data) && (feedRes.data.length || !state.demoContentLoaded)) {
           state.feed = feedRes.data.map((p) => ({ id: p.id, type: p.post_type || 'Catch Log', title: p.title, area: p.area || 'Local water', authorId: p.author_id, authorName: p.author_name || state.users.find((u) => u.id === p.author_id)?.name || 'FishCrew user', body: p.body || '', media: p.media_url || '', mediaType: p.media_type || 'emoji', artKind: p.media_url ? '' : 'catch', reactions: Number(p.reactions || 0), status: p.status || 'Live', createdAt: p.created_at || now() }));
         }
         if (Array.isArray(mediaRes.data)) {
@@ -5997,7 +6195,7 @@ ${url}`).catch(() => {});
           });
         }
         if (reportsRes.data?.length) {
-          state.reports = reportsRes.data.map((r) => ({ id: r.id, type: r.item_type || 'Review', target: r.feed_post_id || r.id, status: r.status || 'Open', severity: r.severity || 'Low', note: r.title || 'Moderation item', reporterId: r.reporter_id || '', createdAt: r.created_at || now() }));
+          state.reports = reportsRes.data.map((r) => ({ id: r.id, type: r.item_type || 'Review', target: r.target_id || r.feed_post_id || r.id, targetType: r.target_type || (r.feed_post_id ? 'feed' : ''), targetUserId: r.target_user_id || '', status: r.status || 'Open', severity: r.severity || 'Low', note: r.title || 'Moderation item', reason: r.reason_code || '', details: r.details || '', reporterId: r.reporter_id || '', createdAt: r.created_at || now() }));
         }
         if (businessesRes.data?.length) {
           state.businesses = businessesRes.data.map((b) => hydrateBusinessListing({
@@ -6036,6 +6234,7 @@ ${url}`).catch(() => {});
           }));
         }
         await pullCharterTables(generation);
+        await Promise.all([refreshAnnouncements({ quiet: true }), refreshOwnRestriction()]);
         await fetchNotifications();
         if (generation !== pullGeneration) return;
         mergeCuratedDirectory();
@@ -6414,6 +6613,828 @@ ${url}`).catch(() => {});
     save(); render(); openNotifications(); toast('Notifications marked read.');
   }
 
+  /* ------------------------------------------------------------ Banners and restrictions
+   * Everyone sees the operator's live announcement banner. A suspended or banned account
+   * sees why it cannot post (sign-in is also refused on the server until the end date).
+   */
+  function isPermissionError(error) {
+    return Boolean(error) && (error.code === '42501' || /permission denied/i.test(String(error.message || '')));
+  }
+
+  function fmtWhen(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
+  function fmtDay(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  /** 'YYYY-MM-DD' in local time, for <input type="date">. */
+  function localDateInput(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  async function refreshAnnouncements(options = {}) {
+    if (!supabaseClient) return;
+    try {
+      const { data, error } = await supabaseClient
+        .from('announcements')
+        .select('id, title, body, link_url, level, active, starts_at, ends_at')
+        .order('starts_at', { ascending: false })
+        .limit(10);
+      if (error) return; // offline, or the database update is not in yet
+      state.announcements = (data || []).map((a) => ({
+        id: a.id,
+        title: a.title || '',
+        body: a.body || '',
+        link: httpsUrl(a.link_url || ''),
+        level: ['info', 'alert', 'promo'].includes(a.level) ? a.level : 'info',
+        active: a.active !== false,
+        startsAt: a.starts_at || null,
+        endsAt: a.ends_at || null
+      }));
+      if (!options.quiet) {
+        save();
+        renderAnnouncementBanner();
+      }
+    } catch (_) { /* banners are optional */ }
+  }
+
+  function liveAnnouncement() {
+    const t = Date.now();
+    const dismissed = new Set(state.dismissedAnnouncements || []);
+    return (state.announcements || []).find((a) => a.active
+      && (!a.startsAt || Date.parse(a.startsAt) <= t)
+      && (!a.endsAt || Date.parse(a.endsAt) > t)
+      && !dismissed.has(a.id)) || null;
+  }
+
+  function dismissAnnouncement(id) {
+    if (!id) return;
+    state.dismissedAnnouncements = Array.from(new Set([...(state.dismissedAnnouncements || []), id])).slice(-50);
+    save();
+    renderAnnouncementBanner();
+  }
+
+  async function refreshOwnRestriction() {
+    const user = currentUser();
+    if (!supabaseClient || !user) {
+      state.restriction = null;
+      return;
+    }
+    try {
+      const { data, error } = await supabaseClient
+        .from('user_restrictions')
+        .select('status, restricted_until')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (error) return;
+      const active = data && (!data.restricted_until || Date.parse(data.restricted_until) > Date.now());
+      state.restriction = active ? { userId: user.id, status: data.status, until: data.restricted_until || null } : null;
+    } catch (_) { /* keep what we had */ }
+  }
+
+  function activeRestriction() {
+    const r = state.restriction;
+    const user = currentUser();
+    if (!r || !user || (r.userId && r.userId !== user.id)) return null;
+    if (r.until && Date.parse(r.until) <= Date.now()) return null;
+    return r;
+  }
+
+  function restrictionText(r) {
+    return r.status === 'Banned'
+      ? 'This account is banned from posting on FishCrew.'
+      : `This account is suspended until ${fmtWhen(r.until)}.`;
+  }
+
+  /** True (and explains why) when the signed-in account may not post right now. */
+  function blockIfRestricted() {
+    const r = activeRestriction();
+    if (!r) return false;
+    toast(`${restrictionText(r)} You can still browse, report, and delete your account.`, 'danger');
+    return true;
+  }
+
+  function renderAnnouncementBanner() {
+    const el = $('#announceBanner');
+    if (!el) return;
+    const r = activeRestriction();
+    const a = r ? null : liveAnnouncement();
+    if (!r && !a) {
+      el.hidden = true;
+      el.className = 'announce-banner hidden';
+      el.innerHTML = '';
+      return;
+    }
+    if (r) {
+      el.className = 'announce-banner level-alert';
+      el.innerHTML = `<div><strong>${safe(restrictionText(r))}</strong><p>You can still browse, report, block, and delete your account. Questions: ${safe(supportEmail())}</p></div>`;
+    } else {
+      el.className = `announce-banner level-${safe(a.level)}`;
+      el.innerHTML = `<div><strong>${safe(a.title)}</strong>${a.body ? `<p>${safe(a.body)}</p>` : ''}${a.link ? `<a href="${safe(a.link)}" target="_blank" rel="noopener noreferrer">Learn more</a>` : ''}</div><button class="beta-dismiss" type="button" data-action="dismiss-announcement" data-announcement-id="${safe(a.id)}" aria-label="Dismiss announcement">&times;</button>`;
+    }
+    el.hidden = false;
+  }
+
+  /* ------------------------------------------------------------------- Admin console
+   * Operator-only tools backed by the admin_* database functions in
+   * supabase/migrations/20261008_admin_console.sql. The server checks is_admin() on
+   * every call; keeping these screens away from other accounts is only cosmetic.
+   */
+  const ADMIN_TABS = [
+    ['overview', 'Overview'],
+    ['reports', 'Reports'],
+    ['people', 'People'],
+    ['content', 'Content'],
+    ['banners', 'Banners'],
+    ['log', 'Log']
+  ];
+  const ADMIN_PAGE_SIZE = 40;
+  const ADMIN_EVENT_LABELS = {
+    trip_hidden: 'Hid trip',
+    trip_restored: 'Restored trip',
+    trip_featured: 'Featured trip',
+    trip_unfeatured: 'Unfeatured trip',
+    feed_removed: 'Removed post',
+    feed_restored: 'Restored post',
+    feed_approved: 'Approved post',
+    message_hidden: 'Hid message',
+    message_restored: 'Restored message',
+    media_approved: 'Approved media',
+    media_rejected: 'Rejected media',
+    report_resolved: 'Resolved report',
+    report_dismissed: 'Dismissed report',
+    report_reopened: 'Reopened report',
+    user_role_changed: 'Changed role',
+    user_suspended: 'Suspended account',
+    user_banned: 'Banned account',
+    user_restriction_lifted: 'Lifted restriction',
+    announcement_created: 'Created banner',
+    announcement_updated: 'Updated banner',
+    announcement_deleted: 'Deleted banner'
+  };
+
+  function adminErrorText(error) {
+    const msg = String(error?.message || error || 'Request failed.');
+    if (/could not find the function|schema cache|does not exist/i.test(msg)) return 'The admin tools need the latest FishCrew database update.';
+    if (/admin only|permission denied/i.test(msg)) return 'Operator access required.';
+    return msg;
+  }
+
+  async function adminClient() {
+    if (!isAdmin()) throw new Error('Operator access required.');
+    if (!supabaseClient) await checkBackend();
+    if (!supabaseClient || !(await canWriteLive())) throw new Error('Sign in with your operator account to use the admin tools.');
+    return supabaseClient;
+  }
+
+  async function adminRpc(fn, args = {}) {
+    const client = await adminClient();
+    const { data, error } = await client.rpc(fn, args);
+    if (error) throw new Error(adminErrorText(error));
+    return data;
+  }
+
+  async function adminSelect(table, columns, limit = 60) {
+    const client = await adminClient();
+    const { data, error } = await client.from(table).select(columns).order('created_at', { ascending: false }).limit(limit);
+    if (error) throw new Error(adminErrorText(error));
+    return data || [];
+  }
+
+  function adminConsoleOpen() {
+    return modalMode === 'admin' && Boolean($('#modalRoot .admin-console'));
+  }
+
+  function openAdminConsole(tab = '') {
+    if (!requireAdmin('Operator access required for the admin console.')) return;
+    if (tab && ADMIN_TABS.some(([id]) => id === tab)) adminCache.tab = tab;
+    modalMode = 'admin';
+    renderAdminConsole({ force: true, resetScroll: true });
+    loadAdminTab(adminCache.tab);
+    if (adminCache.tab !== 'overview') refreshAdminStats();
+  }
+
+  function switchAdminTab(tab, filter = '') {
+    if (!ADMIN_TABS.some(([id]) => id === tab)) return;
+    if (tab === 'content' && filter) adminCache.contentFilter = filter;
+    if (!adminConsoleOpen()) return openAdminConsole(tab);
+    adminCache.tab = tab;
+    adminCache.error = '';
+    renderAdminConsole({ resetScroll: true });
+    loadAdminTab(tab);
+  }
+
+  async function refreshAdminStats() {
+    try {
+      adminCache.stats = await adminRpc('admin_stats');
+      renderAdminConsole();
+    } catch (_) { /* the overview tab shows the error when opened */ }
+  }
+
+  async function loadAdminTab(tab = adminCache.tab, options = {}) {
+    const token = ++adminLoadToken;
+    if (!options.quiet) {
+      adminCache.loading = true;
+      adminCache.error = '';
+      renderAdminConsole();
+    }
+    try {
+      if (tab === 'overview') adminCache.stats = await adminRpc('admin_stats');
+      else if (tab === 'reports') adminCache.reports = await adminSelect('moderation_items', '*', 120);
+      else if (tab === 'people') await loadAdminPeople(true, Boolean(options.quiet));
+      else if (tab === 'content') {
+        const filter = adminCache.contentFilter;
+        const rows = await loadAdminContent(filter);
+        if (filter === adminCache.contentFilter) {
+          adminCache.content = rows;
+          adminCache.contentFor = filter;
+        }
+      } else if (tab === 'banners') adminCache.banners = await adminSelect('announcements', '*', 50);
+      else if (tab === 'log') adminCache.log = await adminSelect('admin_events', 'id, actor_id, event_type, target_type, target_id, body, details, created_at', 80);
+      if (token === adminLoadToken) adminCache.error = '';
+    } catch (error) {
+      if (token === adminLoadToken) adminCache.error = adminErrorText(error);
+    } finally {
+      if (token === adminLoadToken) adminCache.loading = false;
+      renderAdminConsole();
+    }
+  }
+
+  /** reset: start from the top. keepCount: reload as many rows as are showing (after an action). */
+  async function loadAdminPeople(reset = false, keepCount = false) {
+    const offset = reset ? 0 : adminCache.peopleOffset;
+    const limit = reset && keepCount ? Math.min(500, Math.max(ADMIN_PAGE_SIZE, (adminCache.people || []).length)) : ADMIN_PAGE_SIZE;
+    const rows = await adminRpc('admin_list_users', { p_search: adminCache.peopleSearch || '', p_limit: limit, p_offset: offset });
+    const list = Array.isArray(rows) ? rows : [];
+    adminCache.people = reset ? list : [...adminCache.people, ...list];
+    adminCache.peopleOffset = offset + list.length;
+    adminCache.peopleDone = list.length < limit;
+  }
+
+  function loadAdminContent(filter) {
+    if (filter === 'posts') return adminSelect('feed_posts', 'id, title, body, author_id, author_name, status, media_url, created_at');
+    if (filter === 'messages') return adminSelect('trip_messages', 'id, trip_id, sender_id, sender_name, body, hidden_at, created_at');
+    if (filter === 'media') return adminSelect('media_assets', 'id, owner_id, source_id, source_type, media_type, public_url, status, moderation_status, created_at');
+    return adminSelect('trip_posts', 'id, title, host_id, status, featured, area, start_label, created_at');
+  }
+
+  function adminPersonName(userId) {
+    if (!userId) return 'Unknown';
+    const local = (state.users || []).find((u) => u.id === userId);
+    if (local) return `${local.name || 'FishCrew user'}${local.username ? ` @${local.username}` : ''}`;
+    const listed = (adminCache.people || []).find((p) => p.user_id === userId);
+    if (listed) return `${listed.full_name || 'No profile'}${listed.username ? ` @${listed.username}` : ''}`;
+    return `User ${String(userId).slice(0, 8)}`;
+  }
+
+  function adminTargetLabel(type, id) {
+    if (type === 'trip') return `Trip: ${(state.trips || []).find((t) => t.id === id)?.title || id || ''}`;
+    if (type === 'feed') return `Post: ${(state.feed || []).find((p) => p.id === id)?.title || id || ''}`;
+    if (type === 'message') return 'Crew message';
+    if (type === 'media') return 'Media upload';
+    if (type === 'user') return adminPersonName(id);
+    if (type === 'report') return 'Report';
+    if (type === 'announcement') return 'Banner';
+    return type || '';
+  }
+
+  function adminTabCount(id) {
+    const s = adminCache.stats;
+    if (!s) return '';
+    const n = id === 'reports' ? Number(s.reports_open || 0) : id === 'content' ? Number(s.media_pending || 0) : 0;
+    return n ? ` (${n})` : '';
+  }
+
+  function adminModerateButton(targetType, targetId, op, label, tone = 'dark', confirmText = '') {
+    return `<button class="btn ${tone} small" type="button" data-action="admin-moderate" data-target-type="${safe(targetType)}" data-target-id="${safe(targetId)}" data-op="${safe(op)}"${confirmText ? ` data-confirm="${safe(confirmText)}"` : ''}>${safe(label)}</button>`;
+  }
+
+  /**
+   * Destructive admin buttons need a second tap within 4 seconds. Taps that arrive
+   * within 350 ms are the same tap (pointerup followed by click) and are ignored.
+   */
+  function confirmTap(el, prompt = 'Tap again to confirm') {
+    const armedAt = Number(el.dataset.confirmAt || 0);
+    const elapsed = Date.now() - armedAt;
+    if (armedAt && elapsed < 350) return false;
+    if (armedAt && elapsed < 4000) {
+      delete el.dataset.confirmAt;
+      el.classList.remove('confirming');
+      if (el.dataset.label) el.textContent = el.dataset.label;
+      return true;
+    }
+    if (!el.dataset.label) el.dataset.label = el.textContent;
+    el.dataset.confirmAt = String(Date.now());
+    el.textContent = `${prompt} Tap again.`;
+    el.classList.add('confirming');
+    setTimeout(() => {
+      if (!el.isConnected || !el.dataset.confirmAt || Date.now() - Number(el.dataset.confirmAt) < 4000) return;
+      delete el.dataset.confirmAt;
+      el.classList.remove('confirming');
+      el.textContent = el.dataset.label;
+    }, 4100);
+    return false;
+  }
+
+  /** Keeps a half-typed banner when the console redraws (after a load or another action). */
+  function captureBannerDraft() {
+    if (!$('#adminBannerTitle')) return;
+    const draft = {
+      forId: adminCache.bannerEditId || '',
+      title: $('#adminBannerTitle')?.value || '',
+      body: $('#adminBannerBody')?.value || '',
+      link: $('#adminBannerLink')?.value || '',
+      level: $('#adminBannerLevel')?.value || 'info',
+      ends: $('#adminBannerEnds')?.value || '',
+      active: Boolean($('#adminBannerActive')?.checked)
+    };
+    const blank = !draft.forId && !draft.title && !draft.body && !draft.link && !draft.ends && draft.level === 'info' && draft.active;
+    adminCache.bannerDraft = blank ? null : draft;
+  }
+
+  function renderAdminConsole(options = {}) {
+    if (modalMode !== 'admin') return;
+    if (!options.force && !adminConsoleOpen()) return;
+    const typedSearch = $('#adminPeopleSearch');
+    if (typedSearch && !options.keepSearch) adminCache.peopleSearch = typedSearch.value;
+    if (adminCache.skipDraftOnce) adminCache.skipDraftOnce = false;
+    else captureBannerDraft();
+    const previous = $('#modalRoot .modal');
+    const scrollTop = previous && !options.resetScroll ? previous.scrollTop : 0;
+    const tab = adminCache.tab;
+    const body = tab === 'reports' ? adminReportsHtml()
+      : tab === 'people' ? adminPeopleHtml()
+        : tab === 'content' ? adminContentHtml()
+          : tab === 'banners' ? adminBannersHtml()
+            : tab === 'log' ? adminLogHtml()
+              : adminOverviewHtml();
+    const html = `<div class="modal-head"><div><span class="eyebrow">Operator</span><h2>Admin console</h2></div><button class="x-btn" type="button" data-action="close-modal" aria-label="Close admin console">${CLOSE_BTN}</button></div>
+      <div class="filters admin-tabs" role="tablist" aria-label="Admin sections">${ADMIN_TABS.map(([id, label]) => `<button class="filter-btn ${tab === id ? 'active' : ''}" type="button" role="tab" aria-selected="${tab === id ? 'true' : 'false'}" data-action="admin-tab" data-tab="${id}">${safe(label)}${safe(adminTabCount(id))}</button>`).join('')}</div>
+      ${adminCache.error ? `<div class="safe-note admin-error"><strong>Could not load.</strong> ${safe(adminCache.error)}</div>` : ''}
+      ${adminCache.loading ? '<p class="tiny admin-loading" role="status">Loading...</p>' : ''}
+      <div class="admin-console" data-admin-tab="${safe(tab)}">${body}</div>`;
+    // Redraw inside the open sheet so it does not replay the slide-in animation.
+    if (!options.force && previous && previous.querySelector('.admin-console')) {
+      previous.innerHTML = html;
+      previous.scrollTop = scrollTop;
+      return;
+    }
+    modal(html);
+    const next = $('#modalRoot .modal');
+    if (next) next.scrollTop = scrollTop;
+  }
+
+  function adminOverviewHtml() {
+    const s = adminCache.stats;
+    if (!s) return adminCache.loading ? '' : '<div class="empty">No numbers yet. Tap Refresh.</div>';
+    const n = (key) => Number(s[key] || 0);
+    const cards = [
+      ['People', n('users_total'), `${n('users_new_7d')} new ${MID} ${n('users_active_7d')} signed in this week`, 'people'],
+      ['Open reports', n('reports_open'), 'Waiting for a decision', 'reports'],
+      ['Media to review', n('media_pending'), 'Photos and videos held back', 'content:media'],
+      ['Open trips', n('trips_open'), `${n('trips_total')} total ${MID} ${n('trips_new_7d')} new ${MID} ${n('trips_hidden')} hidden`, 'content:trips'],
+      ['Feed posts', n('feed_live'), `${n('feed_new_7d')} new ${MID} ${n('feed_pending')} waiting`, 'content:posts'],
+      ['Crew messages', n('messages_7d'), 'Sent in the last 7 days', 'content:messages'],
+      ['Restricted', n('restricted_users'), 'Suspended or banned', 'people'],
+      ['Banners live', n('announcements_live'), 'Shown to everyone', 'banners'],
+      ['Join requests', n('join_requests_pending'), 'Waiting on hosts', ''],
+      ['Account deletions', n('deletion_requests_open'), 'Not yet completed', ''],
+      ['Captain waitlist', n('waitlist_new'), 'New captain sign-ups', '']
+    ];
+    return `<div class="admin-stats">${cards.map(([label, value, sub, go]) => {
+      const [tab, filter] = String(go).split(':');
+      const inner = `<span>${safe(label)}</span><strong>${safe(value)}</strong><small>${safe(sub)}</small>`;
+      return tab
+        ? `<button class="admin-stat" type="button" data-action="admin-tab" data-tab="${safe(tab)}"${filter ? ` data-filter="${safe(filter)}"` : ''}>${inner}</button>`
+        : `<div class="admin-stat">${inner}</div>`;
+    }).join('')}</div>
+      <div class="row"><button class="btn dark small" type="button" data-action="admin-refresh">Refresh</button><span class="tiny">Updated ${safe(fmtWhen(s.generated_at))}</span></div>`;
+  }
+
+  function adminReportTarget(r) {
+    const type = r.target_type || (r.feed_post_id ? 'feed' : r.target_user_id ? 'user' : '');
+    const id = r.target_id || r.feed_post_id || (type === 'user' ? r.target_user_id : '') || '';
+    return { type, id };
+  }
+
+  function adminReportsHtml() {
+    const openStatuses = ['Open', 'New', 'Review'];
+    const all = adminCache.reports || [];
+    const list = adminCache.reportFilter === 'all' ? all : all.filter((r) => openStatuses.includes(r.status || 'Open'));
+    const filters = `<div class="filters">${[['open', 'Open'], ['all', 'All']].map(([id, label]) => `<button class="filter-btn ${adminCache.reportFilter === id ? 'active' : ''}" type="button" data-action="admin-report-filter" data-filter="${id}">${label}</button>`).join('')}<button class="filter-btn" type="button" data-action="admin-refresh">Refresh</button></div>`;
+    if (!list.length) return `${filters}<div class="empty">${adminCache.loading ? 'Loading reports...' : adminCache.reportFilter === 'all' ? 'No reports yet.' : 'No open reports. All quiet.'}</div>`;
+    return `${filters}<div class="stack">${list.map((r) => adminReportRow(r)).join('')}</div>`;
+  }
+
+  function adminReportRow(r) {
+    const { type, id } = adminReportTarget(r);
+    const open = ['Open', 'New', 'Review'].includes(r.status || 'Open');
+    let targetLine = '';
+    let targetActions = '';
+    if (type === 'feed' && id) {
+      const post = (state.feed || []).find((p) => p.id === id);
+      targetLine = `Post: ${post?.title || id}`;
+      targetActions = post?.status === 'Removed'
+        ? adminModerateButton('feed', id, 'restore', 'Restore post')
+        : adminModerateButton('feed', id, 'remove', 'Remove post', 'danger', 'Remove this post?');
+    } else if (type === 'trip' && id) {
+      const trip = (state.trips || []).find((t) => t.id === id);
+      targetLine = `Trip: ${trip?.title || id}`;
+      targetActions = trip && isModeratedTrip(trip)
+        ? adminModerateButton('trip', id, 'restore', 'Restore trip')
+        : adminModerateButton('trip', id, 'hide', 'Hide trip', 'danger', 'Hide this trip?');
+    } else if (type === 'message' && id) {
+      const found = findMessage(id);
+      targetLine = `Message: ${found ? String(found.message.body || '').slice(0, 140) : id}`;
+      targetActions = found?.message.hiddenAt
+        ? adminModerateButton('message', id, 'restore', 'Restore message')
+        : adminModerateButton('message', id, 'hide', 'Hide message', 'danger', 'Hide this message?');
+    }
+    const subject = r.target_user_id
+      ? `<button class="btn dark small" type="button" data-action="admin-find-user" data-user-id="${safe(r.target_user_id)}">Manage ${safe(adminPersonName(r.target_user_id))}</button>`
+      : '';
+    const decision = open
+      ? `${adminModerateButton('report', r.id, 'resolve', 'Resolve', 'success')}${adminModerateButton('report', r.id, 'dismiss', 'Dismiss')}`
+      : adminModerateButton('report', r.id, 'reopen', 'Reopen');
+    return `<article class="qa-note admin-row">
+      <div class="row"><span class="badge ${r.severity === 'High' ? 'red' : r.severity === 'Medium' ? 'orange' : ''}">${safe(r.item_type || 'Report')}</span><span class="chip">${safe(r.status || 'Open')}</span>${r.reason_code ? `<span class="chip">${safe(r.reason_code)}</span>` : ''}<span class="chip">${safe(fmtWhen(r.created_at))}</span></div>
+      <p><strong>${safe(r.title || 'Report')}</strong>${r.details ? `<br><span class="muted">${safe(r.details)}</span>` : ''}</p>
+      <p class="tiny">${targetLine ? `${safe(targetLine)} ${MID} ` : ''}Reported by ${safe(adminPersonName(r.reporter_id))}${r.resolution_note ? ` ${MID} Note: ${safe(r.resolution_note)}` : ''}</p>
+      ${open ? '<input class="field admin-note" type="text" maxlength="300" placeholder="Note for the log (optional)" aria-label="Note for the log" />' : ''}
+      <div class="row">${decision}${targetActions}${subject}</div>
+    </article>`;
+  }
+
+  function adminPeopleHtml() {
+    const rows = adminCache.people || [];
+    const search = `<div class="admin-search"><input id="adminPeopleSearch" class="field" type="search" placeholder="Name, @username, or email" value="${safe(adminCache.peopleSearch)}" autocomplete="off" enterkeyhint="search" aria-label="Search people" /><button class="btn primary small" type="button" data-action="admin-people-search">Search</button></div>`;
+    if (!rows.length) return `${search}<div class="empty">${adminCache.loading ? 'Loading people...' : 'Nobody matches that search.'}</div>`;
+    return `${search}<div class="stack">${rows.map((p) => adminPersonRow(p)).join('')}</div>${adminCache.peopleDone ? '' : '<div class="row"><button class="btn dark small" type="button" data-action="admin-people-more">Load more</button></div>'}`;
+  }
+
+  function adminPersonRow(p) {
+    const me = currentUser()?.id === p.user_id;
+    const operator = ['admin', 'operator'].includes(String(p.role || '').toLowerCase());
+    const restricted = p.restriction ? (p.restriction === 'Banned' ? 'Banned' : `Suspended until ${fmtDay(p.restricted_until)}`) : '';
+    const head = `<div class="row"><span class="badge ${operator ? 'green' : ''}">${safe(p.has_profile ? roleLabel(p.role) : 'No profile yet')}</span>${restricted ? `<span class="badge red">${safe(restricted)}</span>` : ''}${p.profile_status && !['Live', 'Suspended', 'Banned'].includes(p.profile_status) ? `<span class="chip">${safe(p.profile_status)}</span>` : ''}<span class="chip">Joined ${safe(fmtDay(p.joined_at))}</span>${p.last_sign_in_at ? `<span class="chip">Seen ${safe(fmtDay(p.last_sign_in_at))}</span>` : ''}</div>`;
+    const who = `<p><strong>${safe(p.full_name || 'No profile yet')}</strong>${p.username ? ` <span class="muted">@${safe(p.username)}</span>` : ''}<br><span class="muted">${safe(p.email || 'no email')} ${MID} ${safe(p.trips_count || 0)} trips ${MID} ${safe(p.posts_count || 0)} posts ${MID} ${safe(p.reports_count || 0)} reports about them</span>${p.restriction_reason ? `<br><span class="tiny">Reason: ${safe(p.restriction_reason)}</span>` : ''}</p>`;
+    if (me || operator) {
+      return `<article class="qa-note admin-row">${head}${who}<p class="tiny">${me ? 'This is you.' : 'Operator accounts are changed in the database, not here.'}</p></article>`;
+    }
+    const roleControl = p.has_profile
+      ? `<div class="admin-inline"><select class="select admin-role" aria-label="Role">${['Angler', 'Captain', 'Business'].map((role) => `<option ${p.role === role ? 'selected' : ''}>${role}</option>`).join('')}</select><button class="btn dark small" type="button" data-action="admin-set-role" data-user-id="${safe(p.user_id)}">Set role</button></div>`
+      : '';
+    const restrictControls = p.restriction
+      ? `<div class="row"><button class="btn success small" type="button" data-action="admin-lift" data-user-id="${safe(p.user_id)}" data-confirm="Lift it and bring back their trips and posts?">Lift ${p.restriction === 'Banned' ? 'ban' : 'suspension'}</button></div>`
+      : `<div class="admin-restrict">
+          <input class="field admin-reason" type="text" maxlength="300" placeholder="Reason (saved with the restriction)" aria-label="Reason" />
+          <div class="admin-inline"><select class="select admin-days" aria-label="Suspension length"><option value="1">1 day</option><option value="3">3 days</option><option value="7" selected>7 days</option><option value="30">30 days</option></select><label class="admin-check"><input type="checkbox" class="admin-hide" checked /> Hide their trips and posts</label></div>
+          <div class="row"><button class="btn dark small" type="button" data-action="admin-suspend" data-user-id="${safe(p.user_id)}" data-confirm="Suspend this account?">Suspend</button><button class="btn danger small" type="button" data-action="admin-ban" data-user-id="${safe(p.user_id)}" data-confirm="Ban this account?">Ban</button></div>
+        </div>`;
+    return `<article class="qa-note admin-row" data-admin-user="${safe(p.user_id)}">${head}${who}${roleControl}${restrictControls}</article>`;
+  }
+
+  function adminContentHtml() {
+    const f = adminCache.contentFilter;
+    const filters = `<div class="filters">${[['trips', 'Trips'], ['posts', 'Posts'], ['messages', 'Messages'], ['media', 'Media']].map(([id, label]) => `<button class="filter-btn ${f === id ? 'active' : ''}" type="button" data-action="admin-content-filter" data-filter="${id}">${label}</button>`).join('')}</div>`;
+    const rows = adminCache.contentFor === f ? (adminCache.content || []) : [];
+    if (!rows.length) return `${filters}<div class="empty">${adminCache.loading || adminCache.contentFor !== f ? 'Loading...' : 'Nothing here yet.'}</div>`;
+    let items = '';
+    if (f === 'trips') {
+      items = rows.map((t) => {
+        const hidden = isModeratedTrip(t);
+        const feature = t.featured
+          ? adminModerateButton('trip', t.id, 'unfeature', 'Unfeature')
+          : hidden ? '' : adminModerateButton('trip', t.id, 'feature', 'Feature', 'soft');
+        const visibility = hidden
+          ? adminModerateButton('trip', t.id, 'restore', 'Restore', 'success')
+          : adminModerateButton('trip', t.id, 'hide', 'Hide', 'danger', 'Hide this trip?');
+        return `<article class="qa-note admin-row"><div class="row"><span class="badge ${hidden ? 'red' : ''}">${safe(t.status || 'Open')}</span>${t.featured ? '<span class="badge green">Featured</span>' : ''}${t.area ? `<span class="chip">${safe(t.area)}</span>` : ''}<span class="chip">${safe(fmtWhen(t.created_at))}</span></div>
+          <p><strong>${safe(t.title)}</strong><br><span class="muted">Host: ${safe(adminPersonName(t.host_id))}${t.start_label ? ` ${MID} ${safe(t.start_label)}` : ''}</span></p>
+          <div class="row">${feature}${visibility}<button class="btn dark small" type="button" data-action="admin-find-user" data-user-id="${safe(t.host_id)}">Host</button></div></article>`;
+      }).join('');
+    } else if (f === 'posts') {
+      items = rows.map((p) => {
+        const pending = ['Pending review', 'Review'].includes(p.status);
+        const removed = p.status === 'Removed';
+        const asset = (state.mediaAssets || []).find((a) => a.sourceId === p.id && a.sourceType === 'feed' && !isApprovedMediaStatus(a.status) && a.status !== 'Removed');
+        let actions;
+        if (removed) actions = adminModerateButton('feed', p.id, 'restore', 'Restore', 'success');
+        else if (pending) actions = `${asset ? adminModerateButton('media', asset.id, 'approve', 'Approve', 'success') : adminModerateButton('feed', p.id, 'approve', 'Approve', 'success')}${adminModerateButton('feed', p.id, 'remove', 'Remove', 'danger', 'Remove this post?')}`;
+        else actions = adminModerateButton('feed', p.id, 'remove', 'Remove', 'danger', 'Remove this post?');
+        return `<article class="qa-note admin-row"><div class="row"><span class="badge ${removed ? 'red' : pending ? 'orange' : ''}">${safe(p.status || 'Live')}</span><span class="chip">${safe(fmtWhen(p.created_at))}</span></div>
+          <p><strong>${safe(p.title)}</strong>${p.body ? `<br><span class="muted">${safe(String(p.body).slice(0, 220))}</span>` : ''}<br><span class="tiny">By ${safe(p.author_name || adminPersonName(p.author_id))}</span></p>
+          <div class="row">${actions}<button class="btn dark small" type="button" data-action="admin-find-user" data-user-id="${safe(p.author_id)}">Author</button></div></article>`;
+      }).join('');
+    } else if (f === 'messages') {
+      items = rows.map((m) => {
+        const trip = (state.trips || []).find((t) => t.id === m.trip_id);
+        const action = m.hidden_at
+          ? adminModerateButton('message', m.id, 'restore', 'Restore', 'success')
+          : adminModerateButton('message', m.id, 'hide', 'Hide', 'danger', 'Hide this message?');
+        return `<article class="qa-note admin-row"><div class="row">${m.hidden_at ? '<span class="badge red">Hidden</span>' : ''}<span class="chip">${safe(trip?.title || 'Trip chat')}</span><span class="chip">${safe(fmtWhen(m.created_at))}</span></div>
+          <p><strong>${safe(m.sender_name || adminPersonName(m.sender_id))}</strong><br>${safe(m.body)}</p>
+          <div class="row">${action}<button class="btn dark small" type="button" data-action="admin-find-user" data-user-id="${safe(m.sender_id)}">Sender</button></div></article>`;
+      }).join('');
+    } else {
+      const order = (a) => (['Review', 'Pending review', 'Local preview'].includes(a.moderation_status || a.status) ? 0 : 1);
+      items = rows.slice().sort((a, b) => order(a) - order(b)).map((a) => {
+        const status = a.moderation_status || a.status || 'Review';
+        const pending = ['Review', 'Pending review', 'Local preview'].includes(status);
+        const url = httpsUrl(a.public_url || '');
+        const isVideo = String(a.media_type || '').startsWith('video');
+        const preview = url
+          ? (isVideo ? `<video class="admin-thumb" src="${safe(url)}" muted playsinline controls preload="metadata"></video>` : `<img class="admin-thumb" src="${safe(url)}" alt="Uploaded media waiting for review" loading="lazy" />`)
+          : '<p class="tiny">No preview link for this upload.</p>';
+        const actions = pending
+          ? `${adminModerateButton('media', a.id, 'approve', 'Approve', 'success')}${adminModerateButton('media', a.id, 'reject', 'Reject', 'danger', 'Reject this upload?')}`
+          : status === 'Removed'
+            ? adminModerateButton('media', a.id, 'approve', 'Approve after all', 'dark')
+            : adminModerateButton('media', a.id, 'reject', 'Take down', 'danger', 'Take this down?');
+        return `<article class="qa-note admin-row"><div class="row"><span class="badge ${pending ? 'orange' : status === 'Removed' ? 'red' : 'green'}">${safe(status)}</span><span class="chip">${safe(a.source_type || 'media')}</span><span class="chip">${safe(fmtWhen(a.created_at))}</span></div>
+          ${preview}
+          <p class="tiny">By ${safe(adminPersonName(a.owner_id))}</p>
+          <div class="row">${actions}<button class="btn dark small" type="button" data-action="admin-find-user" data-user-id="${safe(a.owner_id)}">Owner</button></div></article>`;
+      }).join('');
+    }
+    return `${filters}<div class="stack">${items}</div>`;
+  }
+
+  function adminBannersHtml() {
+    const editing = (adminCache.banners || []).find((b) => b.id === adminCache.bannerEditId) || null;
+    const draft = adminCache.bannerDraft && adminCache.bannerDraft.forId === (adminCache.bannerEditId || '') ? adminCache.bannerDraft : null;
+    const v = {
+      title: draft ? draft.title : editing?.title || '',
+      body: draft ? draft.body : editing?.body || '',
+      link: draft ? draft.link : editing?.link_url || '',
+      level: draft ? draft.level : editing?.level || 'info',
+      ends: draft ? draft.ends : localDateInput(editing?.ends_at),
+      active: draft ? draft.active : editing ? Boolean(editing.active) : true
+    };
+    const form = `<div class="panel admin-banner-form">
+      <h3>${editing ? 'Edit banner' : 'New banner'}</h3>
+      <p class="tiny">Shows at the top of the app for everyone until it ends or you turn it off.</p>
+      <div class="forms">
+        <label class="label">Title<input id="adminBannerTitle" class="field" maxlength="80" value="${safe(v.title)}" placeholder="Redfish tournament Saturday" /></label>
+        <label class="label">Message (optional)<textarea id="adminBannerBody" class="field" maxlength="400" placeholder="A line or two of detail">${safe(v.body)}</textarea></label>
+        <label class="label">Link (optional, https)<input id="adminBannerLink" class="field" type="url" inputmode="url" autocomplete="off" value="${safe(v.link)}" placeholder="https://" /></label>
+        <div class="form-grid"><label class="label">Style<select id="adminBannerLevel" class="select">${[['info', 'Info'], ['alert', 'Alert'], ['promo', 'Promo']].map(([value, label]) => `<option value="${value}" ${v.level === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label><label class="label">Last day (optional)<input id="adminBannerEnds" class="field" type="date" value="${safe(v.ends)}" /></label></div>
+        <label class="admin-check"><input id="adminBannerActive" type="checkbox" ${v.active ? 'checked' : ''} /> Show it now</label>
+        <div class="row"><button class="btn primary small" type="button" data-action="admin-save-banner">${editing ? 'Save changes' : 'Publish banner'}</button>${editing || draft ? '<button class="btn dark small" type="button" data-action="admin-cancel-banner">Clear</button>' : ''}</div>
+      </div>
+    </div>`;
+    const t = Date.now();
+    const list = (adminCache.banners || []).map((b) => {
+      const label = !b.active ? 'Off' : b.ends_at && Date.parse(b.ends_at) <= t ? 'Ended' : b.starts_at && Date.parse(b.starts_at) > t ? 'Scheduled' : 'Live';
+      return `<article class="qa-note admin-row"><div class="row"><span class="badge ${label === 'Live' ? 'green' : ''}">${label}</span><span class="chip">${safe(b.level || 'info')}</span>${b.ends_at ? `<span class="chip">Ends ${safe(fmtDay(b.ends_at))}</span>` : ''}</div>
+        <p><strong>${safe(b.title)}</strong>${b.body ? `<br><span class="muted">${safe(b.body)}</span>` : ''}${b.link_url ? `<br><span class="tiny">${safe(b.link_url)}</span>` : ''}</p>
+        <div class="row"><button class="btn dark small" type="button" data-action="admin-edit-banner" data-banner-id="${safe(b.id)}">Edit</button><button class="btn ${b.active ? 'dark' : 'soft'} small" type="button" data-action="admin-toggle-banner" data-banner-id="${safe(b.id)}">${b.active ? 'Turn off' : 'Turn on'}</button><button class="btn danger small" type="button" data-action="admin-delete-banner" data-banner-id="${safe(b.id)}" data-confirm="Delete this banner?">Delete</button></div></article>`;
+    }).join('');
+    return `${form}<div class="stack">${list || `<div class="empty">${adminCache.loading ? 'Loading banners...' : 'No banners yet.'}</div>`}</div>`;
+  }
+
+  function adminLogHtml() {
+    const rows = adminCache.log || [];
+    if (!rows.length) return `<div class="empty">${adminCache.loading ? 'Loading the log...' : 'No admin actions yet.'}</div>`;
+    return `<div class="stack">${rows.map((e) => `<div class="qa-note admin-row"><div class="row"><span class="badge">${safe(ADMIN_EVENT_LABELS[e.event_type] || e.event_type)}</span><span class="chip">${safe(fmtWhen(e.created_at))}</span></div><p class="tiny">${safe(adminTargetLabel(e.target_type, e.target_id))}${e.body ? ` ${MID} ${safe(e.body)}` : ''}${e.actor_id ? ` ${MID} by ${safe(adminPersonName(e.actor_id))}` : ''}</p></div>`).join('')}</div><div class="row"><button class="btn dark small" type="button" data-action="admin-refresh">Refresh</button></div>`;
+  }
+
+  /** Runs one admin change, then refreshes what the console shows. */
+  async function adminRun(task) {
+    if (adminBusy) return;
+    adminBusy = true;
+    try {
+      await task();
+      if (adminConsoleOpen()) {
+        await loadAdminTab(adminCache.tab, { quiet: true });
+        if (adminCache.tab !== 'overview') refreshAdminStats();
+      }
+    } catch (error) {
+      toast(adminErrorText(error), 'danger');
+    } finally {
+      adminBusy = false;
+    }
+  }
+
+  function applyModerationLocally(type, id, op, result) {
+    const next = result?.new;
+    if (type === 'trip') {
+      const trip = (state.trips || []).find((t) => t.id === id);
+      if (trip && (op === 'feature' || op === 'unfeature')) trip.adminFeatured = op === 'feature';
+      else if (trip && next) trip.status = next;
+    } else if (type === 'feed') {
+      const post = (state.feed || []).find((p) => p.id === id);
+      if (post && next) post.status = next;
+    } else if (type === 'message') {
+      const found = findMessage(id);
+      if (found) found.message.hiddenAt = op === 'hide' ? now() : null;
+    } else if (type === 'media') {
+      const asset = (state.mediaAssets || []).find((a) => a.id === id);
+      if (asset && next) asset.status = next;
+      if (asset && op === 'approve' && asset.sourceType === 'feed') {
+        const post = (state.feed || []).find((p) => p.id === asset.sourceId);
+        if (post && ['Pending review', 'Review'].includes(post.status)) post.status = 'Live';
+      }
+    } else if (type === 'report') {
+      const report = (state.reports || []).find((r) => r.id === id);
+      if (report && next) report.status = next;
+    }
+    save();
+    render();
+  }
+
+  function adminActionToast(type, op, result) {
+    if (result?.unchanged) return 'Already done.';
+    const text = {
+      trip: { hide: 'Trip hidden from everyone.', restore: 'Trip is back on the board.', feature: 'Trip featured at the top of the board.', unfeature: 'Trip no longer featured.' },
+      feed: { remove: 'Post removed.', restore: 'Post restored.', approve: 'Post approved.' },
+      message: { hide: 'Message hidden.', restore: 'Message restored.' },
+      media: { approve: 'Media approved and published.', reject: 'Media taken down.' },
+      report: { resolve: 'Report resolved.', dismiss: 'Report dismissed.', reopen: 'Report reopened.' }
+    };
+    return text[type]?.[op] || 'Done.';
+  }
+
+  async function adminModerate(el) {
+    const type = el?.dataset?.targetType || '';
+    const id = el?.dataset?.targetId || '';
+    const op = el?.dataset?.op || '';
+    if (!type || !id || !op) return;
+    if (el.dataset.confirm && !confirmTap(el, el.dataset.confirm)) return;
+    const note = el.closest('.admin-row')?.querySelector('.admin-note')?.value?.trim() || '';
+    await adminRun(async () => {
+      const result = await adminRpc('admin_moderate', { p_target_type: type, p_target_id: id, p_action: op, p_note: note });
+      applyModerationLocally(type, id, op, result);
+      toast(adminActionToast(type, op, result));
+      if (type === 'trip' && $('#modalRoot .admin-trip-tools')) tripDetails(id);
+      scheduleLivePull();
+    });
+  }
+
+  async function adminSetRole(el) {
+    const userId = el?.dataset?.userId || '';
+    const role = el.closest('[data-admin-user]')?.querySelector('.admin-role')?.value || '';
+    if (!userId || !role) return;
+    await adminRun(async () => {
+      await adminRpc('admin_set_user_role', { p_user_id: userId, p_role: role });
+      const local = (state.users || []).find((u) => u.id === userId);
+      if (local) {
+        local.role = role;
+        save();
+      }
+      toast(`Role set to ${role}.`);
+    });
+  }
+
+  async function adminRestrict(el, status) {
+    const userId = el?.dataset?.userId || '';
+    if (!userId) return;
+    if (!confirmTap(el, el.dataset.confirm || 'Are you sure?')) return;
+    const row = el.closest('[data-admin-user]');
+    const days = status === 'Suspended' ? Number(row?.querySelector('.admin-days')?.value || 7) : null;
+    const reason = row?.querySelector('.admin-reason')?.value?.trim() || '';
+    const hide = Boolean(row?.querySelector('.admin-hide')?.checked);
+    await adminRun(async () => {
+      const result = await adminRpc('admin_restrict_user', { p_user_id: userId, p_status: status, p_days: days, p_reason: reason, p_hide_content: hide });
+      const extra = hide ? ` ${Number(result?.hidden_trips || 0)} trips and ${Number(result?.removed_posts || 0)} posts hidden.` : '';
+      toast(`${status === 'Banned' ? 'Account banned.' : `Account suspended for ${days} day${days === 1 ? '' : 's'}.`}${extra}`);
+      scheduleLivePull();
+    });
+  }
+
+  async function adminLift(el) {
+    const userId = el?.dataset?.userId || '';
+    if (!userId) return;
+    if (!confirmTap(el, el.dataset.confirm || 'Lift it?')) return;
+    await adminRun(async () => {
+      const result = await adminRpc('admin_lift_restriction', { p_user_id: userId, p_restore_content: true });
+      toast(`Restriction lifted. ${Number(result?.restored_trips || 0)} trips and ${Number(result?.restored_posts || 0)} posts are back.`);
+      scheduleLivePull();
+    });
+  }
+
+  function adminPeopleSearch() {
+    adminCache.peopleSearch = ($('#adminPeopleSearch')?.value || '').trim().slice(0, 80);
+    adminCache.tab = 'people';
+    renderAdminConsole({ keepSearch: true });
+    loadAdminTab('people');
+  }
+
+  async function adminPeopleMore() {
+    if (adminBusy) return;
+    adminBusy = true;
+    try {
+      await loadAdminPeople(false);
+    } catch (error) {
+      toast(adminErrorText(error), 'danger');
+    } finally {
+      adminBusy = false;
+      renderAdminConsole();
+    }
+  }
+
+  function adminFindUser(userId) {
+    if (!userId) return;
+    adminCache.peopleSearch = userId;
+    adminCache.tab = 'people';
+    if (!adminConsoleOpen()) return openAdminConsole('people');
+    renderAdminConsole({ keepSearch: true, resetScroll: true });
+    loadAdminTab('people');
+  }
+
+  function switchAdminContent(filter) {
+    if (!['trips', 'posts', 'messages', 'media'].includes(filter)) return;
+    adminCache.contentFilter = filter;
+    renderAdminConsole({ resetScroll: true });
+    loadAdminTab('content');
+  }
+
+  async function adminSaveBanner() {
+    const title = ($('#adminBannerTitle')?.value || '').trim();
+    const body = ($('#adminBannerBody')?.value || '').trim();
+    const linkRaw = ($('#adminBannerLink')?.value || '').trim();
+    const level = $('#adminBannerLevel')?.value || 'info';
+    const ends = $('#adminBannerEnds')?.value || '';
+    const active = Boolean($('#adminBannerActive')?.checked);
+    if (!title) return toast('Add a title first.', 'danger');
+    const link = linkRaw ? httpsUrl(linkRaw) : '';
+    if (linkRaw && !link) return toast('Links must start with https://', 'danger');
+    const endsAt = ends ? new Date(`${ends}T23:59:59`) : null;
+    if (endsAt && (Number.isNaN(endsAt.getTime()) || endsAt.getTime() <= Date.now())) return toast('Pick a last day that is today or later.', 'danger');
+    await adminRun(async () => {
+      await adminRpc('admin_save_announcement', {
+        p_id: adminCache.bannerEditId || '',
+        p_title: title,
+        p_body: body,
+        p_link_url: link || null,
+        p_level: level,
+        p_active: active,
+        p_ends_at: endsAt ? endsAt.toISOString() : null
+      });
+      adminCache.bannerEditId = '';
+      adminCache.bannerDraft = null;
+      adminCache.skipDraftOnce = true;
+      toast(active ? 'Banner is live for everyone.' : 'Banner saved. It is off for now.');
+      await refreshAnnouncements();
+    });
+  }
+
+  async function adminToggleBanner(el) {
+    const banner = (adminCache.banners || []).find((b) => b.id === el?.dataset?.bannerId);
+    if (!banner) return;
+    await adminRun(async () => {
+      await adminRpc('admin_save_announcement', {
+        p_id: banner.id,
+        p_title: banner.title,
+        p_body: banner.body || '',
+        p_link_url: banner.link_url || null,
+        p_level: banner.level || 'info',
+        p_active: !banner.active,
+        p_ends_at: banner.ends_at || null
+      });
+      toast(banner.active ? 'Banner turned off.' : 'Banner is live again.');
+      await refreshAnnouncements();
+    });
+  }
+
+  async function adminDeleteBanner(el) {
+    const id = el?.dataset?.bannerId || '';
+    if (!id) return;
+    if (!confirmTap(el, el.dataset.confirm || 'Delete it?')) return;
+    await adminRun(async () => {
+      await adminRpc('admin_delete_announcement', { p_id: id });
+      if (adminCache.bannerEditId === id) adminCache.bannerEditId = '';
+      toast('Banner deleted.');
+      await refreshAnnouncements();
+    });
+  }
+
+  function adminEditBanner(id) {
+    adminCache.bannerEditId = id || '';
+    adminCache.bannerDraft = null;
+    adminCache.skipDraftOnce = true;
+    renderAdminConsole({ resetScroll: true });
+  }
+
+  function adminClearBanner() {
+    adminCache.bannerEditId = '';
+    adminCache.bannerDraft = null;
+    adminCache.skipDraftOnce = true;
+    renderAdminConsole();
+  }
+
   const ACTIONS = {
     go: (el) => { const screen = el.dataset.screen; if (el.closest('.modal')) { if (modalMode === 'tutorial') { state.onboardingSeen = true; save(); } closeModal(); } nav(screen); },
     nav: (el) => { const screen = el.dataset.screen; if (el.closest('.modal')) closeModal(); nav(screen); },
@@ -6578,7 +7599,28 @@ ${url}`).catch(() => {});
     'export-data': () => exportData(),
     'load-sample-pack': () => loadSamplePack(),
     'clear-sample-pack': () => clearSamplePack(),
-    'reset-local': () => resetLocal()
+    'reset-local': () => resetLocal(),
+    'dismiss-announcement': (el) => dismissAnnouncement(el.dataset.announcementId),
+    'report-content': (el) => openReportForm(el.dataset.targetType, el.dataset.targetId),
+    'save-report': (el) => saveReport(el),
+    'open-admin-console': (el) => openAdminConsole(el?.dataset?.tab || ''),
+    'admin-tab': (el) => switchAdminTab(el.dataset.tab, el.dataset.filter || ''),
+    'admin-refresh': () => loadAdminTab(adminCache.tab),
+    'admin-report-filter': (el) => { adminCache.reportFilter = el.dataset.filter === 'all' ? 'all' : 'open'; renderAdminConsole(); },
+    'admin-people-search': () => adminPeopleSearch(),
+    'admin-people-more': () => adminPeopleMore(),
+    'admin-find-user': (el) => adminFindUser(el.dataset.userId),
+    'admin-set-role': (el) => adminSetRole(el),
+    'admin-suspend': (el) => adminRestrict(el, 'Suspended'),
+    'admin-ban': (el) => adminRestrict(el, 'Banned'),
+    'admin-lift': (el) => adminLift(el),
+    'admin-moderate': (el) => adminModerate(el),
+    'admin-content-filter': (el) => switchAdminContent(el.dataset.filter),
+    'admin-save-banner': () => adminSaveBanner(),
+    'admin-edit-banner': (el) => adminEditBanner(el.dataset.bannerId),
+    'admin-cancel-banner': () => adminClearBanner(),
+    'admin-toggle-banner': (el) => adminToggleBanner(el),
+    'admin-delete-banner': (el) => adminDeleteBanner(el)
   };
 
   function routeEvent(event) {
@@ -6670,6 +7712,11 @@ ${url}`).catch(() => {});
     document.addEventListener('click', routeEvent, true);
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') closeModal();
+      if (event.key === 'Enter' && event.target?.id === 'adminPeopleSearch') {
+        event.preventDefault();
+        adminPeopleSearch();
+        return;
+      }
       if (event.key === 'Enter' && modalMode === 'auth' && !event.shiftKey) {
         const active = document.activeElement;
         if (active && ['INPUT', 'SELECT', 'TEXTAREA'].includes(active.tagName)) {
