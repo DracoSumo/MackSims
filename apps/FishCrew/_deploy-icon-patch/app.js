@@ -22,6 +22,9 @@
   }
   const safe = (value) => String(value ?? '').replace(/[&<>'"]/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
   const shortTime = () => new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  // For url('...') inside style attributes: percent-encode characters that could end the
+  // CSS string or url() token, then HTML-escape for the attribute.
+  const cssUrl = (value) => safe(String(value ?? '').replace(/[\s'"()\\]/g, (ch) => '%' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')));
   const isDataUrl = (v) => typeof v === 'string' && v.startsWith('data:');
   const isRemoteUrl = (v) => typeof v === 'string' && /^(https?:|blob:)/i.test(v);
   const bytesToMb = (bytes) => Math.round((Number(bytes || 0) / 1024 / 1024) * 10) / 10;
@@ -122,6 +125,8 @@
   let pullInFlight = null;
   let pullGeneration = 0;
   let toastTimer = null;
+  // A failed save keeps its warning on screen: success toasts from the same tap are skipped.
+  let holdToastUntil = 0;
   let modalMode = null;
   let authTab = 'signin';
   let authBusy = false;
@@ -886,6 +891,7 @@
   function toast(message, tone = 'default') {
     const el = $('#toast');
     if (!el) return;
+    if (tone !== 'danger' && Date.now() < holdToastUntil) return;
     el.textContent = message;
     el.className = `toast ${tone === 'danger' ? 'toast-danger' : ''}`;
     clearTimeout(toastTimer);
@@ -1378,7 +1384,7 @@
       if (String(type).startsWith('video')) {
         return `<div class="card-media has-video"><video src="${safe(url)}" muted playsinline loop controls preload="metadata"></video></div>`;
       }
-      return `<div class="card-media photo user-photo" style="background-image:url('${safe(url)}')"><span class="media-location-label">${safe(item?.area || 'FishCrew media')}</span></div>`;
+      return `<div class="card-media photo user-photo" style="background-image:url('${cssUrl(url)}')"><span class="media-location-label">${safe(item?.area || 'FishCrew media')}</span></div>`;
     }
     if (hasUserMedia && mediaModerationEnabled()) {
       const viewer = currentUser();
@@ -1389,7 +1395,7 @@
     }
     if (item?.area) {
       const photo = locationPhoto(item.area, item?.type || fallback);
-      return `<div class="card-media photo location-photo" style="background-image:url('${safe(photo.url)}')"><span class="media-location-label"><b>${safe(photo.area)}</b><small>${safe(item?.type || fallback)}</small></span></div>`;
+      return `<div class="card-media photo location-photo" style="background-image:url('${cssUrl(photo.url)}')"><span class="media-location-label"><b>${safe(photo.area)}</b><small>${safe(item?.type || fallback)}</small></span></div>`;
     }
     const kind = item?.artKind || item?.type || fallback;
     return mediaSketch(kind);
@@ -1695,7 +1701,7 @@
       <section class="section app-section-tight local-water-section" aria-label="Local water news">
         <div class="section-head compact-head"><div><span class="eyebrow">Local Water News</span><h2>Near ${safe(area)}</h2></div><button class="btn dark small" type="button" data-action="open-conditions">Open window</button></div>
         <div class="local-water-news-grid">
-          ${news.map((n, i)=>{ const p = locationPhoto(n.area, n.title); return `<button class="water-news-card photo-news-card news-${i+1}" style="--news-photo:url('${safe(p.url)}')" type="button" data-action="${safe(n.action)}" ${n.screen ? `data-screen="${safe(n.screen)}"` : ''}><span>${safe(n.title)} ${MID} ${safe(p.area)}</span><strong>${safe(n.headline)}</strong><b>${safe(n.body)}</b></button>`; }).join('')}
+          ${news.map((n, i)=>{ const p = locationPhoto(n.area, n.title); return `<button class="water-news-card photo-news-card news-${i+1}" style="--news-photo:url('${cssUrl(p.url)}')" type="button" data-action="${safe(n.action)}" ${n.screen ? `data-screen="${safe(n.screen)}"` : ''}><span>${safe(n.title)} ${MID} ${safe(p.area)}</span><strong>${safe(n.headline)}</strong><b>${safe(n.body)}</b></button>`; }).join('')}
         </div>
         <p class="tiny photo-source-note">Location-backed photo layer: ${safe(photo.area)}. Exact spots remain private.</p>
       </section>`;
@@ -1800,7 +1806,7 @@
         <div class="section-head compact-head">
           <div><span class="eyebrow">Captain desk</span><h2>Run the charter morning.</h2></div>
         </div>
-        <p class="muted">Open seats, seat requests, booking leads, and the morning checklist â€” without hunting through Ops.</p>
+        <p class="muted">Open seats, seat requests, booking leads, and the morning checklist — without hunting through Ops.</p>
         <div class="home-command-grid captain-desk-grid" aria-label="Captain quick actions">
           <button class="home-command" type="button" data-action="open-trip-form"><b>Post open seats</b><span>Charter-ready trip form</span></button>
           <button class="home-command" type="button" data-action="go" data-screen="crew"><b>Seat requests</b><span>${pendingHostRequests ? `${pendingHostRequests} waiting` : 'Approve crew joins'}</span></button>
@@ -1885,7 +1891,7 @@
     const owner = currentUser() && listing.ownerId === currentUser().id;
     return `
       <article class="admin-card captain-card charter-card${listing.curated ? ' captain-card-curated' : ''}${focus ? ' captain-card-focus' : ''}" id="captain-${safe(normalizeUsername(listing.username || listing.id))}" data-charter-id="${safe(listing.id)}">
-        ${photo ? `<div class="card-media photo" style="background-image:url('${safe(photo)}')"></div>` : `<div class="card-media media-sketch boat" aria-hidden="true"><span class="sketch-sun"></span><span class="sketch-wave one"></span><span class="sketch-mark"></span></div>`}
+        ${photo ? `<div class="card-media photo" style="background-image:url('${cssUrl(photo)}')"></div>` : `<div class="card-media media-sketch boat" aria-hidden="true"><span class="sketch-sun"></span><span class="sketch-wave one"></span><span class="sketch-mark"></span></div>`}
         <span class="badge green">${listing.listingKind === 'partner' ? 'Early partner' : listing.curated ? 'Public listing' : listing.status === 'Pending review' ? 'Pending' : 'Charter'}</span>
         <h3>${safe(listing.name)}</h3>
         <p class="muted">${safe(listing.captainName && listing.captainName !== listing.name ? `${listing.captainName} ${MID} ` : '')}${safe(listing.area)}${listing.boat ? ` ${MID} ${safe(listing.boat)}` : ''}</p>
@@ -2061,8 +2067,8 @@
           <button class="tool-card panel photo-panel bait-panel" type="button" data-action="open-bait-help"><span class="tool-icon bait"></span><h3>Bait help</h3><p class="muted">Pick bait and rigs by area, target fish, tide, and water clarity.</p></button>
           <button class="tool-card panel photo-panel gear-panel" type="button" data-action="open-gear-help"><span class="tool-icon gear"></span><h3>Gear + tackle</h3><p class="muted">Core setups, terminal tackle, leaders, and trip checklists.</p></button>
           <button class="tool-card panel photo-panel device-panel" type="button" data-action="open-device-hub"><span class="tool-icon gps"></span><h3>GPS + devices</h3><p class="muted">Phone GPS, Bluetooth discovery, USB/NMEA bridge notes, and waypoint fix.</p></button>
-          <button class="tool-card panel photo-panel fish-panel" type="button" data-action="open-fish-id"><span class="tool-icon fish"></span><h3>Fish identifier</h3><p class="muted">Assistive species estimate only. Not a legal harvest decision tool â€” verify species, size, season, and regulations with official sources.</p></button>
-          <button class="tool-card panel photo-panel measure-panel" type="button" data-action="open-measure-tool"><span class="tool-icon ruler"></span><h3>Measure assist</h3><p class="muted">Camera/gallery length estimate only. Not enforcement or legal proof â€” confirm with a physical ruler and official rules.</p></button>
+          <button class="tool-card panel photo-panel fish-panel" type="button" data-action="open-fish-id"><span class="tool-icon fish"></span><h3>Fish identifier</h3><p class="muted">Assistive species estimate only. Not a legal harvest decision tool — verify species, size, season, and regulations with official sources.</p></button>
+          <button class="tool-card panel photo-panel measure-panel" type="button" data-action="open-measure-tool"><span class="tool-icon ruler"></span><h3>Measure assist</h3><p class="muted">Camera/gallery length estimate only. Not enforcement or legal proof — confirm with a physical ruler and official rules.</p></button>
         </div>
         <div class="grid two mt tools-status-grid">
           <div class="panel warm-panel"><h3>Last fish ID</h3><p class="muted">${lastFish ? `${safe(lastFish.result)} ${MID} ${safe(lastFish.confidence)} confidence` : 'No fish ID run yet.'}</p><button class="btn soft small" type="button" data-action="open-fish-id">Try fish ID</button></div>
@@ -2113,7 +2119,7 @@
       ? `<button class="btn primary" type="button" data-action="open-edit-profile">Edit card</button><button class="btn soft" type="button" data-action="open-notifications">Alerts ${unread ? `(${unread})` : ''}</button><button class="btn dark" type="button" data-action="open-user-settings">Settings</button><button class="btn danger" type="button" data-action="logout">Log out</button>`
       : `<button class="btn primary" type="button" data-action="open-auth-signin">${safe(GUEST_SIGN_IN_PROMPT)}</button><button class="btn soft" type="button" data-action="go" data-screen="explore">Continue as Guest</button><button class="btn dark" type="button" data-action="open-tutorial">Tutorial</button>`;
     const profileAvatar = user
-      ? `<button class="header-avatar profile-avatar-xl profile-pass-avatar" type="button" data-action="open-photo-profile" style="background-image:${user.avatar ? `url('${user.avatar}')` : ''}">${user.avatar ? '' : safe(initials(user.name || '?'))}</button>`
+      ? `<button class="header-avatar profile-avatar-xl profile-pass-avatar" type="button" data-action="open-photo-profile" style="background-image:${user.avatar ? `url('${cssUrl(user.avatar)}')` : ''}">${user.avatar ? '' : safe(initials(user.name || '?'))}</button>`
       : `<div class="header-avatar profile-avatar-xl profile-pass-avatar guest-avatar" aria-hidden="true">FC</div>`;
     const profileEditAction = user
       ? `<button class="btn dark small" type="button" data-action="open-edit-profile">Tune card</button>`
@@ -2130,7 +2136,7 @@
             <div>
               <h3>${igConnection?.username ? `Linked @${safe(igConnection.username)}` : 'Connect Instagram'}</h3>
               <p class="muted">${igConfigured
-                ? 'Connect a Business/Creator account through Meta. This is not a login â€” email/password stays primary.'
+                ? 'Connect a Business/Creator account through Meta. This is not a login — email/password stays primary.'
                 : 'Owner setup: set META_APP_ID and ENABLE_INSTAGRAM_OAUTH in config.js, then add the redirect URI in the Meta app.'}</p>
             </div>
           </div>
@@ -2138,7 +2144,7 @@
             <button class="btn ${igConfigured ? 'primary' : 'dark'} small" type="button" data-action="instagram-connect"${igConfigured ? '' : ' disabled'}>${igConnection ? 'Reconnect' : 'Connect Instagram'}</button>
             ${igConnection ? `<button class="btn soft small" type="button" data-action="instagram-import">Import recent</button>` : ''}
           </div>
-          <p class="tiny">Share-to-Instagram caption handoff remains available from Feed share â€” separate from connect.</p>
+          <p class="tiny">Share-to-Instagram caption handoff remains available from Feed share — separate from connect.</p>
         </div>
       </section>` : '';
 
@@ -2303,7 +2309,7 @@
     hydrateHeader();
     renderAnnouncementBanner();
     const screen = state.activeScreen || 'home';
-    // Only rebuild the active screen â€” inactive screens keep prior DOM (social-app sticky feel).
+    // Only rebuild the active screen — inactive screens keep prior DOM (social-app sticky feel).
     const renderers = {
       home: renderHome,
       explore: renderExplore,
@@ -2512,7 +2518,7 @@
     const photo = listing.photoUrl;
     modal(`
       <div class="modal-head"><div><span class="eyebrow">Charter</span><h2>${safe(listing.name)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
-      ${photo ? `<div class="card-media photo charter-hero-photo" style="background-image:url('${safe(photo)}')"></div>` : ''}
+      ${photo ? `<div class="card-media photo charter-hero-photo" style="background-image:url('${cssUrl(photo)}')"></div>` : ''}
       <p class="muted">${safe(listing.captainName)} ${MID} ${safe(listing.area)}</p>
       <p>${safe(listing.bioLong || listing.bio)}</p>
       ${listing.experience ? `<p class="tiny">${safe(listing.experience)}</p>` : ''}
@@ -2837,7 +2843,7 @@
     if (!requireLogin('Sign in to post trips, catches, photos, shop updates, charter openings, or cruise opportunities.')) return;
     if (blockIfRestricted()) return;
     const captainDefaults = isBusinessRole();
-    const titlePlaceholder = captainDefaults ? '2 seats open â€” Sunday morning reef window' : 'Saturday inshore crew needed';
+    const titlePlaceholder = captainDefaults ? '2 seats open — Sunday morning reef window' : 'Saturday inshore crew needed';
     modal(`
       <div class="modal-head"><div><span class="eyebrow">Trip</span><h2>${captainDefaults ? 'Post open seats.' : 'Post a fishing plan.'}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       <div class="forms">
@@ -3308,7 +3314,7 @@
     state.opsLog.unshift(`Fish ID check ran for ${area}: ${result}.`);
     save(); render();
     modal(`<div class="modal-head"><div><span class="eyebrow">Fish ID result</span><h2>${safe(result)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
-      ${preview ? `<div class="card-media photo" style="background-image:url('${preview}')"></div>` : ''}
+      ${preview ? `<div class="card-media photo" style="background-image:url('${cssUrl(preview)}')"></div>` : ''}
       <div class="safe-note"><strong>Assistive estimate only:</strong> This cannot confirm legality, species, harvest rules, size, season, or bag limit. It is not a legal harvest decision tool. Verify with official local regulations before keeping fish.</div>
       <p class="muted">Area: ${safe(area)} ${MID} Confidence: Assistive estimate</p>
       <div class="row"><button class="btn soft" type="button" data-action="open-measure-tool">Measure assist</button><button class="btn dark" type="button" data-action="open-fishing-guides">Check guides</button><button class="btn primary" type="button" data-action="close-modal">Done</button></div>`);
@@ -3334,8 +3340,8 @@
     state.opsLog.unshift(`Measurement assist ran: ${note}.`);
     save(); render();
     modal(`<div class="modal-head"><div><span class="eyebrow">Measurement assist</span><h2>${safe(note)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
-      ${preview ? `<div class="card-media photo" style="background-image:url('${preview}')"></div>` : ''}
-      <div class="safe-note"><strong>Not legal measurement:</strong> This is an estimate for planning and logging only â€” not enforcement or legal proof. Use a physical measuring board for keep/release decisions and confirm official regulations.</div>
+      ${preview ? `<div class="card-media photo" style="background-image:url('${cssUrl(preview)}')"></div>` : ''}
+      <div class="safe-note"><strong>Not legal measurement:</strong> This is an estimate for planning and logging only — not enforcement or legal proof. Use a physical measuring board for keep/release decisions and confirm official regulations.</div>
       <p class="muted">Units: ${safe(units)} ${MID} Reference: ${safe(ref)}</p>
       <button class="btn primary" type="button" data-action="close-modal">Done</button>`);
   }
@@ -4043,7 +4049,7 @@
     const normalized = String(provider || 'social').trim().toLowerCase() || 'social';
 
     if (normalized.includes('instagram')) {
-      toast('Instagram is a Profile connect â€” not a login. Use email/password, or open Profile â†’ Connect Instagram.', 'warning');
+      toast('Instagram is a Profile connect — not a login. Use email/password, or open Profile → Connect Instagram.', 'warning');
       return;
     }
 
@@ -4076,14 +4082,14 @@
   }
 
   async function completeSocialProfile(provider = 'social') {
-    // Production never invents @â€¦.oauth.local users. Demo mode only.
+    // Production never invents @….oauth.local users. Demo mode only.
     if (CONFIG.DEMO_MODE !== true) {
       toast('Social profile completion is disabled. Sign in with email/password, or enable a configured OAuth provider.', 'danger');
       return;
     }
     const source = String(provider || 'social').trim() || 'social';
     if (String(source).toLowerCase().includes('instagram')) {
-      toast('Instagram is not a login method in demo either â€” use email/password.', 'danger');
+      toast('Instagram is not a login method in demo either — use email/password.', 'danger');
       return;
     }
     const typedUsername = $('#socialUsername')?.value.trim() || '';
@@ -4183,7 +4189,7 @@
           updated_at: now()
         }, { onConflict: 'user_id,provider' });
       } catch (error) {
-        // Table may not exist yet â€” metadata + local state still hold the connection.
+        // Table may not exist yet — metadata + local state still hold the connection.
         console.warn('social_connections upsert skipped:', error?.message || error);
       }
     }
@@ -4731,19 +4737,26 @@
     return true;
   }
 
+  // Returns false when the shared save failed (offline, server error), true otherwise.
   async function afterLocalWrite(label, liveTask) {
     save(); render();
-    if (!liveReady()) return;
+    if (!liveReady()) return true;
     try {
       const wrote = await liveTask();
       state.liveStatus = wrote ? `${label} saved to shared data.` : `${label} saved in this browser. Sign in with a connected account for shared mode.`;
       if (wrote) state.opsLog.unshift(state.liveStatus);
       save(); render();
+      return true;
     } catch (error) {
       console.error(error);
       state.opsLog.unshift(`${label} live sync failed: ${error.message}`);
       save(); render();
-      toast(`${label} saved in this browser; sync failed: ${error.message}`, 'danger');
+      const offline = (typeof navigator !== 'undefined' && navigator.onLine === false) || /failed to fetch|networkerror|load failed|network request failed/i.test(error?.message || '');
+      toast(offline
+        ? `${label} is saved on this phone but did not reach FishCrew. You're offline; try again when you have signal.`
+        : `${label} is saved on this phone but did not reach FishCrew: ${error.message}`, 'danger');
+      holdToastUntil = Date.now() + 4000;
+      return false;
     }
   }
 
@@ -5462,7 +5475,16 @@
     const msg = { id: uid('msg'), senderId: user.id, senderName: user.name, body, createdAt: now() };
     state.messages[tripId].push(msg);
     input.value = '';
-    await afterLocalWrite('Chat message', async () => liveUpsert('trip_messages', messageRow(msg, tripId), 'chat message'));
+    const delivered = await afterLocalWrite('Chat message', async () => liveUpsert('trip_messages', messageRow(msg, tripId), 'chat message'));
+    if (!delivered) {
+      // Do not leave a message on screen that the crew never got: take it back and refill the box.
+      state.messages[tripId] = (state.messages[tripId] || []).filter((m) => m.id !== msg.id);
+      save(); render();
+      const again = $('#chatInput');
+      if (again && !again.value) again.value = body;
+      holdToastUntil = 0;
+      return toast(navigator.onLine === false ? 'Message not sent. You are offline; it is still in the box so you can send it again.' : 'Message not sent. Check your connection and tap Send again.', 'danger');
+    }
     toast('Message sent.');
   }
 
@@ -5953,7 +5975,7 @@ ${url}`).catch(() => {});
     });
   }
 
-  async function checkBackend() {
+  async function checkBackend({ announce = false } = {}) {
     const configured = Boolean(CONFIG.USE_SUPABASE && CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
     if (!configured) {
       state.backendMode = 'local';
@@ -5971,9 +5993,11 @@ ${url}`).catch(() => {});
         state.notifications = [];
         stopRealtime();
       }
-      save(); render(); toast('Shared data connection ready.');
+      save(); render();
+      if (announce) toast('Connected. Your trips and chats are syncing.');
     } catch (error) {
-      toast(`Backend check failed: ${error.message}`, 'danger');
+      console.warn('FishCrew backend check failed', error);
+      toast('Could not reach FishCrew right now. Showing what is saved on this phone.', 'danger');
     }
   }
 
@@ -6061,7 +6085,7 @@ ${url}`).catch(() => {});
     if (!supabaseClient) await checkBackend();
     if (!supabaseClient) return;
 
-    // Cancel stale overlapping pulls â€” keep latest generation only.
+    // Cancel stale overlapping pulls — keep latest generation only.
     const generation = ++pullGeneration;
     if (pullInFlight) {
       try { await pullInFlight; } catch (_) { /* prior pull error already toasted */ }
@@ -7578,7 +7602,7 @@ ${url}`).catch(() => {});
     'open-device-bridge-help': () => openDeviceBridgeHelp(),
     'refresh-conditions': () => refreshConditions(),
     'open-conditions': () => openConditions(),
-    'check-backend': () => checkBackend(),
+    'check-backend': () => checkBackend({ announce: true }),
     'sync-supabase': () => syncSupabase(),
     'pull-supabase': () => pullSupabase(),
     'start-realtime': () => startRealtime(),
@@ -7642,6 +7666,7 @@ ${url}`).catch(() => {});
         toast('This control could not be opened.', 'danger');
         return;
       }
+      holdToastUntil = 0;
       fn(el, event);
     } catch (error) {
       console.error(error);
@@ -7780,7 +7805,7 @@ ${url}`).catch(() => {});
           if (state.focusCharterId) openCharterProfile(state.focusCharterId);
         }, 280);
       }
-      if (state.session?.demoCaptain) toast('Captain desk demo ready â€” open Leads inbox from Home.');
+      if (state.session?.demoCaptain) toast('Captain desk demo ready — open Leads inbox from Home.');
       setTimeout(openDeepLinkModal, 180);
       consumePendingTripInvite();
       if (!state.locationAsked && window.isSecureContext && navigator.geolocation) {

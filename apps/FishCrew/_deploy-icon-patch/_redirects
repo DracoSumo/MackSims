@@ -7,6 +7,10 @@
 /profiles-hide-email.test.mjs  /index.html  404!
 /trip-invite-share.test.mjs  /index.html  404!
 /trip-members-host-gated-insert.test.mjs  /index.html  404!
+/admin-console.test.mjs  /index.html  404!
+/qa-hardening.test.mjs  /index.html  404!
+/scripts/*  /index.html  404!
+/outreach/*  /index.html  404!
 
 /guest    /index.html    200
 /captain  /index.html    200

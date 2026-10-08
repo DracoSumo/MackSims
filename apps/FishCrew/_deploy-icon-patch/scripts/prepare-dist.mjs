@@ -24,6 +24,8 @@ const files = [
   'early-access.css',
   'early-access.js',
   '_redirects',
+  '_headers',
+  'downloads/fishcrew-morning-window-checklist.pdf',
   'vendor/supabase-js-2.117.2.js',
   'favicon.svg',
   'favicon-16.png',
