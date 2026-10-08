@@ -82,3 +82,12 @@ test('trip_private_details writes require hosting the trip', () => {
     .replace(/\( SELECT auth\.uid\(\) AS uid\)/g, '').replace(/\(select auth\.uid\(\)\)/g, '');
   assert.ok(!code.includes('auth.uid()'), 'unwrapped auth.uid() left');
 });
+
+test('signed-out visitors do not request crew-only tables', () => {
+  const start = appJs.indexOf('async function pullSupabase(');
+  const body = appJs.slice(start, start + 4000);
+  for (const table of ['trip_private_details', 'trip_members', 'join_requests', 'trip_messages', 'media_assets', 'moderation_items', 'bookings']) {
+    assert.match(body, new RegExp(`crewOnly\\(supabaseClient\\.from\\('${table}'\\)`), table);
+  }
+  assert.match(body, /const crewOnly = \(query\) => signedIn \? query : Promise\.resolve\(\{ data: null, error: \{ code: '42501'/);
+});

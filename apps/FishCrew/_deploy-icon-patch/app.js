@@ -6094,18 +6094,23 @@ ${url}`).catch(() => {});
 
     const run = (async () => {
       try {
+        // Signed-out visitors cannot read crew-only tables; skip those requests instead of
+        // collecting seven "permission denied" answers on every guest page load.
+        const { data: sessionData } = await supabaseClient.auth.getSession();
+        const signedIn = Boolean(sessionData?.session);
+        const crewOnly = (query) => signedIn ? query : Promise.resolve({ data: null, error: { code: '42501', message: 'signed out' } });
         const [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes] = await Promise.all([
           supabaseClient.from('profiles').select('id, username, full_name, role, home_area, avatar_url, bio, fishing_styles, profile_theme, created_at').limit(LIVE_QUERY_LIMIT),
           supabaseClient.from('trip_posts').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
-          supabaseClient.from('trip_private_details').select('*').limit(LIVE_QUERY_LIMIT),
-          supabaseClient.from('trip_members').select('*').limit(LIVE_QUERY_LIMIT * 2),
-          supabaseClient.from('join_requests').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
-          supabaseClient.from('trip_messages').select('*').order('created_at', { ascending: true }).limit(LIVE_QUERY_LIMIT * 2),
+          crewOnly(supabaseClient.from('trip_private_details').select('*').limit(LIVE_QUERY_LIMIT)),
+          crewOnly(supabaseClient.from('trip_members').select('*').limit(LIVE_QUERY_LIMIT * 2)),
+          crewOnly(supabaseClient.from('join_requests').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT)),
+          crewOnly(supabaseClient.from('trip_messages').select('*').order('created_at', { ascending: true }).limit(LIVE_QUERY_LIMIT * 2)),
           supabaseClient.from('feed_posts').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
-          supabaseClient.from('media_assets').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
-          supabaseClient.from('moderation_items').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
+          crewOnly(supabaseClient.from('media_assets').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT)),
+          crewOnly(supabaseClient.from('moderation_items').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT)),
           supabaseClient.from('businesses').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
-          supabaseClient.from('bookings').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT)
+          crewOnly(supabaseClient.from('bookings').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT))
         ]);
         if (generation !== pullGeneration) return;
         // Guests (and anyone signed out) are not allowed to read crew-only tables. Those
