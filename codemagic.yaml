@@ -29,7 +29,9 @@ workflows:
         APP_NAME: FishCrew
         BUNDLE_ID: com.chrissims.fishcrew
         APP_STORE_APPLE_ID: "6783567028"
-        FISHCREW_SOURCE_DIR: apps/fishcrew-static-v070
+        # Remote shell: capacitor.config.json points server.url at https://fishcrew.macksims.com,
+        # so the app runs the live web build (and its push code) instead of a bundled copy.
+        FISHCREW_SOURCE_DIR: apps/FishCrew/_deploy-icon-patch
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
         CAPACITOR_WEB_DIR: dist
@@ -76,12 +78,15 @@ workflows:
         script: |
           set -ex
           cd "$FISHCREW_ROOT"
-          npm install @capacitor/core @capacitor/cli @capacitor/ios
+          # Pin the Capacitor major to package.json (^7); a bare install would pull the latest major.
+          npm install @capacitor/core@^7 @capacitor/cli@^7 @capacitor/ios@^7 @capacitor/push-notifications@^7
           if [ ! -f capacitor.config.json ] && [ ! -f capacitor.config.ts ]; then
             npx cap init "$APP_NAME" "$BUNDLE_ID" --web-dir="$CAPACITOR_WEB_DIR"
           fi
           [ -d ios ] || npx cap add ios
           npx cap sync ios
+          # Push entitlement (aps-environment=production) + AppDelegate token hand-off.
+          bash "$CM_BUILD_DIR/scripts/ios-enable-push.sh" ios/App
           cd ios/App && pod install
 
       - name: Set up iOS code signing

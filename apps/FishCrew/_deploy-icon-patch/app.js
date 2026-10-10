@@ -661,6 +661,9 @@
       preferredUnits: 'Imperial',
       privacyMode: 'Crew-only exact locations',
       notificationPref: 'Crew alerts',
+      pushEnabled: false,
+      pushToken: '',
+      pushOfferDismissedAt: 0,
       savedGuideArea: 'Tampa Bay',
       conditions: defaultConditions(),
       lastFishId: null,
@@ -2653,6 +2656,7 @@
       : isManagedListing(listing)
         ? 'Inquiry sent. FishCrew passes it to the captain.'
         : 'Inquiry saved. The captain can update status from their inbox.');
+    offerPushAfterInquiry();
   }
 
   function openCharterForm(charterId = '') {
@@ -3008,6 +3012,7 @@
     modal(`
       <div class="modal-head"><div><span class="eyebrow">Captain desk</span><h2>Booking leads inbox.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       <p class="muted">Charter and partner inquiries tied to your listings. Update status, text or copy notes, or capture a new lead without leaving the dock.</p>
+      ${leads.length ? pushLeadsOffer() : ''}
       <div class="stack mt">${leads.map((b) => `
         <div class="lead-row panel">
           <div>
@@ -3256,6 +3261,146 @@
       try { window.history.pushState({ fishcrew: 'guard' }, '', location.href); } catch {}
       handleHardwareBack();
     });
+  }
+
+  /* ------------------------------------------------------------ Phone alerts (iPhone push)
+   * Only inside the native iOS shell with @capacitor/push-notifications. We never ask at
+   * launch: enablePush() runs from Settings or from an offer right after a charter inquiry.
+   * Boot only attaches listeners and re-sends the token of a device that already opted in.
+   * Turning alerts off or signing out drops this device's token on the server.
+   */
+  let pushListenersReady = false;
+  const PUSH_OFFER_SNOOZE_MS = 14 * 24 * 60 * 60 * 1000;
+
+  function pushPlugin() {
+    const cap = window.Capacitor;
+    if (!cap || typeof cap.isNativePlatform !== 'function' || !cap.isNativePlatform()) return null;
+    if (typeof cap.getPlatform === 'function' && cap.getPlatform() !== 'ios') return null;
+    if (typeof cap.isPluginAvailable === 'function' && !cap.isPluginAvailable('PushNotifications')) return null;
+    const push = cap.Plugins?.PushNotifications;
+    return push && typeof push.register === 'function' ? push : null;
+  }
+
+  function isNativePush() {
+    return Boolean(pushPlugin());
+  }
+
+  async function sendPushToken(token) {
+    if (!token || !supabaseClient || !currentUser() || !state.pushEnabled) return false;
+    try {
+      const { error } = await supabaseClient.rpc('register_push_device', { p_token: token, p_platform: 'ios', p_app_version: VERSION });
+      if (error) { console.warn('Phone alerts: could not save this device', error.message); return false; }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function setupPushListeners() {
+    const push = pushPlugin();
+    if (!push || pushListenersReady) return;
+    pushListenersReady = true;
+    try {
+      await push.addListener('registration', (t) => {
+        state.pushToken = String(t?.value || '');
+        save();
+        sendPushToken(state.pushToken);
+      });
+      await push.addListener('registrationError', (e) => console.warn('Phone alerts: registration failed', e?.error || e));
+      await push.addListener('pushNotificationActionPerformed', (action) => openPushLink(action?.notification?.data?.link));
+    } catch (_) { /* plugin missing in this build */ }
+    // A device that already opted in refreshes its token. Permission is already granted,
+    // so this never shows a prompt.
+    if (state.pushEnabled && currentUser()) {
+      try {
+        const perm = await push.checkPermissions();
+        if (perm?.receive === 'granted') await push.register();
+      } catch (_) { /* ignore */ }
+    }
+  }
+
+  async function enablePush() {
+    const push = pushPlugin();
+    if (!push) return toast('Phone alerts work in the FishCrew iPhone app.');
+    if (!currentUser() || !supabaseClient) return openAuth('Sign in to get phone alerts.');
+    await setupPushListeners();
+    let perm = null;
+    try {
+      perm = await push.checkPermissions();
+      if (perm?.receive === 'prompt' || perm?.receive === 'prompt-with-rationale') perm = await push.requestPermissions();
+    } catch (_) { perm = null; }
+    if (perm?.receive !== 'granted') {
+      state.pushEnabled = false;
+      save();
+      return toast('Phone alerts are off. Turn them on in iPhone Settings > FishCrew > Notifications.', 'warning');
+    }
+    state.pushEnabled = true;
+    state.pushOfferDismissedAt = 0;
+    save();
+    try { await push.register(); } catch (_) { /* registrationError listener logs it */ }
+    if (state.pushToken) await sendPushToken(state.pushToken);
+    toast('Phone alerts on. We will ping you about inquiries, crew requests, and messages.');
+    return true;
+  }
+
+  async function disablePush({ quiet = false } = {}) {
+    const token = state.pushToken;
+    const wasOn = Boolean(state.pushEnabled);
+    state.pushEnabled = false;
+    save();
+    if (token && supabaseClient) {
+      try {
+        await Promise.race([
+          supabaseClient.rpc('unregister_push_device', { p_token: token }),
+          new Promise((resolve) => setTimeout(resolve, 4000))
+        ]);
+      } catch (_) { /* best effort */ }
+    }
+    if (!quiet && wasOn) toast('Phone alerts off for this device.');
+  }
+
+  function togglePush() {
+    closeModal();
+    return state.pushEnabled ? disablePush() : enablePush();
+  }
+
+  function shouldOfferPush() {
+    if (!isNativePush() || state.pushEnabled || !currentUser()) return false;
+    return Date.now() - Number(state.pushOfferDismissedAt || 0) > PUSH_OFFER_SNOOZE_MS;
+  }
+
+  function offerPushAfterInquiry() {
+    if (!shouldOfferPush()) return;
+    modal(`<div class="modal-head"><div><span class="eyebrow">Phone alerts</span><h2>Want a ping when the captain answers?</h2></div><button class="x-btn" type="button" data-action="dismiss-push-offer">${CLOSE_BTN}</button></div>
+      <p class="muted">FishCrew can tap your iPhone when the captain updates your inquiry, and for crew requests and messages. Turn it off any time in Settings.</p>
+      <div class="row mt"><button class="btn primary" type="button" data-action="enable-push">Turn on alerts</button><button class="btn dark" type="button" data-action="dismiss-push-offer">Not now</button></div>`);
+  }
+
+  function pushLeadsOffer() {
+    if (!shouldOfferPush()) return '';
+    return `<div class="safe-note push-offer"><strong>Get new inquiries on your iPhone.</strong> FishCrew taps you the moment an angler asks about your boat.<div class="row mt"><button class="btn primary small" type="button" data-action="enable-push">Turn on alerts</button><button class="btn dark small" type="button" data-action="dismiss-push-offer">Not now</button></div></div>`;
+  }
+
+  function dismissPushOffer() {
+    state.pushOfferDismissedAt = Date.now();
+    save();
+    closeModal();
+  }
+
+  /** Open an in-app link from a tapped push, e.g. '/?screen=crew' or '/?screen=home&open=leads'. */
+  function openPushLink(link) {
+    if (!link) return;
+    let url;
+    try { url = new URL(String(link), location.origin); } catch (_) { return; }
+    if (url.origin !== location.origin) return;
+    if (modalMode) closeModal();
+    const trip = url.searchParams.get('trip');
+    if (trip) return openTripInvite(trip);
+    nav(url.searchParams.get('screen') || 'home');
+    const open = url.searchParams.get('open');
+    if (open === 'leads') openBusinessLeads();
+    else if (open === 'inquiries') openMyBookings();
+    if (supabaseClient && currentUser()) fetchNotifications();
   }
 
   function openFishingGuides() {
@@ -3651,6 +3796,7 @@
           <div class="settings-grid">
             ${accountActions}
             <button class="settings-tile" type="button" data-action="open-notifications"><b>Alerts ${unread ? `(${safe(unread)})` : ''}</b><span>Crew requests, approvals, and safety notes.</span></button>
+            ${u && isNativePush() ? `<button class="settings-tile" type="button" data-action="toggle-push"><b>Phone alerts: ${state.pushEnabled ? 'On' : 'Off'}</b><span>${state.pushEnabled ? 'Tap to stop iPhone pings on this device.' : 'Get iPhone pings for inquiries, crew requests, and messages.'}</span></button>` : ''}
             <button class="settings-tile" type="button" data-action="open-conditions"><b>Water window</b><span>Review conditions before you move.</span></button>
             <button class="settings-tile" type="button" data-action="open-tutorial"><b>Walk-through</b><span>Replay the first-run guide.</span></button>
             <button class="settings-tile" type="button" data-action="rate-app"><b>Rate FishCrew</b><span>Leave a Play Store rating after a good session.</span></button>
@@ -3691,6 +3837,8 @@
     state.savedGuideArea = $('#settingsArea')?.value.trim() || state.savedGuideArea || userArea();
     state.preferredUnits = $('#settingsUnits')?.value || 'Imperial';
     state.notificationPref = $('#settingsNotify')?.value || 'Crew alerts';
+    // Quiet means quiet: stop phone pings too. Choosing alerts again never prompts by itself.
+    if (state.notificationPref === 'Quiet' && state.pushEnabled) disablePush();
     state.privacyMode = $('#settingsPrivacy')?.value || 'Crew-only exact locations';
     const u = currentUser();
     if (u && $('#settingsArea')?.value.trim()) u.area = $('#settingsArea').value.trim();
@@ -4593,6 +4741,8 @@
 
   async function logout() {
     stopRealtime();
+    // Drop this phone's push token while we still hold the session the RPC needs.
+    await disablePush({ quiet: true });
     if (supabaseClient) {
       await supabaseClient.auth.signOut().catch(() => {});
     }
@@ -5906,6 +6056,7 @@ ${url}`).catch(() => {});
     const deletedFeedIds = (state.feed || []).filter((p) => p.authorId === userId).map((p) => p.id);
     const deletedBusinessIds = (state.businesses || []).filter((b) => b.ownerId === userId).map((b) => b.id);
     await persistAccountDeletionRequest(hadConnectedBackend ? 'Pending server deletion' : 'Local deletion complete');
+    await disablePush({ quiet: true });
     if (hadConnectedBackend) {
       try { await supabaseClient.rpc('delete_own_account'); } catch (_) {}
       try { await supabaseClient.auth.signOut(); } catch (_) {}
@@ -7712,6 +7863,9 @@ ${url}`).catch(() => {});
     nav: (el) => { const screen = el.dataset.screen; if (el.closest('.modal')) closeModal(); nav(screen); },
     'open-post-menu': () => openCreate(),
     'open-notifications': () => openNotifications(),
+    'toggle-push': () => togglePush(),
+    'enable-push': () => { closeModal(); return enablePush(); },
+    'dismiss-push-offer': () => dismissPushOffer(),
     'mark-notifications-read': () => markNotificationsRead(),
     'open-auth': () => openAuth(),
     'open-auth-signin': () => openAuth('Create a profile to post, join, chat, upload photos, and save trips.', 'Angler', 'signin'),
@@ -8060,6 +8214,7 @@ ${url}`).catch(() => {});
       if (state.session?.demoCaptain) toast('Captain desk demo ready — open Leads inbox from Home.');
       setTimeout(openDeepLinkModal, 180);
       consumePendingTripInvite();
+      setupPushListeners();
       if (!state.locationAsked && window.isSecureContext && navigator.geolocation) {
         state.locationAsked = true;
         save();

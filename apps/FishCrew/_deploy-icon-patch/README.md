@@ -4,10 +4,12 @@ Live product bet for MackSims: **post trip → share invite → approve → crew
 
 ## Canonical paths
 
-- Product source of record for Codemagic: `apps/fishcrew-static-v070/`
-- Deploy/icon patch mirror (same tree): `apps/FishCrew/_deploy-icon-patch/`
+- Live web app (Netlify) and, from 0.10.0, the Codemagic iOS build: `apps/FishCrew/_deploy-icon-patch/`.
+  The iOS app is a remote shell (`server.url` = https://fishcrew.macksims.com), so it runs the deployed web build.
+- Older bundled copy (Codemagic Android still builds from it): `apps/fishcrew-static-v070/`.
 
-Keep both trees in sync when changing the SPA. Codemagic builds from `apps/fishcrew-static-v070`.
+Phone alerts (0.10.0): `supabase/migrations/20261011_push_notifications.sql`, edge function
+`supabase/functions/push-dispatch` (deploy with `--no-verify-jwt`), and `scripts/ios-enable-push.sh` at the repo root.
 
 ## Core loop
 
