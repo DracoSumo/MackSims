@@ -2364,11 +2364,12 @@
         ${createFields}
         <div class="auth-divider"><span>or continue with</span></div>
         <div class="social-icon-row" aria-label="Social sign-in options">
+          ${socialAuthButtonHtml('Apple')}
           ${socialAuthButtonHtml('Google')}
           ${socialAuthButtonHtml('Facebook')}
           <button class="social-icon instagram coming-soon" type="button" data-action="social-login" data-provider="Instagram" aria-label="Instagram is not a login method" title="Instagram connect lives on Profile"><span class="ig-mark">${IG_MARK}</span></button>
         </div>
-        <p class="tiny auth-footnote">Email and password are the primary sign-in. Unfinished social providers show Coming soon until configured in config.js. Instagram connect is a Profile integration, not login.</p>
+        <p class="tiny auth-footnote">Sign in with email, Apple, Google, or Facebook. Instagram connect is a Profile integration, not login.</p>
       </div>`);
     clearAuthError();
     clearAuthSuccess();
@@ -3158,6 +3159,54 @@
     confirmLeaveFishCrew();
   }
 
+  function nativeOAuthBrowser() {
+    const cap = window.Capacitor;
+    if (!CONFIG.NATIVE_OAUTH_REDIRECT || !cap?.isNativePlatform?.()) return null;
+    const Browser = cap.Plugins?.Browser;
+    return Browser && typeof Browser.open === 'function' ? Browser : null;
+  }
+
+  async function completeNativeOAuth(url) {
+    const prefix = String(CONFIG.NATIVE_OAUTH_REDIRECT || '');
+    if (!prefix || !String(url || '').startsWith(prefix)) return;
+    const Browser = window.Capacitor?.Plugins?.Browser;
+    try { await Browser?.close?.(); } catch (_) {}
+    let parsed;
+    try { parsed = new URL(url); } catch (_) { return; }
+    const hash = new URLSearchParams(parsed.hash.replace(/^#/, ''));
+    const errorText = parsed.searchParams.get('error_description') || hash.get('error_description');
+    if (errorText) {
+      toast(`Sign in failed: ${errorText}`, 'danger');
+      return;
+    }
+    const code = parsed.searchParams.get('code');
+    if (!code) {
+      toast('Sign in was cancelled.', 'warning');
+      return;
+    }
+    try {
+      await loadSupabaseScript();
+      const client = await ensureSupabaseAuthClient();
+      if (!client) throw new Error('auth unavailable');
+      const { error } = await client.auth.exchangeCodeForSession(code);
+      if (error) throw error;
+      await checkBackend();
+      toast('Signed in.');
+    } catch (error) {
+      toast(`Sign in failed: ${error.message}. Use email/password.`, 'danger');
+    }
+  }
+
+  function setupNativeOAuthReturn() {
+    const App = window.Capacitor?.Plugins?.App;
+    if (!App || typeof App.addListener !== 'function') return;
+    App.addListener('appUrlOpen', (event) => { completeNativeOAuth(event?.url); });
+    // Cold start: the app may have been launched by the callback URL itself.
+    if (typeof App.getLaunchUrl === 'function') {
+      Promise.resolve(App.getLaunchUrl()).then((res) => { if (res?.url) completeNativeOAuth(res.url); }).catch(() => {});
+    }
+  }
+
   function setupHardwareBack() {
     const cap = window.Capacitor;
     const App = cap?.Plugins?.App;
@@ -3928,7 +3977,8 @@
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true
+        detectSessionInUrl: true,
+        flowType: 'pkce'
       }
     });
 
@@ -3945,12 +3995,15 @@
     const normalized = String(provider || '').trim().toLowerCase();
     if (normalized.includes('google')) return CONFIG.ENABLE_GOOGLE_AUTH === true && CONFIG.USE_SUPABASE === true && Boolean(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
     if (normalized.includes('facebook')) return CONFIG.ENABLE_FACEBOOK_AUTH === true && CONFIG.USE_SUPABASE === true && Boolean(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
+    if (normalized.includes('apple')) return CONFIG.ENABLE_APPLE_AUTH === true && CONFIG.USE_SUPABASE === true && Boolean(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
     return false;
   }
 
+  const APPLE_MARK = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor"><path d="M16.37 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.87-.76-1.47.02-2.83.86-3.59 2.18-1.53 2.66-.39 6.6 1.1 8.75.73 1.05 1.6 2.24 2.73 2.2 1.1-.05 1.51-.71 2.84-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.07 2.65-2.13.84-1.22 1.18-2.4 1.2-2.46-.03-.01-2.3-.88-2.32-3.52zM14.2 6.13c.6-.73 1.01-1.75.9-2.76-.87.04-1.92.58-2.54 1.31-.56.65-1.05 1.69-.92 2.68.97.08 1.96-.49 2.56-1.23z"/></svg>';
+
   function socialAuthButtonHtml(provider) {
     const configured = oauthProviderConfigured(provider);
-    const mark = provider === 'Google' ? 'G' : provider === 'Facebook' ? 'f' : IG_MARK;
+    const mark = provider === 'Google' ? 'G' : provider === 'Facebook' ? 'f' : provider === 'Apple' ? APPLE_MARK : IG_MARK;
     const cls = `${provider.toLowerCase()}${configured ? '' : ' coming-soon'}`;
     const label = configured ? `Continue with ${provider}` : `${provider} coming soon`;
     return `<button class="social-icon ${cls}" type="button" data-action="social-login" data-provider="${safe(provider)}" aria-label="${safe(label)}" title="${safe(label)}"><span>${mark}</span></button>`;
@@ -3989,11 +4042,11 @@
     }
 
     if (!oauthProviderConfigured(normalized)) {
-      toast(`${normalized === 'google' ? 'Google' : normalized === 'facebook' ? 'Facebook' : 'Social'} sign-in: Coming soon.`, 'warning');
+      toast(`${normalized === 'google' ? 'Google' : normalized === 'facebook' ? 'Facebook' : normalized === 'apple' ? 'Apple' : 'Social'} sign-in: Coming soon.`, 'warning');
       return;
     }
 
-    const supabaseProvider = normalized.includes('facebook') ? 'facebook' : normalized.includes('google') ? 'google' : '';
+    const supabaseProvider = normalized.includes('facebook') ? 'facebook' : normalized.includes('google') ? 'google' : normalized.includes('apple') ? 'apple' : '';
     if (!supabaseProvider) {
       toast('Coming soon.', 'warning');
       return;
@@ -4008,6 +4061,19 @@
     try {
       const options = { redirectTo: fishcrewOAuthRedirectUrl() };
       if (supabaseProvider === 'google') options.queryParams = { prompt: 'select_account' };
+      const Browser = nativeOAuthBrowser();
+      if (Browser) {
+        // Native app: Google refuses sign-in inside an embedded WebView, and a plain
+        // navigation would leave the app for good. Open the provider in a system
+        // browser tab and come back through the app's URL scheme (see setupNativeOAuthReturn).
+        options.redirectTo = CONFIG.NATIVE_OAUTH_REDIRECT;
+        options.skipBrowserRedirect = true;
+        const { data, error } = await client.auth.signInWithOAuth({ provider: supabaseProvider, options });
+        if (error) throw error;
+        if (!data?.url) throw new Error('No sign-in URL returned');
+        await Browser.open({ url: data.url, presentationStyle: 'popover' });
+        return;
+      }
       const { error } = await client.auth.signInWithOAuth({ provider: supabaseProvider, options });
       if (error) throw error;
       toast(`Opening ${supabaseProvider} sign in...`);
@@ -5772,7 +5838,7 @@ ${url}`).catch(() => {});
     }
     try {
       await loadSupabaseScript();
-      supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+      supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' } });
       const { data } = await supabaseClient.auth.getSession();
       state.backendMode = 'supabase';
       if (data?.session?.user) {
@@ -6693,6 +6759,7 @@ ${url}`).catch(() => {});
       wireEvents();
       setupFluidChrome();
       setupHardwareBack();
+      setupNativeOAuthReturn();
       applyScreenshotMode();
       applyScreenshotDemoData();
       applyCaptainDemoMode();
