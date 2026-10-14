@@ -1,5 +1,5 @@
 window.FISHCREW_CONFIG = {
-  VERSION: '0.9.6',
+  VERSION: '0.9.7',
   // Demo/sample content (fake users, trips, feed posts) only loads when this
   // is explicitly true. Production/beta builds must keep it false.
   DEMO_MODE: false,
@@ -34,6 +34,11 @@ window.FISHCREW_CONFIG = {
   ENABLE_FACEBOOK_AUTH: true,
   ENABLE_APPLE_AUTH: true,
   NATIVE_OAUTH_REDIRECT: 'com.chrissims.fishcrew://auth-callback',
+  // Native Apple/Google sign-in in the app (no redirect, nothing to intercept).
+  // Public OAuth client IDs from Google Cloud; leave blank to use the browser-tab flow.
+  GOOGLE_WEB_CLIENT_ID: '',
+  GOOGLE_IOS_CLIENT_ID: '',
+  ENABLE_NATIVE_APPLE_SIGNIN: false,
   // Meta Instagram Graph connect (NOT a login lane). Set META_APP_ID and flip
   // ENABLE_INSTAGRAM_OAUTH once the Meta app + Valid OAuth Redirect URI match.
   // Static SPA uses client-side response_type=token; production with a secret
