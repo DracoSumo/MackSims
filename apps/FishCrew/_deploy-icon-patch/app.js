@@ -3189,17 +3189,23 @@
     return Browser && typeof Browser.open === 'function' ? Browser : null;
   }
 
+  // Cold start can deliver one callback via both appUrlOpen and getLaunchUrl.
+  const handledOAuthCallbacks = new Set();
+
   async function completeNativeOAuth(url) {
     const prefix = String(CONFIG.NATIVE_OAUTH_REDIRECT || '');
     if (!prefix || !String(url || '').startsWith(prefix)) return;
+    if (handledOAuthCallbacks.has(url)) return;
+    handledOAuthCallbacks.add(url);
     const Browser = window.Capacitor?.Plugins?.Browser;
     try { await Browser?.close?.(); } catch (_) {}
     let parsed;
     try { parsed = new URL(url); } catch (_) { return; }
     const hash = new URLSearchParams(parsed.hash.replace(/^#/, ''));
-    const errorText = parsed.searchParams.get('error_description') || hash.get('error_description');
-    if (errorText) {
-      toast(`Sign in failed: ${errorText}`, 'danger');
+    // Any web page can open this URL, so never echo its text back to the user.
+    const errorCode = parsed.searchParams.get('error') || hash.get('error');
+    if (errorCode) {
+      toast(errorCode === 'access_denied' ? 'Sign in was cancelled.' : 'Sign in did not finish. Try again or use email/password.', 'danger');
       return;
     }
     const code = parsed.searchParams.get('code');
@@ -3214,8 +3220,8 @@
       if (error) throw error;
       await checkBackend();
       toast('Signed in.');
-    } catch (error) {
-      toast(`Sign in failed: ${error.message}. Use email/password.`, 'danger');
+    } catch (_) {
+      toast('Sign in link expired or was already used. Try again or use email/password.', 'danger');
     }
   }
 
