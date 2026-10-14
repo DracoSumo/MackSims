@@ -3159,6 +3159,29 @@
     confirmLeaveFishCrew();
   }
 
+  // Native OAuth only: PKCE so a code intercepted on its way back through the URL
+  // scheme is useless without the verifier kept in this WebView. Same storage key as
+  // the main client, so the session it saves is the one the app reads. The main
+  // client stays on the implicit flow so email reset/confirm links keep working on
+  // any device.
+  let nativeOAuthClient = null;
+  async function ensureNativeOAuthClient() {
+    if (nativeOAuthClient) return nativeOAuthClient;
+    await loadSupabaseScript();
+    if (!window.supabase?.createClient || !CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY) return null;
+    const ref = new URL(CONFIG.SUPABASE_URL).hostname.split('.')[0];
+    nativeOAuthClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        flowType: 'pkce',
+        storageKey: `sb-${ref}-auth-token`
+      }
+    });
+    return nativeOAuthClient;
+  }
+
   function nativeOAuthBrowser() {
     const cap = window.Capacitor;
     if (!CONFIG.NATIVE_OAUTH_REDIRECT || !cap?.isNativePlatform?.()) return null;
@@ -3185,10 +3208,9 @@
       return;
     }
     try {
-      await loadSupabaseScript();
-      const client = await ensureSupabaseAuthClient();
-      if (!client) throw new Error('auth unavailable');
-      const { error } = await client.auth.exchangeCodeForSession(code);
+      const pkce = await ensureNativeOAuthClient();
+      if (!pkce) throw new Error('auth unavailable');
+      const { error } = await pkce.auth.exchangeCodeForSession(code);
       if (error) throw error;
       await checkBackend();
       toast('Signed in.');
@@ -3977,8 +3999,7 @@
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true,
-        flowType: 'pkce'
+        detectSessionInUrl: true
       }
     });
 
@@ -4068,7 +4089,9 @@
         // browser tab and come back through the app's URL scheme (see setupNativeOAuthReturn).
         options.redirectTo = CONFIG.NATIVE_OAUTH_REDIRECT;
         options.skipBrowserRedirect = true;
-        const { data, error } = await client.auth.signInWithOAuth({ provider: supabaseProvider, options });
+        const pkce = await ensureNativeOAuthClient();
+        if (!pkce) throw new Error('auth unavailable');
+        const { data, error } = await pkce.auth.signInWithOAuth({ provider: supabaseProvider, options });
         if (error) throw error;
         if (!data?.url) throw new Error('No sign-in URL returned');
         await Browser.open({ url: data.url, presentationStyle: 'popover' });
@@ -5838,7 +5861,7 @@ ${url}`).catch(() => {});
     }
     try {
       await loadSupabaseScript();
-      supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' } });
+      supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
       const { data } = await supabaseClient.auth.getSession();
       state.backendMode = 'supabase';
       if (data?.session?.user) {

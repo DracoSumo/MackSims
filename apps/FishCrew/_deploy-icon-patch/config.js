@@ -1,5 +1,5 @@
 window.FISHCREW_CONFIG = {
-  VERSION: '0.9.5',
+  VERSION: '0.9.6',
   // Demo/sample content (fake users, trips, feed posts) only loads when this
   // is explicitly true. Production/beta builds must keep it false.
   DEMO_MODE: false,
