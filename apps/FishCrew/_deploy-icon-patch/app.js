@@ -3198,16 +3198,24 @@
     return window.Capacitor?.getPlatform?.() || 'web';
   }
 
+  // The iOS build stamps what it was configured for into the WebView user agent
+  // (fishcrew-ios scripts/apply-native-signin-ios.sh). Only use a native provider the
+  // binary was built for, with the same client ID, or GoogleSignIn crashes / Apple fails.
+  function iosBuildSupports(marker) {
+    const m = /NativeSignIn\(([^)]*)\)/.exec(navigator.userAgent || '');
+    return Boolean(m && m[1].split(';').includes(marker));
+  }
+
   function nativeSocialAvailable(provider) {
     if (!nativeSocialPlugin()) return false;
     const platform = nativePlatform();
     if (provider === 'google') {
-      if (platform === 'ios') return Boolean(CONFIG.GOOGLE_IOS_CLIENT_ID && CONFIG.GOOGLE_WEB_CLIENT_ID);
+      if (platform === 'ios') return Boolean(CONFIG.GOOGLE_IOS_CLIENT_ID && CONFIG.GOOGLE_WEB_CLIENT_ID && iosBuildSupports(`gsi=${CONFIG.GOOGLE_IOS_CLIENT_ID}`));
       if (platform === 'android') return Boolean(CONFIG.GOOGLE_WEB_CLIENT_ID);
       return false;
     }
     // Native Apple sheet exists on iOS only; Android keeps the browser-tab flow.
-    if (provider === 'apple') return platform === 'ios' && CONFIG.ENABLE_NATIVE_APPLE_SIGNIN === true;
+    if (provider === 'apple') return platform === 'ios' && CONFIG.ENABLE_NATIVE_APPLE_SIGNIN === true && iosBuildSupports('siwa=1');
     return false;
   }
 
@@ -3257,16 +3265,19 @@
       if (!token) throw new Error('no-token');
       const { error } = await client.auth.signInWithIdToken({ provider, token, nonce: rawNonce });
       if (error) throw error;
-      await checkBackend();
-      toast('Signed in.');
     } catch (error) {
       const code = String(error?.code || error?.message || '');
       if (/cancel/i.test(code)) {
         toast(`${label} sign in was cancelled.`, 'warning');
-        return;
+        return true;
       }
-      toast(`${label} sign in did not finish. Try again or use email/password.`, 'danger');
+      // Misconfigured client or missing capability: let the browser-tab flow take over
+      // instead of locking the user out.
+      return false;
     }
+    await checkBackend();
+    toast('Signed in.');
+    return true;
   }
 
   function nativeOAuthBrowser() {
@@ -4172,8 +4183,7 @@
       return;
     }
 
-    if (nativeSocialAvailable(supabaseProvider)) {
-      await nativeSocialLogin(supabaseProvider, client);
+    if (nativeSocialAvailable(supabaseProvider) && await nativeSocialLogin(supabaseProvider, client)) {
       return;
     }
 
