@@ -3182,6 +3182,93 @@
     return nativeOAuthClient;
   }
 
+  // ---- Native Apple / Google sign-in (Capacitor SocialLogin plugin) ----
+  // The OS sign-in sheet returns an ID token directly to the app, which Supabase
+  // verifies (signInWithIdToken). No redirect or URL scheme is involved, so there is
+  // nothing for another app to intercept. A fresh nonce binds each token to this
+  // attempt: the provider signs sha256(nonce), Supabase checks it against the raw one.
+  function nativeSocialPlugin() {
+    const cap = window.Capacitor;
+    if (!cap?.isNativePlatform?.()) return null;
+    const plugin = cap.Plugins?.SocialLogin;
+    return plugin && typeof plugin.login === 'function' ? plugin : null;
+  }
+
+  function nativePlatform() {
+    return window.Capacitor?.getPlatform?.() || 'web';
+  }
+
+  function nativeSocialAvailable(provider) {
+    if (!nativeSocialPlugin()) return false;
+    const platform = nativePlatform();
+    if (provider === 'google') {
+      if (platform === 'ios') return Boolean(CONFIG.GOOGLE_IOS_CLIENT_ID && CONFIG.GOOGLE_WEB_CLIENT_ID);
+      if (platform === 'android') return Boolean(CONFIG.GOOGLE_WEB_CLIENT_ID);
+      return false;
+    }
+    // Native Apple sheet exists on iOS only; Android keeps the browser-tab flow.
+    if (provider === 'apple') return platform === 'ios' && CONFIG.ENABLE_NATIVE_APPLE_SIGNIN === true;
+    return false;
+  }
+
+  let nativeSocialReady = null;
+  function initNativeSocial() {
+    if (nativeSocialReady) return nativeSocialReady;
+    const plugin = nativeSocialPlugin();
+    const options = {};
+    if (CONFIG.GOOGLE_WEB_CLIENT_ID) {
+      options.google = { webClientId: CONFIG.GOOGLE_WEB_CLIENT_ID, mode: 'online' };
+      if (nativePlatform() === 'ios' && CONFIG.GOOGLE_IOS_CLIENT_ID) {
+        options.google.iOSClientId = CONFIG.GOOGLE_IOS_CLIENT_ID;
+        options.google.iOSServerClientId = CONFIG.GOOGLE_WEB_CLIENT_ID;
+      }
+    }
+    if (CONFIG.ENABLE_NATIVE_APPLE_SIGNIN === true) options.apple = { clientId: 'com.chrissims.fishcrew', redirectUrl: '' };
+    nativeSocialReady = Promise.resolve(plugin.initialize(options)).catch((error) => {
+      nativeSocialReady = null;
+      throw error;
+    });
+    return nativeSocialReady;
+  }
+
+  function randomHex(bytes = 32) {
+    const buf = new Uint8Array(bytes);
+    crypto.getRandomValues(buf);
+    return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function sha256Hex(text) {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function nativeSocialLogin(provider, client) {
+    const label = provider === 'apple' ? 'Apple' : 'Google';
+    try {
+      await initNativeSocial();
+      const rawNonce = randomHex();
+      const hashedNonce = await sha256Hex(rawNonce);
+      const plugin = nativeSocialPlugin();
+      const options = provider === 'apple'
+        ? { scopes: ['email', 'name'], nonce: hashedNonce }
+        : { scopes: ['email', 'profile'], nonce: hashedNonce };
+      const res = await plugin.login({ provider, options });
+      const token = res?.result?.idToken;
+      if (!token) throw new Error('no-token');
+      const { error } = await client.auth.signInWithIdToken({ provider, token, nonce: rawNonce });
+      if (error) throw error;
+      await checkBackend();
+      toast('Signed in.');
+    } catch (error) {
+      const code = String(error?.code || error?.message || '');
+      if (/cancel/i.test(code)) {
+        toast(`${label} sign in was cancelled.`, 'warning');
+        return;
+      }
+      toast(`${label} sign in did not finish. Try again or use email/password.`, 'danger');
+    }
+  }
+
   function nativeOAuthBrowser() {
     const cap = window.Capacitor;
     if (!CONFIG.NATIVE_OAUTH_REDIRECT || !cap?.isNativePlatform?.()) return null;
@@ -4082,6 +4169,11 @@
     const client = await ensureSupabaseAuthClient();
     if (!client) {
       toast('Connected sign-in is unavailable right now. Use email/password.', 'danger');
+      return;
+    }
+
+    if (nativeSocialAvailable(supabaseProvider)) {
+      await nativeSocialLogin(supabaseProvider, client);
       return;
     }
 
