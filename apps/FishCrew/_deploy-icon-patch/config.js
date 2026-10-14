@@ -1,5 +1,5 @@
 window.FISHCREW_CONFIG = {
-  VERSION: '0.9.5',
+  VERSION: '0.9.6',
   // Demo/sample content (fake users, trips, feed posts) only loads when this
   // is explicitly true. Production/beta builds must keep it false.
   DEMO_MODE: false,
@@ -26,11 +26,14 @@ window.FISHCREW_CONFIG = {
   MAX_VIDEO_UPLOAD_MB: 50,
   ENABLE_PLUGIN_MANIFEST: true,
   ENABLE_SOCIAL_SHARE_PORTS: true,
-  // Production: email/password is primary. OAuth providers stay off until keys
-  // are real and Supabase Auth providers are enabled.
+  // Social sign-in goes through Supabase Auth (providers enabled in the dashboard).
+  // In the native app, OAuth opens in a system browser tab and returns via
+  // NATIVE_OAUTH_REDIRECT (custom URL scheme registered by Codemagic).
   ENABLE_OAUTH_COMPLETION: false,
-  ENABLE_GOOGLE_AUTH: false,
-  ENABLE_FACEBOOK_AUTH: false,
+  ENABLE_GOOGLE_AUTH: true,
+  ENABLE_FACEBOOK_AUTH: true,
+  ENABLE_APPLE_AUTH: true,
+  NATIVE_OAUTH_REDIRECT: 'com.chrissims.fishcrew://auth-callback',
   // Meta Instagram Graph connect (NOT a login lane). Set META_APP_ID and flip
   // ENABLE_INSTAGRAM_OAUTH once the Meta app + Valid OAuth Redirect URI match.
   // Static SPA uses client-side response_type=token; production with a secret
@@ -48,8 +51,9 @@ window.FISHCREW_CONFIG = {
   OAUTH_REDIRECT_PATH: '/',
   PLUGIN_STATUS: {
     supabase: 'live',
-    googleAuth: 'coming-soon',
-    facebookAuth: 'coming-soon',
+    googleAuth: 'supabase-oauth',
+    facebookAuth: 'supabase-oauth',
+    appleAuth: 'supabase-oauth',
     instagramConnect: 'config-gated-oauth',
     instagramShare: 'caption-handoff-ready',
     facebookShare: 'web-share-ready',
