@@ -106,11 +106,8 @@ export function AuthCallbackHandler({ onComplete }: { onComplete: () => void }) 
       }
       const user = await getCurrentUser();
       if (user) {
-        const syncErr = await mergeOnSignIn();
-        if (syncErr) {
-          setError(syncErr);
-          return;
-        }
+        // Sync/RLS failures are advisory — never fail an established OAuth session.
+        await mergeOnSignIn();
       }
       window.history.replaceState({}, "", "/");
       onComplete();

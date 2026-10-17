@@ -37,6 +37,12 @@ export function saveCheckIn(input: {
   return record;
 }
 
+export function clearCheckIns(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(STORAGE_KEY);
+  void import("./localDataEvents").then(({ notifyLocalDataChanged }) => notifyLocalDataChanged("checkIns"));
+}
+
 /** Merge remote rows; local wins when ids collide. */
 export function mergeCheckIns(remote: AthleteCheckIn[]): AthleteCheckIn[] {
   const local = listCheckIns();

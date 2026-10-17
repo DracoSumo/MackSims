@@ -6,8 +6,11 @@ let client: SupabaseClient | null = null;
 export function getSupabaseClient(): SupabaseClient | null {
   if (!isSupabaseConfigured) return null;
   if (!client) {
+    // detectSessionInUrl must stay false: AuthCallbackHandler owns the one-shot
+    // exchangeCodeForSession. Leaving auto-detect on consumes the PKCE code first,
+    // then the callback's second exchange fails with "PKCE code verifier not found".
     client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { flowType: "pkce", detectSessionInUrl: true },
+      auth: { flowType: "pkce", detectSessionInUrl: false },
     });
   }
   return client;

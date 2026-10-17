@@ -35,8 +35,11 @@ async function fetchClientConfig(): Promise<SupabaseConfig | null> {
 }
 
 function createSupabaseClient(cfg: SupabaseConfig): SupabaseClient {
+  // detectSessionInUrl must stay false: AuthCallbackPage owns the one-shot
+  // exchangeCodeForSession. Leaving auto-detect on consumes the PKCE code first,
+  // then the callback's second exchange fails with "PKCE code verifier not found".
   return createClient(cfg.url, cfg.anon, {
-    auth: { flowType: 'pkce', detectSessionInUrl: true },
+    auth: { flowType: 'pkce', detectSessionInUrl: false },
   })
 }
 
@@ -99,10 +102,27 @@ export async function signInWithOAuth(
   return error?.message ?? null
 }
 
+/**
+ * Complete the OAuth redirect. Prefer an already-established session (idempotent
+ * remount / accidental double-call). Otherwise exchange the one-time `code`.
+ * Returns an error message, or null on success.
+ */
 export async function exchangeAuthCallbackCode(supabase: SupabaseClient): Promise<string | null> {
+  const existing = await supabase.auth.getSession()
+  if (existing.data.session) {
+    return null
+  }
+
   const params = new URLSearchParams(window.location.search)
   const code = params.get('code')
   if (!code) return 'Missing OAuth code.'
+
   const { error } = await supabase.auth.exchangeCodeForSession(code)
-  return error?.message ?? null
+  if (error) {
+    // Race: another caller may have finished the exchange between getSession and here.
+    const retry = await supabase.auth.getSession()
+    if (retry.data.session) return null
+    return error.message
+  }
+  return null
 }

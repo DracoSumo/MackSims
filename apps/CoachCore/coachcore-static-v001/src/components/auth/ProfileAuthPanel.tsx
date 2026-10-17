@@ -6,7 +6,7 @@ import { authAvailable, getCurrentUser, signOut } from "@/lib/auth";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { listCheckIns } from "@/services/checkInStore";
 import { listActionLog } from "@/services/actionLogStore";
-import { countRemoteCheckIns, countRemoteActionLog, getSyncMeta, mergeOnSignIn } from "@/services/supabaseSync";
+import { countRemoteCheckIns, countRemoteActionLog, getSyncMeta, mergeOnSignIn, clearLocalSyncStateOnSignOut } from "@/services/supabaseSync";
 
 export function ProfileAuthPanel() {
   const [user, setUser] = useState<User | null>(null);
@@ -44,6 +44,8 @@ export function ProfileAuthPanel() {
         countRemoteActionLog().then(setRemoteActions);
       }
       if (event === "SIGNED_OUT") {
+        clearLocalSyncStateOnSignOut();
+        refreshLocalCounts();
         setRemoteCheckIns(null);
         setRemoteActions(null);
       }
@@ -64,6 +66,8 @@ export function ProfileAuthPanel() {
 
   async function handleSignOut() {
     const err = await signOut();
+    clearLocalSyncStateOnSignOut();
+    refreshLocalCounts();
     setMessage(err ?? "Signed out.");
   }
 
