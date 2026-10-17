@@ -1,12 +1,13 @@
 ﻿import { Card, SectionPage } from "@/components/SectionPage";
 import { ProfileAuthPanel } from "@/components/auth/ProfileAuthPanel";
+import { ProfileIntegrationsSummary } from "@/components/integrations/ProfileIntegrationsSummary";
 
 export default function ProfilePage() {
   return (
     <SectionPage
       eyebrow="Identity"
       title="Coach profile"
-      description="Profile, role, organization, permissions, notification preferences, and future connected devices."
+      description="Profile, role, organization, permissions, notification preferences, and connected plugins."
     >
       <Card title="Account" subtitle="Supabase OAuth (Google / GitHub)">
         <ProfileAuthPanel />
@@ -17,10 +18,8 @@ export default function ProfilePage() {
           <p>Permissions: Coach admin</p>
           <p>Notification mode: Film, workouts, missed assignments</p>
         </Card>
-        <Card title="Connected devices" subtitle="Future wearable sync">
-          <p>Apple Health: Planned</p>
-          <p>Garmin: Plugin-ready</p>
-          <p>WHOOP: Plugin-ready</p>
+        <Card title="Connected plugins" subtitle="Live status from Integrations">
+          <ProfileIntegrationsSummary />
         </Card>
       </div>
     </SectionPage>

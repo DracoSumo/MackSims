@@ -33,7 +33,7 @@ export default function Home() {
           </div>
 
           <Link
-            href="/app"
+            href="/login"
             className="rounded-full border border-emerald-300/40 px-5 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-300/10"
           >
             Sign In
@@ -65,16 +65,16 @@ export default function Home() {
 
             <div className="mt-8 flex flex-wrap gap-4">
               <Link
-                href="/beta"
+                href="/login"
                 className="rounded-full bg-emerald-400 px-6 py-3 font-bold text-slate-950 shadow-lg shadow-emerald-500/20 hover:bg-emerald-300"
               >
-                Start Demo
+                Sign in
               </Link>
               <Link
                 href="/app"
                 className="rounded-full border border-white/15 px-6 py-3 font-bold text-white hover:bg-white/10"
               >
-                Open Dashboard
+                Open dashboard
               </Link>
             </div>
           </div>
@@ -123,7 +123,11 @@ export default function Home() {
           </div>
           <p className="mt-5 text-sm leading-6 text-slate-400">
             Hudl and similar video-platform integrations will be supported where API, export, embed, or licensed access is available.
-            CoachCore tracks in-app watch time and engagement immediately.
+            CoachCore tracks in-app watch time and engagement immediately. Connect or request access from{" "}
+            <Link href="/app/integrations/" className="font-bold text-sky-300">
+              Integrations
+            </Link>
+            .
           </p>
         </section>
       </section>
