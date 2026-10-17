@@ -209,6 +209,28 @@ export async function markPublished(id: string, lockToken: string, mediaId: stri
   return true;
 }
 
+/**
+ * Record a Meta media id after a successful media_publish when the worker lease
+ * no longer matches (or a transient write raced). Never use this unless Meta
+ * already accepted the publish — it intentionally ignores lock_token.
+ */
+export async function forceMarkPublished(id: string, mediaId: string): Promise<boolean> {
+  const result = await queryable().query<{ attempts: number }>(
+    `UPDATE instagram_publish_queue
+     SET state = 'published', meta_media_id = $2, published_at = COALESCE(published_at, now()),
+         lock_token = NULL, last_error = NULL, updated_at = now()
+     WHERE id = $1 AND meta_media_id IS NULL AND state IN ('processing', 'failed')
+     RETURNING attempts`,
+    [id, mediaId],
+  );
+  if (!result.rows[0]) return false;
+  await audit(id, "published_forced", "background-publisher", "processing", "published", {
+    mediaId,
+    reason: "meta_publish_succeeded_without_lease",
+  });
+  return true;
+}
+
 export async function markFailed(id: string, lockToken: string, error: string): Promise<void> {
   const result = await queryable().query(
     `UPDATE instagram_publish_queue
