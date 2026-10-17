@@ -16,6 +16,16 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: `${coachCoreConfig.appName} — ${coachCoreConfig.hook}`,
   description: coachCoreConfig.accountabilityDefinition,
+  openGraph: {
+    title: `${coachCoreConfig.appName} — ${coachCoreConfig.hook}`,
+    description: coachCoreConfig.accountabilityDefinition,
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${coachCoreConfig.appName} — ${coachCoreConfig.hook}`,
+    description: coachCoreConfig.accountabilityDefinition,
+  },
 };
 
 export default function RootLayout({
