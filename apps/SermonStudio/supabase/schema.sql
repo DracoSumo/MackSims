@@ -50,3 +50,29 @@ create table if not exists verse_texts (
   text_body text not null,
   primary key (ref, translation_id)
 );
+
+-- Fail closed on user content until owner-scoped policies exist.
+-- See migrations/20260820110000_fail_closed_sermons_series_rls.sql.
+alter table public.sermons enable row level security;
+alter table public.series enable row level security;
+alter table public.songs enable row level security;
+alter table public.verses enable row level security;
+alter table public.verse_texts enable row level security;
+
+drop policy if exists "songs_read" on public.songs;
+create policy "songs_read"
+  on public.songs for select
+  to anon, authenticated
+  using (true);
+
+drop policy if exists "verses_read" on public.verses;
+create policy "verses_read"
+  on public.verses for select
+  to anon, authenticated
+  using (true);
+
+drop policy if exists "verse_texts_read" on public.verse_texts;
+create policy "verse_texts_read"
+  on public.verse_texts for select
+  to anon, authenticated
+  using (true);
