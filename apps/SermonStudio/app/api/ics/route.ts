@@ -1,6 +1,7 @@
 // app/api/ics/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { resolveIcsAccess, sermonVisibleToChurch } from '@/lib/icsAccess'
 
 type SermonRow = {
   id: string
@@ -84,12 +85,32 @@ function buildICS(sermons: SermonRow[]): string {
   return lines.join('\r\n')
 }
 
+async function resolveChurchId(
+  sb: ReturnType<typeof createClient>,
+  token: string,
+): Promise<{ churchId: string | null; error: string | null; notFound?: boolean }> {
+  const { data: ch, error: chErr } = await sb
+    .from('churches')
+    .select('id')
+    .eq('feed_token', token)
+    .maybeSingle()
+  if (chErr) return { churchId: null, error: chErr.message }
+  const churchId = (ch?.id as string | undefined) ?? null
+  if (!churchId) return { churchId: null, error: null, notFound: true }
+  return { churchId, error: null }
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const sermonId = searchParams.get('sermonId')
-  const from = searchParams.get('from') // YYYY-MM-DD
-  const to = searchParams.get('to')     // YYYY-MM-DD
-  const token = searchParams.get('token') // church feed token (optional)
+  const access = resolveIcsAccess({
+    sermonId: searchParams.get('sermonId'),
+    token: searchParams.get('token'),
+    from: searchParams.get('from'),
+    to: searchParams.get('to'),
+  })
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status })
+  }
 
   const url =
     process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
@@ -105,41 +126,37 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // Bulk feeds must include a church feed token — never expose all sermons anonymously
-  if (!sermonId && !token) {
-    return NextResponse.json(
-      { error: 'Provide sermonId or a valid church feed token' },
-      { status: 401 }
-    )
+  const sb = createClient(url, serviceKey)
+  const { churchId, error: churchError, notFound } = await resolveChurchId(sb, access.token)
+  if (churchError) {
+    return NextResponse.json({ error: churchError }, { status: 500 })
+  }
+  if (notFound || !churchId) {
+    return NextResponse.json({ error: 'Invalid church feed token' }, { status: 401 })
   }
 
-  const sb = createClient(url, serviceKey)
-
-  // Build query
   let sermons: SermonRow[] = []
-  if (sermonId) {
+  if (access.mode === 'single') {
     const { data, error } = await sb
       .from('sermons')
       .select('*')
-      .eq('id', sermonId)
+      .eq('id', access.sermonId)
       .limit(1)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    sermons = (data as SermonRow[]) || []
-  } else {
-    let q = sb.from('sermons').select('*').order('date', { ascending: true })
-    if (from) q = q.gte('date', from)
-    if (to) q = q.lte('date', to)
-
-    // If a church feed token is provided, scope by church
-    if (token) {
-      const { data: ch, error: chErr } = await sb
-        .from('churches')
-        .select('id')
-        .eq('feed_token', token)
-        .single()
-      if (chErr) return NextResponse.json({ error: chErr.message }, { status: 500 })
-      if (ch?.id) q = q.eq('church_id', ch.id)
+    const row = ((data as SermonRow[]) || [])[0]
+    // Same response for missing sermon and wrong-church — no cross-tenant oracle.
+    if (!sermonVisibleToChurch(row, churchId)) {
+      return NextResponse.json({ error: 'Sermon not found' }, { status: 404 })
     }
+    sermons = [row]
+  } else {
+    let q = sb
+      .from('sermons')
+      .select('*')
+      .eq('church_id', churchId)
+      .order('date', { ascending: true })
+    if (access.from) q = q.gte('date', access.from)
+    if (access.to) q = q.lte('date', access.to)
 
     const { data, error } = await q
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
