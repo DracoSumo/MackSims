@@ -123,12 +123,23 @@ export function canTransition(from: QueueState, to: QueueState): boolean {
   );
 }
 
+/** Stable media fingerprint — Postgres jsonb reorders object keys on round-trip. */
+export function canonicalMediaPayload(media: MediaItem[]): string {
+  return JSON.stringify(
+    (Array.isArray(media) ? media : []).map((item) => ({
+      altText: String(item?.altText ?? ""),
+      mediaType: String(item?.mediaType ?? ""),
+      url: String(item?.url ?? ""),
+    })),
+  );
+}
+
 export function hasSameIdempotentPayload(existing: QueueRecord, input: QueueInput): boolean {
   return (
     existing.scheduledAt === input.scheduledAt &&
     existing.caption === input.caption &&
     existing.contentType === input.contentType &&
-    JSON.stringify(existing.media) === JSON.stringify(input.media) &&
+    canonicalMediaPayload(existing.media) === canonicalMediaPayload(input.media) &&
     existing.idempotencyKey === input.idempotencyKey
   );
 }

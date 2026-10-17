@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canTransition,
+  canonicalMediaPayload,
   hasSameIdempotentPayload,
   validateQueueInput,
   type QueueRecord,
@@ -66,5 +67,39 @@ describe("queue state and idempotency rules", () => {
     };
     expect(hasSameIdempotentPayload(existing, normalized)).toBe(true);
     expect(hasSameIdempotentPayload(existing, { ...normalized, caption: "Changed" })).toBe(false);
+  });
+
+  it("treats jsonb key-reordered media as the same idempotent payload", () => {
+    const normalized = validateQueueInput(validInput);
+    // Postgres jsonb round-trips object keys in sorted order; naive JSON.stringify
+    // equality then false-conflicts and pushes operators toward a new key → duplicate posts.
+    const jsonbOrderedMedia = [
+      {
+        altText: normalized.media[0].altText,
+        mediaType: normalized.media[0].mediaType,
+        url: normalized.media[0].url,
+      },
+    ];
+    expect(JSON.stringify(jsonbOrderedMedia)).not.toBe(JSON.stringify(normalized.media));
+    expect(canonicalMediaPayload(jsonbOrderedMedia)).toBe(canonicalMediaPayload(normalized.media));
+
+    const existing: QueueRecord = {
+      ...normalized,
+      media: jsonbOrderedMedia,
+      id: "queue-1",
+      state: "draft",
+      approvedAt: null,
+      approvedBy: null,
+      attempts: 0,
+      lastError: null,
+      metaContainerIds: [],
+      metaMediaId: null,
+      processingStartedAt: null,
+      lockToken: null,
+      createdAt: "2026-07-30T14:00:00.000Z",
+      updatedAt: "2026-07-30T14:00:00.000Z",
+      publishedAt: null,
+    };
+    expect(hasSameIdempotentPayload(existing, normalized)).toBe(true);
   });
 });
