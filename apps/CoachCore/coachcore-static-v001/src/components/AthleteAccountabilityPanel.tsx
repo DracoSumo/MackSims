@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { athletes } from "@/data/mock";
+import { useResolvedAthletes } from "@/hooks/useResolvedAthletes";
 import { listCheckIns } from "@/services/checkInStore";
 import { onLocalDataChanged } from "@/services/localDataEvents";
 import { StatusPill } from "@/components/ui/CoachCards";
@@ -14,6 +14,7 @@ function athleteTone(status: string) {
 }
 
 export function AthleteAccountabilityPanel() {
+  const { athletes, ready } = useResolvedAthletes();
   const [checkIns, setCheckIns] = useState<ReturnType<typeof listCheckIns>>([]);
 
   useEffect(() => {
@@ -47,54 +48,59 @@ export function AthleteAccountabilityPanel() {
       </p>
 
       <div className="mt-5 space-y-3">
-        {athletes.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-white/15 p-4 text-sm text-slate-400">
-            No athletes on this roster yet. Import your team to see film, workout, fueling, and readiness status.
-          </p>
+        {!ready ? (
+          <p className="text-sm text-slate-400">Loading roster…</p>
+        ) : athletes.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-white/15 p-4 text-sm text-slate-400">
+            <p>No athletes on this roster yet. Add your team to see film, workout, fueling, and readiness status.</p>
+            <Link href="/app/team/add" className="mt-3 inline-block font-bold text-sky-300">
+              Add your roster →
+            </Link>
+          </div>
         ) : (
           athletes.map((athlete) => {
-          const checkedInToday = todayCheckInIds.has(athlete.id);
-          return (
-            <Link
-              key={athlete.id}
-              href={`/app/athletes/${athlete.id}`}
-              className="block rounded-2xl border border-white/10 bg-[var(--ms-surface)] p-4 transition hover:border-emerald-400/35"
-            >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="font-black">{athlete.name}</p>
-                  <p className="text-sm text-slate-400">
-                    {athlete.role} • Last active: {athlete.lastActive}
-                  </p>
+            const checkedInToday = todayCheckInIds.has(athlete.id);
+            return (
+              <Link
+                key={athlete.id}
+                href={`/app/athletes/detail/?id=${encodeURIComponent(athlete.id)}`}
+                className="block rounded-2xl border border-white/10 bg-[var(--ms-surface)] p-4 transition hover:border-emerald-400/35"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-black">{athlete.name}</p>
+                    <p className="text-sm text-slate-400">
+                      {athlete.role} • Last active: {athlete.lastActive}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {checkedInToday && <StatusPill tone="green">Checked in today</StatusPill>}
+                    <StatusPill tone={athleteTone(athlete.status)}>{athlete.status}</StatusPill>
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {checkedInToday && <StatusPill tone="green">Checked in today</StatusPill>}
-                  <StatusPill tone={athleteTone(athlete.status)}>{athlete.status}</StatusPill>
+                <div className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                  <div className="rounded-2xl bg-white/10 p-3">
+                    <p className="text-slate-400">Film</p>
+                    <p className="font-black">{athlete.film}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white/10 p-3">
+                    <p className="text-slate-400">Workouts</p>
+                    <p className="font-black">{athlete.workouts}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white/10 p-3">
+                    <p className="text-slate-400">Fueling</p>
+                    <p className="font-black">{athlete.meals}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white/10 p-3">
+                    <p className="text-slate-400">Readiness</p>
+                    <p className="font-black">{athlete.readiness}</p>
+                  </div>
                 </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-                <div className="rounded-2xl bg-white/10 p-3">
-                  <p className="text-slate-400">Film</p>
-                  <p className="font-black">{athlete.film}</p>
-                </div>
-                <div className="rounded-2xl bg-white/10 p-3">
-                  <p className="text-slate-400">Workouts</p>
-                  <p className="font-black">{athlete.workouts}</p>
-                </div>
-                <div className="rounded-2xl bg-white/10 p-3">
-                  <p className="text-slate-400">Fueling</p>
-                  <p className="font-black">{athlete.meals}</p>
-                </div>
-                <div className="rounded-2xl bg-white/10 p-3">
-                  <p className="text-slate-400">Readiness</p>
-                  <p className="font-black">{athlete.readiness}</p>
-                </div>
-              </div>
-            </Link>
-          );
-        })
+              </Link>
+            );
+          })
         )}
       </div>
     </div>

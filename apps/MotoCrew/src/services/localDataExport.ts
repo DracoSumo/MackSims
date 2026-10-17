@@ -6,6 +6,7 @@ export function downloadMotoCrewLocalData() {
     localStorageKeys.draftRides,
     localStorageKeys.emergencyContacts,
     localStorageKeys.safetyAcknowledged,
+    localStorageKeys.completedChecklistByRide,
     localStorageKeys.completedChecklistIds,
     "motocrew.riderProfile",
   ];

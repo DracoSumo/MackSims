@@ -1,7 +1,7 @@
 ﻿import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AthleteDetailClient } from "@/components/AthleteDetailClient";
 import { Card, SectionPage } from "@/components/SectionPage";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { athletes, videoMoments, workouts } from "@/data/mock";
 
 export function generateStaticParams() {
@@ -17,20 +17,10 @@ export default async function AthleteDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  if (id === "none" || athletes.length === 0) {
-    return (
-      <SectionPage eyebrow="Athlete profile" title="No athlete selected" description="Import your roster to open athlete detail pages.">
-        <EmptyState
-          title="Roster not connected"
-          body="Athlete detail routes stay empty in external builds so testers do not see fabricated profiles."
-        />
-        <div className="mt-6">
-          <Link href="/app/team" className="text-sm font-bold text-sky-300">
-            ← Back to team
-          </Link>
-        </div>
-      </SectionPage>
-    );
+
+  // Production builds: no fabricated profiles — client reads local roster.
+  if (athletes.length === 0) {
+    return <AthleteDetailClient athleteId={id === "none" ? "" : id} />;
   }
 
   const athlete = athletes.find((item) => item.id === id);
@@ -59,13 +49,22 @@ export default async function AthleteDetailPage({
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
-        <Link href="/app/actions/send-nudge" className="rounded-2xl bg-sky-400 px-5 py-3 text-center font-black text-slate-950">
+        <Link
+          href="/app/actions/send-nudge"
+          className="rounded-2xl bg-sky-400 px-5 py-3 text-center font-black text-slate-950"
+        >
           Send Nudge
         </Link>
-        <Link href="/app/actions/assign-workout" className="rounded-2xl border border-white/10 px-5 py-3 text-center font-black text-white hover:bg-white/10">
+        <Link
+          href="/app/actions/assign-workout"
+          className="rounded-2xl border border-white/10 px-5 py-3 text-center font-black text-white hover:bg-white/10"
+        >
           Assign Workout
         </Link>
-        <Link href="/app/actions/save-note" className="rounded-2xl border border-white/10 px-5 py-3 text-center font-black text-white hover:bg-white/10">
+        <Link
+          href="/app/actions/save-note"
+          className="rounded-2xl border border-white/10 px-5 py-3 text-center font-black text-white hover:bg-white/10"
+        >
           Save Note
         </Link>
       </div>
@@ -75,7 +74,7 @@ export default async function AthleteDetailPage({
           {athlete.note}
         </Card>
 
-        <Card title="Next action" subtitle="Mock recommendation">
+        <Card title="Next action" subtitle="Recommended next step">
           {athlete.status === "Locked in"
             ? "Keep current plan. Assign advanced film and preserve recovery window."
             : "Send a coach nudge, assign missed film, and check hydration/fueling before next session."}

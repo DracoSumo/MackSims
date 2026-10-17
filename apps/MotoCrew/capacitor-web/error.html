@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>MotoCrew — Offline</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 24px;
+        background: #121214;
+        color: #f9fafb;
+        box-sizing: border-box;
+      }
+      main { max-width: 22rem; text-align: center; }
+      h1 { margin: 0 0 0.5rem; font-size: 1.5rem; font-weight: 800; }
+      p { margin: 0 0 1.25rem; line-height: 1.5; color: #94a3b8; font-size: 0.95rem; }
+      a, button {
+        display: inline-block; width: 100%; margin: 0.4rem 0; padding: 0.85rem 1rem;
+        border-radius: 0.85rem; border: 1px solid rgba(255,255,255,0.15);
+        background: rgba(56,189,248,0.18); color: #e0f2fe; font-weight: 700; font-size: 1rem;
+        text-decoration: none; cursor: pointer;
+      }
+      button.secondary { background: transparent; color: #cbd5e1; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>MotoCrew couldn’t load</h1>
+      <p>The app needs a network connection. Check Wi‑Fi or cellular, then try again.</p>
+      <a id="retry" href="https://motocrewz.netlify.app/">Retry</a>
+      <button class="secondary" type="button" id="reload">Reload this page</button>
+    </main>
+    <script>
+      document.getElementById("reload").addEventListener("click", function () { location.reload(); });
+    </script>
+  </body>
+</html>

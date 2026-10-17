@@ -1,6 +1,6 @@
-﻿import Link from "next/link";
-import { Card, SectionPage } from "@/components/SectionPage";
+import { SectionPage } from "@/components/SectionPage";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { VideoMomentsBoard } from "@/components/VideoMomentsBoard";
 import { videoMoments } from "@/data/mock";
 
 export default function VideoPage() {
@@ -8,28 +8,16 @@ export default function VideoPage() {
     <SectionPage
       eyebrow="Film room"
       title="Video moments and drill review"
-      description="Assign clips, tag corrections, highlight effort, review movement, and track in-app watch time."
+      description="Assign clips, tag corrections, highlight effort, review movement, and track in-app watch time. Simulate assignment status on this device."
     >
-      <div className="grid gap-4 md:grid-cols-2">
-        {videoMoments.length === 0 ? (
-          <div className="md:col-span-2">
-            <EmptyState
-              title="No film assignments yet"
-              body="Assigned clips and watch completion will appear here once film is connected for your team."
-            />
-          </div>
-        ) : (
-          videoMoments.map((moment) => (
-            <Link key={moment.id} href={`/app/video/${moment.id}`} className="block transition hover:-translate-y-1">
-              <Card title={moment.title} subtitle={`${moment.tag} • ${moment.assigned}`}>
-                <p>Watched: {moment.watched}</p>
-                <p>{moment.note}</p>
-                <p className="mt-3 font-bold text-sky-300">Open video detail →</p>
-              </Card>
-            </Link>
-          ))
-        )}
-      </div>
+      {videoMoments.length === 0 ? (
+        <EmptyState
+          title="No film assignments yet"
+          body="Assigned clips and watch completion will appear here once film is connected for your team."
+        />
+      ) : (
+        <VideoMomentsBoard />
+      )}
     </SectionPage>
   );
 }

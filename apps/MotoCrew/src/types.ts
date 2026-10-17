@@ -31,6 +31,16 @@ export type Ride = {
   featuredReason?: string
 }
 
+export type RouteStopKind = 'meet' | 'fuel' | 'vista' | 'waypoint' | 'finish'
+
+export type RouteStop = {
+  label: string
+  kind: RouteStopKind
+  /** Optional mock coordinates for static map rendering (no live tiles). */
+  lat?: number
+  lng?: number
+}
+
 export type RoutePreview = {
   id: string
   rideId: string
@@ -40,7 +50,9 @@ export type RoutePreview = {
   distanceMiles: number
   estimatedRideTime: string
   roadType: string
+  /** @deprecated Prefer `stops` — kept for older mock rows. */
   segments: string[]
+  stops?: RouteStop[]
 }
 
 export type DraftRide = {

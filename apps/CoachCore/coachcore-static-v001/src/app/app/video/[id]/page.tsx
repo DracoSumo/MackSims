@@ -1,6 +1,7 @@
 ﻿import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card, SectionPage } from "@/components/SectionPage";
+import { VideoMomentActions } from "@/components/VideoMomentActions";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { videoMoments } from "@/data/mock";
 
@@ -58,11 +59,15 @@ export default async function VideoMomentDetailPage({
       <div className="rounded-[2rem] border border-white/10 bg-slate-900 p-6">
         <div className="flex aspect-video items-center justify-center rounded-[1.5rem] border border-white/10 bg-slate-950 text-center">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.3em] text-sky-300">Mock video player</p>
+            <p className="text-sm font-bold uppercase tracking-[0.3em] text-sky-300">Video player</p>
             <h2 className="mt-3 text-3xl font-black">{moment.title}</h2>
             <p className="mt-2 text-slate-400">Real uploads come in a later backend patch.</p>
           </div>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <VideoMomentActions momentId={moment.id} watched={moment.watched} />
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">

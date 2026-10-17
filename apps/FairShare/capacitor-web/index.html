@@ -2,24 +2,47 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#007a6e" />
     <title>CurbCue</title>
     <style>
+      :root { color-scheme: light; }
       body {
-        font-family: system-ui, sans-serif;
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
         display: grid;
         place-items: center;
         min-height: 100vh;
         margin: 0;
-        background: #0f172a;
-        color: #f8fafc;
+        padding: 24px;
+        background: #eef6f4;
+        color: #0c2e36;
+        box-sizing: border-box;
       }
+      main { max-width: 22rem; text-align: center; }
+      .brand { font-size: 1.75rem; font-weight: 900; letter-spacing: -0.02em; margin-bottom: 0.5rem; color: #007a6e; }
+      p { margin: 0 0 1rem; line-height: 1.5; color: #4a6670; }
+      a { color: #007a6e; font-weight: 700; }
     </style>
   </head>
   <body>
-    <p>Loading CurbCue…</p>
+    <main>
+      <div class="brand">CurbCue</div>
+      <p id="status">Loading…</p>
+      <p><a id="open" href="https://fairshare-v03-20260624.netlify.app/">Open CurbCue</a></p>
+    </main>
     <script>
-      location.replace('https://fairshare-v03-20260624.netlify.app');
+      (function () {
+        var TARGET = "https://fairshare-v03-20260624.netlify.app/";
+        var statusEl = document.getElementById("status");
+        document.getElementById("open").setAttribute("href", TARGET);
+        try { location.replace(TARGET); }
+        catch (err) { statusEl.textContent = "Could not auto-open. Tap the link below."; }
+        setTimeout(function () {
+          if (document.visibilityState === "visible") {
+            statusEl.textContent = "Still loading… If nothing appears, check your connection and tap Open CurbCue.";
+          }
+        }, 4000);
+      })();
     </script>
   </body>
 </html>

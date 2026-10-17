@@ -2,7 +2,6 @@
 import { Card, SectionPage } from "@/components/SectionPage";
 import { LocalDataPanel } from "@/components/LocalDataPanel";
 import { SupabaseStatusPanel } from "@/components/SupabaseStatusPanel";
-import { FoundationNote } from "@/components/ui/CoachCards";
 import { coachCoreConfig } from "@/config/coachcore";
 
 const locks = [
@@ -21,7 +20,7 @@ const locks = [
   "OAuth sign-in (Google/GitHub when Supabase configured)",
   "Optional Supabase sync (check-ins, actions, beta)",
   "Athlete check-in (localStorage)",
-  "Mock action log (localStorage)",
+  "Action log (this device)",
   "Local data export/import",
   "Product docs",
   "Netlify mobile demo",
@@ -95,7 +94,6 @@ export default function StatusPage() {
       </div>
 
       <div className="mt-6">
-        <FoundationNote />
       </div>
 
       <div className="mt-6 rounded-[2rem] border border-sky-300/20 bg-sky-300/10 p-6">

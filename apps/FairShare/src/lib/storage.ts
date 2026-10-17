@@ -27,6 +27,9 @@ export type SavedComparison = {
   zoneId: string;
   estimateId: string;
   savedAt: number;
+  fareLow?: number;
+  fareHigh?: number;
+  providerName?: string;
 };
 
 export type CrowdPoll = {

@@ -4,9 +4,10 @@ import { toTitleCase } from "../lib/format";
 interface CrowdMeterCardProps {
   signal: CrowdSignal;
   title?: string;
+  onOpen?: () => void;
 }
 
-export function CrowdMeterCard({ signal, title = "CrowdMeter" }: CrowdMeterCardProps) {
+export function CrowdMeterCard({ signal, title = "CrowdMeter", onOpen }: CrowdMeterCardProps) {
   return (
     <article className={`card crowd-card crowd-card--${signal.level.toLowerCase()}`}>
       <div className="card-heading">
@@ -88,12 +89,14 @@ export function CrowdMeterCard({ signal, title = "CrowdMeter" }: CrowdMeterCardP
 
       {signal.precisionNote && <p className="precision-note">{signal.precisionNote}</p>}
 
-      <div className="placeholder-action">
-        <span>User crowd poll</span>
-        <button type="button" disabled title="Crowd poll submission lives on the CrowdMeter page — this card is read-only preview">
-          Pending
-        </button>
-      </div>
+      {onOpen && (
+        <div className="placeholder-action">
+          <span>Full CrowdMeter</span>
+          <button type="button" onClick={onOpen}>
+            Open CrowdMeter
+          </button>
+        </div>
+      )}
     </article>
   );
 }
