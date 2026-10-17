@@ -1,0 +1,16 @@
+{
+  "app": "shutterbid",
+  "play": {
+    "icon": "icon-512.png",
+    "featureGraphic": "feature-1024x500.png",
+    "phoneScreenshots": [
+      "phone/01-marketplace.png",
+      "phone/02-job-detail.png",
+      "phone/03-post-job.png",
+      "phone/04-photographer.png",
+      "phone/05-jobs-browse.png"
+    ]
+  },
+  "notes": "Prefer mobile-shell READY shots. REJECT site-not-found excluded.",
+  "capturedAt": "2026-07-23T21:33:36.828Z"
+}

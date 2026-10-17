@@ -1,0 +1,15 @@
+{
+  "app": "fishcrew",
+  "play": {
+    "icon": "icon-512.png",
+    "featureGraphic": "feature-1024x500.png",
+    "phoneScreenshots": [
+      "phone/01-home.png",
+      "phone/02-explore.png",
+      "phone/03-feed.png",
+      "phone/04-tools.png"
+    ]
+  },
+  "notes": "Upload READY pack only. NEEDS_RETAKE public-route shot excluded.",
+  "capturedAt": "2026-07-23T21:33:53.598Z"
+}
