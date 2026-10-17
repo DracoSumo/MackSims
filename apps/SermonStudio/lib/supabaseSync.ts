@@ -6,6 +6,11 @@ import { defaultOutline } from "./types";
 export type SyncResult = "skipped" | "ok" | "error";
 
 const SYNC_META_KEY = "sermon-studio.syncMeta";
+const SYNC_OWNER_KEY = "sermon-studio.syncOwnerUserId";
+
+export const LS_LIB = "sermon-studio-lib";
+export const LS_SERIES = "sermon-studio-series";
+export const LS_DRAFT = "sermon-studio-draft";
 
 export type SyncMeta = {
   lastSyncedAt: string | null;
@@ -35,6 +40,10 @@ type SeriesRow = {
 
 export type SermonWithSync = Sermon & { cloudSynced?: boolean };
 
+type PullOk<T> = { ok: true; data: T };
+type PullErr = { ok: false; error: string };
+export type PullResult<T> = PullOk<T> | PullErr;
+
 export function getSyncMeta(): SyncMeta {
   if (typeof window === "undefined") return { lastSyncedAt: null, lastError: null };
   try {
@@ -53,6 +62,37 @@ function setSyncMeta(patch: Partial<SyncMeta>): void {
   } catch {
     // best-effort
   }
+}
+
+function removeLocalLibraryKeys(): void {
+  try {
+    localStorage.removeItem(LS_LIB);
+    localStorage.removeItem(LS_SERIES);
+    localStorage.removeItem(LS_DRAFT);
+    localStorage.removeItem(SYNC_OWNER_KEY);
+  } catch {
+    // best-effort
+  }
+}
+
+/** Drop prior account's local library before binding a new uid. */
+export function bindSyncOwner(uid: string): boolean {
+  if (typeof localStorage === "undefined") return false;
+  const prev = localStorage.getItem(SYNC_OWNER_KEY);
+  const switched = Boolean(prev && prev !== uid);
+  if (switched) {
+    localStorage.removeItem(LS_LIB);
+    localStorage.removeItem(LS_SERIES);
+    localStorage.removeItem(LS_DRAFT);
+  }
+  localStorage.setItem(SYNC_OWNER_KEY, uid);
+  return switched;
+}
+
+/** Scrub library/drafts on sign-out so the next account cannot inherit or push them. */
+export function clearLocalLibraryOnSignOut(): void {
+  removeLocalLibraryKeys();
+  setSyncMeta({ lastSyncedAt: null, lastError: null });
 }
 
 export async function getAuthedUser(): Promise<User | null> {
@@ -97,32 +137,34 @@ export function sermonToPayload(sermon: Sermon) {
   };
 }
 
-export async function pullSermons(): Promise<SermonWithSync[]> {
+export async function pullSermons(): Promise<PullResult<SermonWithSync[]>> {
   const supabase = await ensureSupabaseClient();
-  if (!supabase) return [];
-  if (!(await getAuthedUser())) return [];
+  if (!supabase) return { ok: false, error: "Supabase not configured." };
+  if (!(await getAuthedUser())) return { ok: false, error: "Not signed in." };
 
   const { data, error } = await supabase
     .from("sermons")
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error || !data) return [];
-  return (data as SermonRow[]).map(rowToSermon);
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: "Sermon pull returned no data." };
+  return { ok: true, data: (data as SermonRow[]).map(rowToSermon) };
 }
 
-export async function pullSeries(): Promise<Series[]> {
+export async function pullSeries(): Promise<PullResult<Series[]>> {
   const supabase = await ensureSupabaseClient();
-  if (!supabase) return [];
-  if (!(await getAuthedUser())) return [];
+  if (!supabase) return { ok: false, error: "Supabase not configured." };
+  if (!(await getAuthedUser())) return { ok: false, error: "Not signed in." };
 
   const { data, error } = await supabase
     .from("series")
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error || !data) return [];
-  return data as Series[];
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: "Series pull returned no data." };
+  return { ok: true, data: data as Series[] };
 }
 
 export async function pushSermon(sermon: Sermon): Promise<{ sermon?: SermonWithSync; error?: string }> {
@@ -196,18 +238,40 @@ export function mergeSeriesList(local: Series[], remote: Series[]): (Series & { 
 export async function mergeOnSignIn(
   localLibrary: SermonWithSync[],
   localSeries: Series[]
-): Promise<{ library: SermonWithSync[]; series: Series[]; error?: string }> {
+): Promise<{ library: SermonWithSync[]; series: Series[]; error?: string; clearedPriorAccount?: boolean }> {
   const supabase = await ensureSupabaseClient();
   if (!supabase || !isSupabaseConfigured()) {
     return { library: localLibrary, series: localSeries };
   }
 
   try {
-    const [remoteSermons, remoteSeries] = await Promise.all([pullSermons(), pullSeries()]);
-    const library = mergeSermonLibrary(localLibrary, remoteSermons);
-    const series = mergeSeriesList(localSeries, remoteSeries);
+    const user = await getAuthedUser();
+    if (!user) {
+      return { library: localLibrary, series: localSeries, error: "Not signed in." };
+    }
 
-    const remoteIds = new Set(remoteSermons.map((s) => s.id));
+    const switched = bindSyncOwner(user.id);
+    const scopedLibrary = switched ? [] : localLibrary;
+    const scopedSeries = switched ? [] : localSeries;
+
+    const [remoteSermons, remoteSeries] = await Promise.all([pullSermons(), pullSeries()]);
+    if (!remoteSermons.ok || !remoteSeries.ok) {
+      const msg = !remoteSermons.ok
+        ? `Sermon pull failed — sync aborted to avoid overwriting cloud data. (${remoteSermons.error})`
+        : `Series pull failed — sync aborted to avoid overwriting cloud data. (${remoteSeries.error})`;
+      setSyncMeta({ lastError: msg });
+      return {
+        library: scopedLibrary,
+        series: scopedSeries,
+        error: msg,
+        clearedPriorAccount: switched,
+      };
+    }
+
+    const library = mergeSermonLibrary(scopedLibrary, remoteSermons.data);
+    const series = mergeSeriesList(scopedSeries, remoteSeries.data);
+
+    const remoteIds = new Set(remoteSermons.data.map((s) => s.id));
     const pushResults = await Promise.all(
       library.filter((s) => s.id && !s.cloudSynced && !remoteIds.has(s.id)).map((s) => pushSermon(s))
     );
@@ -222,6 +286,7 @@ export async function mergeOnSignIn(
       library,
       series,
       error: hadError ? "Some local sermons could not sync." : undefined,
+      clearedPriorAccount: switched,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Sync merge failed.";

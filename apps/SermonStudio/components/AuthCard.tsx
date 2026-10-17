@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { signInWithOAuth, useSupabase, type OAuthProvider } from '@/lib/supabaseClient'
 
@@ -23,29 +23,38 @@ export default function AuthCard({ className = '', onSignedIn, onSignedOut }: Pr
   const [busy, setBusy] = useState(false)
   const [oauthBusy, setOauthBusy] = useState<OAuthProvider | null>(null)
   const [user, setUser] = useState<User | null>(null)
+  const onSignedInRef = useRef(onSignedIn)
+  const onSignedOutRef = useRef(onSignedOut)
+
+  useEffect(() => {
+    onSignedInRef.current = onSignedIn
+    onSignedOutRef.current = onSignedOut
+  }, [onSignedIn, onSignedOut])
 
   useEffect(() => {
     if (!supabase) return
     let mounted = true
 
+    // Display current session only — page hydration owns the initial merge.
     supabase.auth.getUser().then(({ data }) => {
       if (!mounted) return
       setUser(data.user ?? null)
-      if (data.user && onSignedIn) onSignedIn(data.user)
     })
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Fire parent callbacks only on explicit auth transitions so unstable parent
+    // identities / INITIAL_SESSION resubscribes cannot loop merges or wipes.
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user ?? null
       setUser(u)
-      if (u && onSignedIn) onSignedIn(u)
-      if (!u && onSignedOut) onSignedOut()
+      if (event === 'SIGNED_IN' && u && onSignedInRef.current) onSignedInRef.current(u)
+      if (event === 'SIGNED_OUT' && onSignedOutRef.current) onSignedOutRef.current()
     })
 
     return () => {
       mounted = false
       sub.subscription.unsubscribe()
     }
-  }, [supabase, onSignedIn, onSignedOut])
+  }, [supabase])
 
   async function signUp() {
     if (!supabase) return

@@ -9,7 +9,18 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { useSupabase } from '@/lib/supabaseClient'
-import { getAuthedUser, getSyncMeta, mergeOnSignIn, pushSeries, pushSermon, type SermonWithSync } from '@/lib/supabaseSync'
+import {
+  clearLocalLibraryOnSignOut,
+  getAuthedUser,
+  getSyncMeta,
+  LS_DRAFT,
+  LS_LIB,
+  LS_SERIES,
+  mergeOnSignIn,
+  pushSeries,
+  pushSermon,
+  type SermonWithSync,
+} from '@/lib/supabaseSync'
 import AuthCard from '@/components/AuthCard'
 import { FALLBACK_VERSES } from '@/lib/fallbackVerses'
 import { buildSermonNotes, openPrintableOutline } from '@/lib/sermonExport'
@@ -51,10 +62,6 @@ function SyncBadge({ synced }: { synced: boolean }) {
     </Badge>
   )
 }
-
-const LS_LIB = 'sermon-studio-lib'
-const LS_SERIES = 'sermon-studio-series'
-const LS_DRAFT = 'sermon-studio-draft'
 
 function emptySermon(): Sermon {
   return { title:'', theme:'faith', date:'', passages:[], notes:'', setlist:[], isSeriesItem:false, seriesId:'', outline: defaultOutline() }
@@ -308,13 +315,24 @@ export default function Page() {
     const merged = await mergeOnSignIn(library, series)
     setLibrary(merged.library)
     setSeries(merged.series)
+    if (merged.clearedPriorAccount) {
+      setSermon(emptySermon())
+    }
     if (merged.error) notify('error', merged.error)
-    else notify('success', 'Signed in — library merged with Supabase.')
+    else if (merged.clearedPriorAccount) {
+      notify('success', 'Signed in — prior browser library cleared; loaded your cloud library.')
+    } else {
+      notify('success', 'Signed in — library merged with Supabase.')
+    }
   }
 
   function handleSignedOut() {
     setAuthed(false)
-    notify('info', 'Signed out — library stays in this browser (local only).')
+    clearLocalLibraryOnSignOut()
+    setLibrary([])
+    setSeries([])
+    setSermon(emptySermon())
+    notify('info', 'Signed out — local library cleared so the next account cannot inherit it.')
   }
 
   async function saveSermon() {
