@@ -1,0 +1,124 @@
+{
+  "coachcore": {
+    "ios-ipad-12.9": {
+      "ok": [
+        "01-landing",
+        "02-dashboard",
+        "03-accountability",
+        "04-training",
+        "05-chat"
+      ],
+      "fail": [],
+      "dims": [
+        "01-landing:2048x2732",
+        "02-dashboard:2048x2732",
+        "03-accountability:2048x2732",
+        "04-training:2048x2732",
+        "05-chat:2048x2732"
+      ],
+      "failUrls": []
+    }
+  },
+  "curbcue": {
+    "ios-ipad-12.9": {
+      "ok": [
+        "01-compare",
+        "02-crowd-meter",
+        "03-settings",
+        "04-saved"
+      ],
+      "fail": [],
+      "dims": [
+        "01-compare:2048x2732",
+        "02-crowd-meter:2048x2732",
+        "03-settings:2048x2732",
+        "04-saved:2048x2732"
+      ],
+      "failUrls": []
+    }
+  },
+  "motocrew": {
+    "ios-ipad-12.9": {
+      "ok": [
+        "01-home",
+        "02-rides",
+        "03-map",
+        "04-safety"
+      ],
+      "fail": [],
+      "dims": [
+        "01-home:2048x2732",
+        "02-rides:2048x2732",
+        "03-map:2048x2732",
+        "04-safety:2048x2732"
+      ],
+      "failUrls": []
+    }
+  },
+  "sermonstudio": {
+    "ios-ipad-12.9": {
+      "ok": [
+        "01-dashboard",
+        "02-scripture",
+        "03-ideas",
+        "04-series"
+      ],
+      "fail": [],
+      "dims": [
+        "01-dashboard:2048x2732",
+        "02-scripture:2048x2732",
+        "03-ideas:2048x2732",
+        "04-series:2048x2732"
+      ],
+      "failUrls": []
+    }
+  },
+  "aegisintel": {
+    "ios-ipad-12.9": {
+      "ok": [
+        "01-home",
+        "02-watchlist",
+        "03-settings"
+      ],
+      "fail": [],
+      "dims": [
+        "01-home:2048x2732",
+        "02-watchlist:2048x2732",
+        "03-settings:2048x2732"
+      ],
+      "failUrls": []
+    }
+  },
+  "shutterbid": {
+    "ios-ipad-12.9": {
+      "ok": [
+        "01-marketplace",
+        "02-job-detail",
+        "03-post-job"
+      ],
+      "fail": [],
+      "dims": [
+        "01-marketplace:2048x2732",
+        "02-job-detail:2048x2732",
+        "03-post-job:2048x2732"
+      ],
+      "failUrls": []
+    }
+  },
+  "fishcrew": {
+    "ios-ipad-12.9": {
+      "ok": [
+        "01-home",
+        "02-explore",
+        "03-feed"
+      ],
+      "fail": [],
+      "dims": [
+        "01-home:2048x2732",
+        "02-explore:2048x2732",
+        "03-feed:2048x2732"
+      ],
+      "failUrls": []
+    }
+  }
+}
