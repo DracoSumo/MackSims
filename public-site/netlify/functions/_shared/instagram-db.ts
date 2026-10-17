@@ -1,6 +1,12 @@
 import { getDatabase } from "@netlify/database";
 import { randomUUID } from "node:crypto";
-import { hasSameIdempotentPayload, type QueueInput, type QueueRecord } from "./instagram-types.js";
+import {
+  hasSameIdempotentPayload,
+  MAX_PUBLISH_ATTEMPTS,
+  STALE_PROCESSING_AFTER_MS,
+  type QueueInput,
+  type QueueRecord,
+} from "./instagram-types.js";
 
 type QueryResult<T> = { rows: T[]; rowCount: number | null };
 type Queryable = {
@@ -131,7 +137,107 @@ export async function approveDraft(
   return mapRow(result.rows[0]);
 }
 
+/**
+ * Recover processing rows abandoned by a crashed/timed-out worker.
+ * Called before claiming so stuck leases do not permanently stall the queue
+ * or consume the rolling 24h publish quota.
+ */
+export async function reclaimStaleProcessingJobs(
+  staleAfterMs = STALE_PROCESSING_AFTER_MS,
+  maxAttempts = MAX_PUBLISH_ATTEMPTS,
+): Promise<{ published: number; requeued: number; failed: number }> {
+  const staleSeconds = Math.max(60, Math.floor(staleAfterMs / 1000));
+  const db = queryable();
+
+  const published = await db.query<{ id: string; meta_media_id: string }>(
+    `UPDATE instagram_publish_queue
+     SET state = 'published',
+         published_at = COALESCE(published_at, now()),
+         lock_token = NULL,
+         last_error = NULL,
+         updated_at = now()
+     WHERE state = 'processing'
+       AND meta_media_id IS NOT NULL
+     RETURNING id, meta_media_id`,
+  );
+  await Promise.all(
+    published.rows.map((row) =>
+      audit(row.id, "stale_lease_published", "scheduled-dispatcher", "processing", "published", {
+        mediaId: row.meta_media_id,
+        reason: "processing_row_already_had_meta_media_id",
+      }),
+    ),
+  );
+
+  const requeued = await db.query<{ id: string; attempts: number }>(
+    `UPDATE instagram_publish_queue
+     SET state = 'approved',
+         lock_token = NULL,
+         processing_started_at = NULL,
+         last_error = $2,
+         updated_at = now()
+     WHERE state = 'processing'
+       AND meta_media_id IS NULL
+       AND COALESCE(jsonb_array_length(meta_container_ids), 0) = 0
+       AND processing_started_at IS NOT NULL
+       AND processing_started_at < now() - ($1 * interval '1 second')
+       AND attempts < $3
+     RETURNING id, attempts`,
+    [
+      staleSeconds,
+      "Worker lease expired before any Meta containers were created; requeued for retry.",
+      maxAttempts,
+    ],
+  );
+  await Promise.all(
+    requeued.rows.map((row) =>
+      audit(row.id, "stale_lease_requeued", "scheduled-dispatcher", "processing", "approved", {
+        attempt: row.attempts,
+        staleAfterSeconds: staleSeconds,
+      }),
+    ),
+  );
+
+  const failed = await db.query<{ id: string; attempts: number }>(
+    `UPDATE instagram_publish_queue
+     SET state = 'failed',
+         lock_token = NULL,
+         last_error = $2,
+         updated_at = now()
+     WHERE state = 'processing'
+       AND meta_media_id IS NULL
+       AND processing_started_at IS NOT NULL
+       AND processing_started_at < now() - ($1 * interval '1 second')
+       AND (
+         COALESCE(jsonb_array_length(meta_container_ids), 0) > 0
+         OR attempts >= $3
+       )
+     RETURNING id, attempts`,
+    [
+      staleSeconds,
+      "Worker lease expired during Meta publish; verify Instagram for a live post before retrying.",
+      maxAttempts,
+    ],
+  );
+  await Promise.all(
+    failed.rows.map((row) =>
+      audit(row.id, "stale_lease_failed", "scheduled-dispatcher", "processing", "failed", {
+        attempt: row.attempts,
+        staleAfterSeconds: staleSeconds,
+      }),
+    ),
+  );
+
+  return {
+    published: published.rowCount ?? published.rows.length,
+    requeued: requeued.rowCount ?? requeued.rows.length,
+    failed: failed.rowCount ?? failed.rows.length,
+  };
+}
+
 export async function claimDueApproved(limit = 5): Promise<QueueRecord[]> {
+  await reclaimStaleProcessingJobs();
+
   const lockToken = randomUUID();
   const result = await queryable().query<QueueRow>(
     `WITH quota_lock AS MATERIALIZED (

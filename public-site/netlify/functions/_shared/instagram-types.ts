@@ -123,6 +123,38 @@ export function canTransition(from: QueueState, to: QueueState): boolean {
   );
 }
 
+/** Background workers get ~15m; reclaim a bit after that so leases cannot stick forever. */
+export const STALE_PROCESSING_AFTER_MS = 20 * 60 * 1000;
+export const MAX_PUBLISH_ATTEMPTS = 5;
+
+export type StaleProcessingDecision = "mark_published" | "requeue" | "mark_failed" | "keep";
+
+/**
+ * Decide how to recover a processing queue row after a worker crash/timeout.
+ * Never auto-requeue once Meta containers exist — that risks duplicate publishes.
+ */
+export function decideStaleProcessingReclaim(
+  input: {
+    processingStartedAt: string | null;
+    metaMediaId: string | null;
+    metaContainerIds: string[];
+    attempts: number;
+  },
+  options: { now?: number; staleAfterMs?: number; maxAttempts?: number } = {},
+): StaleProcessingDecision {
+  if (input.metaMediaId) return "mark_published";
+
+  const now = options.now ?? Date.now();
+  const staleAfterMs = options.staleAfterMs ?? STALE_PROCESSING_AFTER_MS;
+  const maxAttempts = options.maxAttempts ?? MAX_PUBLISH_ATTEMPTS;
+  const started = input.processingStartedAt ? Date.parse(input.processingStartedAt) : Number.NaN;
+  if (!Number.isFinite(started) || now - started < staleAfterMs) return "keep";
+
+  const hasMetaContainers = input.metaContainerIds.length > 0;
+  if (!hasMetaContainers && input.attempts < maxAttempts) return "requeue";
+  return "mark_failed";
+}
+
 export function hasSameIdempotentPayload(existing: QueueRecord, input: QueueInput): boolean {
   return (
     existing.scheduledAt === input.scheduledAt &&
