@@ -29,10 +29,24 @@ export const SUPABASE_URL = readSupabaseEnv("URL");
 export const SUPABASE_ANON_KEY = readSupabaseEnv("ANON_KEY");
 
 function isValidAnonKey(key: string): boolean {
-  return key.length > 40 && key.startsWith("eyJ") && !key.includes("your-anon-key");
+  return (
+    key.length > 40 &&
+    (key.startsWith("eyJ") || key.startsWith("sb_publishable_")) &&
+    !key.includes("your-anon-key")
+  );
 }
 
 export const isSupabaseConfigured = Boolean(SUPABASE_URL && isValidAnonKey(SUPABASE_ANON_KEY));
+
+/** Facebook is live in Meta + Supabase; allow an explicit false as an emergency kill switch. */
+export const isFacebookAuthEnabled =
+  String(
+    (import.meta.env as Record<string, string | undefined>).VITE_ENABLE_FACEBOOK_AUTH ??
+      (import.meta.env as Record<string, string | undefined>).NEXT_PUBLIC_ENABLE_FACEBOOK_AUTH ??
+      "true",
+  )
+    .trim()
+    .toLowerCase() === "true";
 
 export function supabaseStatusLabel(): string {
   if (isSupabaseConfigured) {

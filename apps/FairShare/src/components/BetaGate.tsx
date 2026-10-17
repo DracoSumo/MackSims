@@ -5,6 +5,7 @@ import { isBetaAcknowledged, setBetaAcknowledged } from "../lib/storage";
 
 interface BetaGateProps {
   children: ReactNode;
+  bypass?: boolean;
 }
 
 /**
@@ -12,10 +13,10 @@ interface BetaGateProps {
  * external beta running entirely on simulated data. Acknowledgement is
  * stored in localStorage so testers only see it once per device.
  */
-export function BetaGate({ children }: BetaGateProps) {
+export function BetaGate({ children, bypass = false }: BetaGateProps) {
   const [acknowledged, setAcknowledged] = useState(() => isBetaAcknowledged());
 
-  if (acknowledged) {
+  if (bypass || acknowledged) {
     return <>{children}</>;
   }
 
