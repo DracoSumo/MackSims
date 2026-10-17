@@ -4588,6 +4588,9 @@
     }
     if (syncProfile && persistSession && supabaseClient) {
       try {
+        // Never write email into profiles — column is not client-selectable
+        // (PII leak via anon key). Username login resolves via SECURITY DEFINER
+        // RPC against auth.users / legacy profiles.email.
         const profileRow = () => ({
           id: user.id,
           username: user.username,
