@@ -1769,7 +1769,7 @@
         <div class="section-head compact-head">
           <div><span class="eyebrow">Captain desk</span><h2>Run the charter morning.</h2></div>
         </div>
-        <p class="muted">Open seats, seat requests, booking leads, and the morning checklist â€” without hunting through Ops.</p>
+        <p class="muted">Open seats, seat requests, booking leads, and the morning checklist — without hunting through Ops.</p>
         <div class="home-command-grid captain-desk-grid" aria-label="Captain quick actions">
           <button class="home-command" type="button" data-action="open-trip-form"><b>Post open seats</b><span>Charter-ready trip form</span></button>
           <button class="home-command" type="button" data-action="go" data-screen="crew"><b>Seat requests</b><span>${pendingHostRequests ? `${pendingHostRequests} waiting` : 'Approve crew joins'}</span></button>
@@ -2016,12 +2016,6 @@
           <button class="tool-card panel photo-panel bait-panel" type="button" data-action="open-bait-help"><span class="tool-icon bait"></span><h3>Bait help</h3><p class="muted">Pick bait and rigs by area, target fish, tide, and water clarity.</p></button>
           <button class="tool-card panel photo-panel gear-panel" type="button" data-action="open-gear-help"><span class="tool-icon gear"></span><h3>Gear + tackle</h3><p class="muted">Core setups, terminal tackle, leaders, and trip checklists.</p></button>
           <button class="tool-card panel photo-panel device-panel" type="button" data-action="open-device-hub"><span class="tool-icon gps"></span><h3>GPS + devices</h3><p class="muted">Phone GPS, Bluetooth discovery, USB/NMEA bridge notes, and waypoint fix.</p></button>
-          <button class="tool-card panel photo-panel fish-panel" type="button" data-action="open-fish-id"><span class="tool-icon fish"></span><h3>Fish identifier</h3><p class="muted">Assistive species estimate only. Not a legal harvest decision tool â€” verify species, size, season, and regulations with official sources.</p></button>
-          <button class="tool-card panel photo-panel measure-panel" type="button" data-action="open-measure-tool"><span class="tool-icon ruler"></span><h3>Measure assist</h3><p class="muted">Camera/gallery length estimate only. Not enforcement or legal proof â€” confirm with a physical ruler and official rules.</p></button>
-        </div>
-        <div class="grid two mt tools-status-grid">
-          <div class="panel warm-panel"><h3>Last fish ID</h3><p class="muted">${lastFish ? `${safe(lastFish.result)} ${MID} ${safe(lastFish.confidence)} confidence` : 'No fish ID run yet.'}</p><button class="btn soft small" type="button" data-action="open-fish-id">Try fish ID</button></div>
-          <div class="panel warm-panel teal-panel"><h3>Last measure assist</h3><p class="muted">${lastMeasure ? `${safe(lastMeasure.note)} ${MID} ${safe(lastMeasure.units)}` : 'No measurement run yet.'}</p><button class="btn soft small" type="button" data-action="open-measure-tool">Open measure</button></div>
         </div>
         <div class="panel warm-panel device-status-card mt"><h3>Device link</h3><p class="muted">${safe(hub.lastFix ? `${hub.source}: ${formatGpsFix(hub)}` : hub.source || 'No device connected')}</p><button class="btn soft small" type="button" data-action="open-device-hub">Open devices</button></div>`;
     const guideCards = `
@@ -2036,9 +2030,9 @@
         <span class="eyebrow">Tools + Guide</span>
         <h1 class="page-title" id="toolsTitle">Pick what you need on the water.</h1>
         <p class="lead">Choose tools for quick field help or guide for area patterns, species notes, and beginner-friendly planning.</p>
-        <div class="safe-note"><strong>Legal/safety note:</strong> Fish ID and measurement assist are planning aids only. They are not legal harvest decision tools. Always verify species, size, season, bag limits, and local regulations with official sources before keeping fish.</div>
+        <div class="safe-note"><strong>Before you keep a fish:</strong> always check species, size, season, bag limits and local regulations with your state&#39;s official sources.</div>
         <div class="tools-switch" role="tablist" aria-label="Tools and guide sections">
-          <button class="${activePanel === 'tools' ? 'active' : ''}" type="button" data-action="tools-panel" data-panel="tools"><b>Tools</b><span>Bait, gear, ID, measure</span></button>
+          <button class="${activePanel === 'tools' ? 'active' : ''}" type="button" data-action="tools-panel" data-panel="tools"><b>Tools</b><span>Bait, gear, GPS</span></button>
           <button class="${activePanel === 'guide' ? 'active' : ''}" type="button" data-action="tools-panel" data-panel="guide"><b>Guide</b><span>Areas, patterns, tutorials</span></button>
         </div>
         <div class="tools-panel-body">${activePanel === 'guide' ? guideCards : toolsCards}</div>
@@ -2085,7 +2079,7 @@
             <div>
               <h3>${igConnection?.username ? `Linked @${safe(igConnection.username)}` : 'Connect Instagram'}</h3>
               <p class="muted">${igConfigured
-                ? 'Connect a Business/Creator account through Meta. This is not a login â€” email/password stays primary.'
+                ? 'Connect a Business/Creator account through Meta. This is not a login — email/password stays primary.'
                 : 'Owner setup: set META_APP_ID and ENABLE_INSTAGRAM_OAUTH in config.js, then add the redirect URI in the Meta app.'}</p>
             </div>
           </div>
@@ -2093,7 +2087,7 @@
             <button class="btn ${igConfigured ? 'primary' : 'dark'} small" type="button" data-action="instagram-connect"${igConfigured ? '' : ' disabled'}>${igConnection ? 'Reconnect' : 'Connect Instagram'}</button>
             ${igConnection ? `<button class="btn soft small" type="button" data-action="instagram-import">Import recent</button>` : ''}
           </div>
-          <p class="tiny">Share-to-Instagram caption handoff remains available from Feed share â€” separate from connect.</p>
+          <p class="tiny">Share-to-Instagram caption handoff remains available from Feed share — separate from connect.</p>
         </div>
       </section>` : '';
 
@@ -2249,7 +2243,7 @@
   function render() {
     hydrateHeader();
     const screen = state.activeScreen || 'home';
-    // Only rebuild the active screen â€” inactive screens keep prior DOM (social-app sticky feel).
+    // Only rebuild the active screen — inactive screens keep prior DOM (social-app sticky feel).
     const renderers = {
       home: renderHome,
       explore: renderExplore,
@@ -2783,7 +2777,7 @@
   function openTripForm() {
     if (!requireLogin('Sign in to post trips, catches, photos, shop updates, charter openings, or cruise opportunities.')) return;
     const captainDefaults = isBusinessRole();
-    const titlePlaceholder = captainDefaults ? '2 seats open â€” Sunday morning reef window' : 'Saturday inshore crew needed';
+    const titlePlaceholder = captainDefaults ? '2 seats open — Sunday morning reef window' : 'Saturday inshore crew needed';
     modal(`
       <div class="modal-head"><div><span class="eyebrow">Trip</span><h2>${captainDefaults ? 'Post open seats.' : 'Post a fishing plan.'}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       <div class="forms">
@@ -3057,7 +3051,7 @@
     { title: 'Find water', body: 'Start on Home or Explore to see open trips, local partners, and area notes. Guest browse works before you sign in.' },
     { title: 'Lock crew', body: 'Request a spot, wait for host approval, then unlock private meetup details and crew chat.' },
     { title: 'Post proof', body: 'After the trip, post a catch report or successful trip to keep the bite board alive.' },
-    { title: 'Use Tools', body: `Guides, bait help, gear help, fish ID, and measurement assist live in Tools ${MID} always confirm local rules and official regulations.` }
+    { title: 'Use Tools', body: `Guides, bait help and gear help live in Tools ${MID} always confirm local rules and official regulations.` }
   ];
   let tutorialStep = 0;
 
@@ -3454,7 +3448,7 @@
     save(); render();
     modal(`<div class="modal-head"><div><span class="eyebrow">Measurement assist</span><h2>${safe(note)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
       ${preview ? `<div class="card-media photo" style="background-image:url('${preview}')"></div>` : ''}
-      <div class="safe-note"><strong>Not legal measurement:</strong> This is an estimate for planning and logging only â€” not enforcement or legal proof. Use a physical measuring board for keep/release decisions and confirm official regulations.</div>
+      <div class="safe-note"><strong>Not legal measurement:</strong> This is an estimate for planning and logging only — not enforcement or legal proof. Use a physical measuring board for keep/release decisions and confirm official regulations.</div>
       <p class="muted">Units: ${safe(units)} ${MID} Reference: ${safe(ref)}</p>
       <button class="btn primary" type="button" data-action="close-modal">Done</button>`);
   }
@@ -4162,7 +4156,7 @@
     const normalized = String(provider || 'social').trim().toLowerCase() || 'social';
 
     if (normalized.includes('instagram')) {
-      toast('Instagram is a Profile connect â€” not a login. Use email/password, or open Profile â†’ Connect Instagram.', 'warning');
+      toast('Instagram is a Profile connect — not a login. Use email/password, or open Profile â†’ Connect Instagram.', 'warning');
       return;
     }
 
@@ -4214,14 +4208,14 @@
   }
 
   async function completeSocialProfile(provider = 'social') {
-    // Production never invents @â€¦.oauth.local users. Demo mode only.
+    // Production never invents @….oauth.local users. Demo mode only.
     if (CONFIG.DEMO_MODE !== true) {
       toast('Social profile completion is disabled. Sign in with email/password, or enable a configured OAuth provider.', 'danger');
       return;
     }
     const source = String(provider || 'social').trim() || 'social';
     if (String(source).toLowerCase().includes('instagram')) {
-      toast('Instagram is not a login method in demo either â€” use email/password.', 'danger');
+      toast('Instagram is not a login method in demo either — use email/password.', 'danger');
       return;
     }
     const typedUsername = $('#socialUsername')?.value.trim() || '';
@@ -4321,7 +4315,7 @@
           updated_at: now()
         }, { onConflict: 'user_id,provider' });
       } catch (error) {
-        // Table may not exist yet â€” metadata + local state still hold the connection.
+        // Table may not exist yet — metadata + local state still hold the connection.
         console.warn('social_connections upsert skipped:', error?.message || error);
       }
     }
@@ -5805,8 +5799,8 @@ ${url}`).catch(() => {});
 
   function openAccountDelete() {
     const user = currentUser();
-    const signedOut = `<p class="lead">Sign in first to delete an account from this device. Connected shared-data accounts also require support to remove server-side profile, trips, feed, and media.</p><div class="row"><button class="btn primary" type="button" data-action="open-auth-signin">Sign in</button><button class="btn dark" type="button" data-action="open-support-email">Email support</button></div>`;
-    const signedIn = `<p class="lead">This removes ${safe(user?.name || 'your profile')} from this device and wipes connected FishCrew profile, waitlist, media, and listing rows for your account.</p><div class="safe-note"><strong>In-app deletion:</strong> Signed-in deletion calls the server wipe, then signs you out. Limited safety or booking records may be retained for fraud and legal holds.</div><div class="row mt"><button class="btn danger" type="button" data-action="confirm-delete-account">Delete my account</button><button class="btn soft" type="button" data-action="open-account-delete-request">Email support too</button><button class="btn dark" type="button" data-action="close-modal">Keep account</button></div>`;
+    const signedOut = `<p class="lead">Sign in first, then delete your account here. Can't sign in? Email support and we'll delete it for you.</p><div class="row"><button class="btn primary" type="button" data-action="open-auth-signin">Sign in</button><button class="btn dark" type="button" data-action="open-support-email">Email support</button></div>`;
+    const signedIn = `<p class="lead">This permanently deletes ${safe(user?.name || 'your account')}: your login, profile, trips you host, crew chats, join requests, reviews, posts and photos.</p><div class="safe-note"><strong>Can't be undone.</strong> Booking records a charter needs (with your name and contact removed) and safety reports may be kept for fraud and legal reasons.</div><div class="row mt"><button class="btn danger" type="button" data-action="confirm-delete-account">Delete my account</button><button class="btn soft" type="button" data-action="open-account-delete-request">Email support too</button><button class="btn dark" type="button" data-action="close-modal">Keep account</button></div>`;
     modal(`<div class="modal-head"><div><span class="eyebrow">Account deletion</span><h2>Delete your FishCrew account.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>${user ? signedIn : signedOut}`);
   }
 
@@ -5820,7 +5814,19 @@ ${url}`).catch(() => {});
     const deletedBusinessIds = (state.businesses || []).filter((b) => b.ownerId === userId).map((b) => b.id);
     await persistAccountDeletionRequest(hadConnectedBackend ? 'Pending server deletion' : 'Local deletion complete');
     if (hadConnectedBackend) {
-      try { await supabaseClient.rpc('delete_own_account'); } catch (_) {}
+      // Server deletes the data and the login. If it fails, say so and keep everything as it was.
+      let failed = '';
+      try {
+        const { data, error } = await supabaseClient.functions.invoke('delete-account', { method: 'POST' });
+        if (error) failed = (await error.context?.json?.().catch(() => null))?.error || 'The server could not delete your account.';
+        else if (!data?.ok) failed = data?.error || 'The server could not delete your account.';
+      } catch (_) {
+        failed = 'No connection. Your account was not deleted; try again when you have signal.';
+      }
+      if (failed) {
+        toast(`${failed} Nothing was removed. Try again, or email support.`, 'danger');
+        return;
+      }
       try { await supabaseClient.auth.signOut(); } catch (_) {}
     }
     state.users = (state.users || []).filter((u) => u.id !== userId);
@@ -5840,7 +5846,7 @@ ${url}`).catch(() => {});
     state.opsLog.unshift(`Account deletion completed for ${user.email || usernameFor(user)}.`);
     closeModal(); save(); render(); nav('home');
     toast(hadConnectedBackend
-      ? 'Account deleted. Connected profile and media rows were wiped.'
+      ? 'Account deleted. Your login, profile, trips, chats and posts are gone.'
       : 'Account deleted from this device.');
   }
 
@@ -6068,7 +6074,7 @@ ${url}`).catch(() => {});
     if (!supabaseClient) await checkBackend();
     if (!supabaseClient) return;
 
-    // Cancel stale overlapping pulls â€” keep latest generation only.
+    // Cancel stale overlapping pulls — keep latest generation only.
     const generation = ++pullGeneration;
     if (pullInFlight) {
       try { await pullInFlight; } catch (_) { /* prior pull error already toasted */ }
@@ -6741,10 +6747,10 @@ ${url}`).catch(() => {});
     'run-bait-search': () => runBaitSearch(),
     'open-gear-help': () => openGearHelp(),
     'open-technique-tutorials': () => openTechniqueTutorials(),
-    'open-fish-id': () => openFishId(),
-    'run-fish-id': () => runFishId(),
-    'open-measure-tool': () => openMeasureTool(),
-    'run-measure-tool': () => runMeasureTool(),
+    'open-fish-id': () => toast('Fish ID is coming back once it can really identify fish from your photo.'),
+    
+    'open-measure-tool': () => toast('Use a measuring board for keep-or-release decisions. Photo measuring is not available yet.'),
+    
     'open-device-hub': () => openDeviceHub(),
     'use-browser-gps': () => useBrowserGps(),
     'stop-browser-gps': () => stopBrowserGps(),
@@ -6931,7 +6937,7 @@ ${url}`).catch(() => {});
           if (state.focusCharterId) openCharterProfile(state.focusCharterId);
         }, 280);
       }
-      if (state.session?.demoCaptain) toast('Captain desk demo ready â€” open Leads inbox from Home.');
+      if (state.session?.demoCaptain) toast('Captain desk demo ready — open Leads inbox from Home.');
       setTimeout(openDeepLinkModal, 180);
       consumePendingTripInvite();
       if (!state.locationAsked && window.isSecureContext && navigator.geolocation) {
