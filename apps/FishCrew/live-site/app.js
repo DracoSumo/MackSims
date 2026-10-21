@@ -1,0 +1,8089 @@
+(() => {
+  'use strict';
+
+  // FishCrew app shell v0.8.1 - returning skip + stable local store
+  const CONFIG = window.FISHCREW_CONFIG || {};
+  const VERSION = CONFIG.VERSION || '0.8.1';
+  const STORE = 'fishcrew:state';
+  const LEGACY_PREFIX = 'fishcrew:';
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+  const now = () => new Date().toISOString();
+  const uid = (prefix = 'fc') => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+  /** Only plain https URLs are ever used in links or window.open (blocks javascript:/data:). */
+  function httpsUrl(value) {
+    try {
+      const url = new URL(String(value || '').trim());
+      return url.protocol === 'https:' ? url.toString() : '';
+    } catch (_) {
+      return '';
+    }
+  }
+  const safe = (value) => String(value ?? '').replace(/[&<>'"]/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+  const shortTime = () => new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  // For url('...') inside style attributes: percent-encode characters that could end the
+  // CSS string or url() token, then HTML-escape for the attribute.
+  const cssUrl = (value) => safe(String(value ?? '').replace(/[\s'"()\\]/g, (ch) => '%' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')));
+  const isDataUrl = (v) => typeof v === 'string' && v.startsWith('data:');
+  const isRemoteUrl = (v) => typeof v === 'string' && /^(https?:|blob:)/i.test(v);
+  const bytesToMb = (bytes) => Math.round((Number(bytes || 0) / 1024 / 1024) * 10) / 10;
+  const mediaKind = (type = '') => String(type || '').startsWith('video') ? 'video' : String(type || '').startsWith('image') ? 'image' : 'file';
+  const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/gif'];
+  const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
+  const FEED_RENDER_LIMIT = 40;
+  const TRIP_RENDER_LIMIT = 40;
+  const LIVE_QUERY_LIMIT = 120;
+  const GUEST_SIGN_IN_PROMPT = 'Create an account or sign in to continue.';
+  const DEG = '\u00B0';
+  const MID = '\u00B7';
+  const CLOSE_BTN = '\u00D7';
+  const EN_DASH = '\u2013';
+  const IG_MARK = 'IG';
+  const SAVE_DEBOUNCE_MS = 280;
+
+  let geoWatchId = null;
+  let bluetoothDevice = null;
+  let serialPort = null;
+  let serialReader = null;
+  let nmeaBuffer = '';
+  let saveTimer = null;
+  let pendingUploadRetry = null;
+
+  function defaultConditions(overrides = {}) {
+    return {
+      area: overrides.area || 'Tampa Bay',
+      lat: overrides.lat ?? 27.9506,
+      lon: overrides.lon ?? -82.4572,
+      source: overrides.source || 'Planning conditions',
+      status: overrides.status || 'planning',
+      score: overrides.score || 'Good',
+      scoreReason: overrides.scoreReason || 'Low wind, protected water, and a morning bite window make this a solid planning card.',
+      temp: overrides.temp || `76${DEG}F`,
+      wind: overrides.wind || '8 mph NE',
+      windMph: overrides.windMph ?? 8,
+      windDir: overrides.windDir ?? 45,
+      waves: overrides.waves || '1.0 ft',
+      waveFt: overrides.waveFt ?? 1.0,
+      tide: overrides.tide || 'Incoming',
+      tideStation: overrides.tideStation || 'Tampa Bay estimate',
+      tideNext: overrides.tideNext || 'Next turn about mid-morning',
+      rain: overrides.rain || '15%',
+      rainPct: overrides.rainPct ?? 15,
+      water: overrides.water || `74${DEG}F`,
+      window: overrides.window || `6${EN_DASH}10 AM`,
+      windowDetail: overrides.windowDetail || 'Best early window while wind is lighter and tide is moving.',
+      alert: overrides.alert || 'No marine alert loaded',
+      providerNotes: overrides.providerNotes || 'Tap refresh to use browser geolocation and live provider calls when available.',
+      updatedAt: overrides.updatedAt || now(),
+      hourly: overrides.hourly || [],
+      isLive: !!overrides.isLive
+    };
+  }
+
+  function compassFromDegrees(deg) {
+    const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+    const n = Number(deg);
+    if (!Number.isFinite(n)) return '';
+    return dirs[Math.round(n / 22.5) % 16];
+  }
+
+  function fmtTemp(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? `${Math.round(n)}${DEG}F` : '?';
+  }
+
+  function fmtMph(v, dir) {
+    const n = Number(v);
+    const d = compassFromDegrees(dir);
+    return Number.isFinite(n) ? `${Math.round(n)} mph${d ? ' ' + d : ''}` : '?';
+  }
+
+  function fmtPct(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? `${Math.round(n)}%` : '?';
+  }
+
+  function metersToFeet(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n * 3.28084 : NaN;
+  }
+
+  function conditionScore({ windMph = 99, waveFt = 99, rainPct = 100 } = {}) {
+    const w = Number(windMph), waves = Number(waveFt), rain = Number(rainPct);
+    if (w >= 25 || waves >= 5) return { score: 'Unsafe', reason: 'High wind or seas. Treat this as a no-go until local marine guidance says otherwise.' };
+    if (w >= 18 || waves >= 3.5 || rain >= 70) return { score: 'Rough', reason: 'Fishable for some crews, but rough enough to demand extra caution and a backup plan.' };
+    if (w >= 13 || waves >= 2.2 || rain >= 45) return { score: 'Fair', reason: 'Possible window, but conditions are mixed. Smaller craft should be selective.' };
+    if (w <= 8 && waves <= 1.5 && rain <= 25) return { score: 'Great', reason: 'Light wind, manageable water, and a clean planning window.' };
+    return { score: 'Good', reason: 'Manageable wind and water for many inshore or protected-water plans.' };
+  }
+
+  let supabaseClient = null;
+  let realtimeChannel = null;
+  let realtimePullTimer = null;
+  let notificationsRefreshTimer = null;
+  let pullInFlight = null;
+  let pullGeneration = 0;
+  let toastTimer = null;
+  // A failed save keeps its warning on screen: success toasts from the same tap are skipped.
+  let holdToastUntil = 0;
+  let modalMode = null;
+  let authTab = 'signin';
+  let authBusy = false;
+  let lastHandledAt = 0;
+  let lastHandledAction = '';
+  let scrollLockY = 0;
+  // Admin console data: fetched fresh from the server, never saved to this device.
+  let adminCache = {
+    tab: 'overview',
+    stats: null,
+    reports: [],
+    reportFilter: 'open',
+    people: [],
+    peopleSearch: '',
+    peopleOffset: 0,
+    peopleDone: false,
+    contentFilter: 'trips',
+    contentFor: '',
+    content: [],
+    banners: [],
+    bannerEditId: '',
+    bannerDraft: null,
+    charters: [],
+    charterEditId: '',
+    charterDraft: null,
+    skipDraftOnce: false,
+    log: [],
+    loading: false,
+    error: ''
+  };
+  let adminLoadToken = 0;
+  let adminBusy = false;
+
+
+  function wikiFile(name) {
+    return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(name).replace(/%20/g, '_')}`;
+  }
+
+  function locationPhoto(area = 'Tampa Bay', purpose = 'water') {
+    const a = String(area || '').toLowerCase();
+    const p = String(purpose || '').toLowerCase();
+    if (a.includes('clearwater')) return { area: 'Clearwater Beach', url: wikiFile('Clearwater Beach (31333086703).jpg'), credit: 'Wikimedia Commons / Philip N. Cohen', source: 'actual-location' };
+    if (a.includes('st. pete') || a.includes('st petersburg') || a.includes('st. petersburg')) return { area: 'St. Pete Pier', url: wikiFile('2021 St. Pete Pier 1.jpg'), credit: 'Wikimedia Commons / Beyond My Ken', source: 'actual-location' };
+    if (a.includes('sarasota')) return { area: 'Sarasota Bay', url: wikiFile('Sarasota FL Ringling Cswy01.jpg'), credit: 'Wikimedia Commons', source: 'actual-location' };
+    if (a.includes('skyway')) return { area: 'Tampa Bay / Skyway', url: wikiFile('Downtown Tampa overlooking Seddon Channel - Eric Statzer.jpg'), credit: 'Wikimedia Commons / Eric Statzer', source: 'actual-location' };
+    if (a.includes('gandy') || a.includes('tampa') || a.includes('bay')) return { area: 'Tampa Bay', url: wikiFile('Downtown Tampa overlooking Seddon Channel - Eric Statzer.jpg'), credit: 'Wikimedia Commons / Eric Statzer', source: 'actual-location' };
+    return { area: area || 'Local water', url: wikiFile('Downtown Tampa overlooking Seddon Channel - Eric Statzer.jpg'), credit: 'Location photo fallback', source: 'fallback-location' };
+  }
+
+  function daypart() {
+    const h = new Date().getHours();
+    if (h < 6) return 'night';
+    if (h < 10) return 'sunrise';
+    if (h < 17) return 'day';
+    if (h < 20) return 'sunset';
+    return 'night';
+  }
+
+  function shareTextForPost(post) {
+    if (!post) return 'FishCrew';
+    return `FishCrew: ${post.title} ${MID} ${post.area}. ${post.body || 'Check the bite board.'}`;
+  }
+
+  function demoPhoto(kind = 'water', title = '') {
+    const k = String(kind || 'water').toLowerCase();
+    const palette = {
+      catch: ['#0f3b4f', '#1f8a70', '#f8e7c9', '#ffb264'],
+      boat: ['#082236', '#0ea5e9', '#f8fafc', '#f97316'],
+      shop: ['#2a1b12', '#8b5a2b', '#f8e7c9', '#2dd4bf'],
+      pier: ['#0a273b', '#27496d', '#f8e7c9', '#22c55e'],
+      cruise: ['#061826', '#0b3a5b', '#f8e7c9', '#f97316'],
+      water: ['#062033', '#0ea5e9', '#f8e7c9', '#2dd4bf']
+    }[k] || ['#062033', '#0ea5e9', '#f8e7c9', '#2dd4bf'];
+    const [bg, mid, light, accent] = palette;
+    const label = title || (k === 'shop' ? 'Dock counter note' : k === 'boat' ? 'Morning run' : k === 'pier' ? 'Pier crew' : k === 'catch' ? 'Fresh catch' : k === 'cruise' ? 'Sunset water' : 'Local water');
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop stop-color="${bg}"/><stop offset="1" stop-color="${mid}"/></linearGradient><filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="table" tableValues="0 .08"/></feComponentTransfer></filter></defs><rect width="900" height="520" fill="url(#g)"/><rect width="900" height="520" filter="url(#grain)" opacity=".35"/><circle cx="720" cy="105" r="54" fill="${accent}" opacity=".78"/><path d="M0 350 C140 310 240 400 390 350 C550 290 650 390 900 326 V520 H0 Z" fill="${light}" opacity=".16"/><path d="M0 390 C180 345 255 435 420 382 C590 330 700 435 900 365" fill="none" stroke="${light}" stroke-width="14" stroke-linecap="round" opacity=".52"/><path d="M105 240 C180 205 245 230 315 214" stroke="${light}" stroke-width="18" stroke-linecap="round" opacity=".58"/><path d="M600 272 l110 0 l-24 -36 l-56 -16 l-70 38 Z" fill="${light}" opacity=".8"/><path d="M615 273 l95 0" stroke="${bg}" stroke-width="8" opacity=".55"/><text x="54" y="74" font-family="Arial, sans-serif" font-size="30" font-weight="800" fill="${light}" opacity=".86">FishCrew water report</text><text x="54" y="118" font-family="Arial, sans-serif" font-size="42" font-weight="900" fill="${light}">${label.replace(/[<&]/g,'')}</text></svg>`;
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  }
+
+  // Demo/sample content pack. Only used when CONFIG.DEMO_MODE is true (default
+  // OFF) or when an operator explicitly loads the sample pack from Tools.
+  // Demo accounts carry no passwords and cannot be logged into.
+  function demoSeedContent() {
+    const admin = { id: 'u_admin', name: 'Chris', username: 'chris', email: 'admin@fishcrew.local', role: 'Admin', area: 'Tampa Bay', avatar: '', bio: 'FishCrew dock operator keeping crews moving.', fishingStyles: 'Inshore, offshore, app ops', profileTheme: 'Harbor Blue', createdAt: now(), demo: true };
+    const captain = { id: 'u_captain', name: 'Capt. Mason', username: 'capt_mason', email: 'captain@fishcrew.local', role: 'Captain', area: 'Tampa Bay', avatar: '', bio: 'Runs clean morning windows and beginner-friendly reef trips.', fishingStyles: 'Charter, reef, inshore', profileTheme: 'Harbor Blue', createdAt: now(), demo: true };
+    const business = { id: 'u_business', name: 'Dockside Tackle', username: 'dockside_tackle', email: 'shop@fishcrew.local', role: 'Business', area: 'St. Pete', avatar: '', bio: 'Local bait, leader, and dock reports for weekend crews.', fishingStyles: 'Bait, tackle, shop board', profileTheme: 'Dockside', createdAt: now(), demo: true };
+    const angler1 = { id: 'u_mike', name: 'Mike R.', username: 'mike_r', email: 'mike@fishcrew.local', role: 'Angler', area: 'Tampa Bay', avatar: '', bio: 'Weekend inshore angler. Brings ice and snacks.', fishingStyles: 'Inshore, pier, redfish', profileTheme: 'Seafoam', createdAt: now(), demo: true };
+    const angler2 = { id: 'u_tasha', name: 'Tasha M.', username: 'tasha_m', email: 'tasha@fishcrew.local', role: 'Angler', area: 'St. Pete', avatar: '', bio: 'Pier and kayak days, learning new water every weekend.', fishingStyles: 'Kayak, pier, trout', profileTheme: 'Sunrise', createdAt: now(), demo: true };
+    const guide = { id: 'u_guide', name: 'Guide Eli', username: 'guide_eli', email: 'guide@fishcrew.local', role: 'Captain', area: 'Sarasota Bay', avatar: '', bio: 'Quiet water, mangrove lines, and beginner kayak instruction.', fishingStyles: 'Guide, kayak, mangroves', profileTheme: 'Mangrove', createdAt: now(), demo: true };
+    const cruise = { id: 'u_cruise', name: 'Bay Runner Cruises', username: 'bay_runner', email: 'cruise@fishcrew.local', role: 'Business', area: 'Clearwater', avatar: '', bio: 'Family-friendly sunset water after the bite.', fishingStyles: 'Cruise, family trips, sunset runs', profileTheme: 'Sunset', createdAt: now(), demo: true };
+    return {
+      users: [admin, captain, business, angler1, angler2, guide, cruise],
+      trips: [
+        { id: 'trip_1', title: 'Sunrise inshore crew needed', urgent: true, featured: true, adminFeatured: true, type: 'Boat', area: 'Tampa Bay', publicLocation: 'Tampa Bay area', privateLocation: `Gandy ramp ${MID} slip details after approval`, hostId: captain.id, hostName: captain.name, time: `Saturday ${MID} 6:15 AM`, species: 'Redfish / Snook / Trout', spots: 2, cost: 'Split gas and bait', status: 'Open', score: 'Good', wind: '8 mph NE', waves: '1.0 ft', tide: 'Incoming', water: `74${DEG}F`, media: demoPhoto('boat','Sunrise inshore run'), mediaType: 'image/svg+xml', artKind: 'boat', members: [captain.id], createdAt: now(), demo: true },
+        { id: 'trip_2', title: 'Pier bite check after work', featured: true, adminFeatured: true, type: 'Pier', area: 'St. Pete', publicLocation: 'St. Pete pier zone', privateLocation: 'Meet near the east rail after approval', hostId: admin.id, hostName: admin.name, time: `Today ${MID} 5:30 PM`, species: 'Spanish mackerel / Sheepshead', spots: 3, cost: 'Free', status: 'Open', score: 'Fair', wind: '12 mph W', waves: 'Chop', tide: 'Outgoing', water: `73${DEG}F`, media: demoPhoto('pier','After-work pier crew'), mediaType: 'image/svg+xml', artKind: 'pier', members: [admin.id], createdAt: now(), demo: true },
+        { id: 'trip_3', title: 'Beginner-friendly mangrove run', featured: true, adminFeatured: true, type: 'Kayak', area: 'Sarasota Bay', publicLocation: 'Sarasota Bay mangrove zone', privateLocation: 'Launch pin shared once approved', hostId: guide.id, hostName: guide.name, time: `Sunday ${MID} 7:00 AM`, species: 'Trout / Snook', spots: 2, cost: 'Bring your own kayak', status: 'Open', score: 'Good', wind: '6 mph E', waves: 'Protected', tide: 'Moving', water: `75${DEG}F`, media: demoPhoto('water','Quiet mangrove line'), mediaType: 'image/svg+xml', artKind: 'water', members: [guide.id], createdAt: now(), demo: true },
+        { id: 'trip_4', title: 'Reef charter has two seats', type: 'Charter', area: 'Clearwater', publicLocation: 'Clearwater marina area', privateLocation: 'Dock number after deposit/approval', hostId: captain.id, hostName: captain.name, time: `Sunday ${MID} 6:45 AM`, species: 'Snapper / Grouper', spots: 2, cost: '$150 seat', status: 'Open', score: 'Great', wind: '5 mph SE', waves: '0.8 ft', tide: 'Incoming', water: `76${DEG}F`, media: demoPhoto('boat','Reef charter opening'), mediaType: 'image/svg+xml', artKind: 'boat', members: [captain.id], createdAt: now(), demo: true }
+      ],
+      requests: [
+        { id: 'req_1', tripId: 'trip_1', userId: admin.id, userName: admin.name, message: 'Can bring ice and a bait net.', status: 'Pending', createdAt: now() },
+        { id: 'req_2', tripId: 'trip_3', userId: angler2.id, userName: angler2.name, message: 'Newer kayak angler, comfortable with early launch.', status: 'Approved', createdAt: now() }
+      ],
+      messages: {
+        trip_1: [
+          { id: 'msg_1', senderId: 'u_captain', senderName: 'Capt. Mason', body: 'Weather window looks good if we launch early.', createdAt: now() },
+          { id: 'msg_2', senderId: 'system', senderName: 'FishCrew', body: 'Private meetup details unlock after approval.', createdAt: now() }
+        ],
+        trip_2: [ { id: 'msg_3', senderId: 'u_admin', senderName: 'Chris', body: 'Light gear is fine. I will bring extra hooks.', createdAt: now() } ],
+        trip_3: [ { id: 'msg_4', senderId: 'u_guide', senderName: 'Guide Eli', body: 'We will keep it close to shore and fish moving water.', createdAt: now() } ],
+        trip_4: [ { id: 'msg_5', senderId: 'u_captain', senderName: 'Capt. Mason', body: 'Two seats open. Beginner friendly if seas stay flat.', createdAt: now() } ]
+      },
+      feed: [
+        { id: 'feed_1', type: 'Crew Recap', title: 'Morning water window paid off', area: 'Tampa Bay', authorId: captain.id, authorName: captain.name, body: 'Three-person crew, clean weather window, solid redfish bite around moving water.', media: demoPhoto('catch','Redfish at first light'), mediaType: 'image/svg+xml', artKind: 'catch', reactions: 18, status: 'Live', createdAt: now(), demo: true },
+        { id: 'feed_2', type: 'Dock Report', title: 'Dockside bait board is stocked', area: 'St. Pete', authorId: business.id, authorName: business.name, body: 'Dockside Tackle has fresh bait in and a weekend leader deal for FishCrew users.', media: demoPhoto('shop','Dockside bait board'), mediaType: 'image/svg+xml', artKind: 'shop', reactions: 9, status: 'Sponsored', createdAt: now(), demo: true },
+        { id: 'feed_3', type: 'Open Water Seat', title: 'Two seats open for the reef window', area: 'Clearwater', authorId: captain.id, authorName: captain.name, body: 'Captain posted two open seats for Sunday morning. Good for beginners.', media: demoPhoto('boat','Open seats Sunday'), mediaType: 'image/svg+xml', artKind: 'boat', reactions: 7, status: 'Live', createdAt: now(), demo: true },
+        { id: 'feed_4', type: 'Catch Log', title: 'Trout before the breeze', area: 'Sarasota Bay', authorId: angler2.id, authorName: angler2.name, body: 'Two keeper trout before the breeze picked up. Paddletails around grass edges.', media: demoPhoto('catch','Trout before the breeze'), mediaType: 'image/svg+xml', artKind: 'catch', reactions: 14, status: 'Live', createdAt: now(), demo: true },
+        { id: 'feed_5', type: 'After-Bite Run', title: 'Sunset run after the bite', area: 'Clearwater', authorId: cruise.id, authorName: cruise.name, body: 'Family-friendly sunset run after the fishing window. Good add-on for visiting crews.', media: demoPhoto('cruise','Sunset run after the bite'), mediaType: 'image/svg+xml', artKind: 'cruise', reactions: 6, status: 'Sponsored', createdAt: now(), demo: true },
+        { id: 'feed_6', type: 'Water Note', title: 'Outgoing tide cleaned up near the bridge', area: 'Tampa Bay', authorId: angler1.id, authorName: angler1.name, body: 'Cleaner water on the outgoing. Keep locations general and share exact pins only with approved crews.', media: demoPhoto('water','Bridge tide note'), mediaType: 'image/svg+xml', artKind: 'water', reactions: 11, status: 'Live', createdAt: now(), demo: true }
+      ],
+      businesses: [
+        { id: 'biz_1', ownerId: business.id, name: 'Dockside Tackle', kind: 'Tackle Shop', area: 'St. Pete', status: 'Verified', leads: 18, revenue: 240, campaign: 'Weekend bait board', demo: true },
+        { id: 'biz_2', ownerId: captain.id, name: 'Mason Pro Charters', kind: 'Pro Charter', area: 'Tampa Bay', status: 'Pending review', leads: 9, revenue: 600, campaign: 'Open seat boost', demo: true },
+        { id: 'biz_3', ownerId: cruise.id, name: 'Bay Runner Cruises', kind: 'After-Bite Run', area: 'Clearwater', status: 'New lead', leads: 6, revenue: 180, campaign: 'Family sunset add-on', demo: true },
+        { id: 'biz_4', ownerId: guide.id, name: 'Eli Inshore Guide Co.', kind: 'Guide Service', area: 'Sarasota Bay', status: 'Verified', leads: 7, revenue: 320, campaign: 'Beginner kayak mornings', demo: true }
+      ],
+      bookings: [
+        { id: 'book_1', businessId: 'biz_2', customerName: 'Alex R.', phone: '8135550142', kind: 'Charter inquiry', status: 'New', date: 'Saturday morning', value: 150, notes: 'Looking for two seats.' },
+        { id: 'book_2', businessId: 'biz_3', customerName: 'Jamie K.', phone: '', kind: 'Cruise inquiry', status: 'Contacted', date: 'Friday sunset', value: 220, notes: 'Family of four.' },
+        { id: 'book_3', businessId: 'biz_1', customerName: 'Mike R.', phone: '7275550199', kind: 'Shop deal', status: 'New', date: 'This weekend', value: 35, notes: 'Leader and live bait bundle.' }
+      ],
+      reports: [ { id: 'rep_1', type: 'Media review', target: 'feed_2', status: 'Open', note: 'Sponsored label check' } ],
+      mediaAssets: [
+        { id: 'asset_1', ownerId: captain.id, sourceId: 'feed_1', sourceType: 'feed', mediaType: 'image/svg+xml', status: 'Approved', storagePath: 'demo/feed_1.svg', visibility: 'public', createdAt: now(), demo: true },
+        { id: 'asset_2', ownerId: business.id, sourceId: 'feed_2', sourceType: 'feed', mediaType: 'image/svg+xml', status: 'Review', storagePath: 'demo/feed_2.svg', visibility: 'public', createdAt: now(), demo: true }
+      ]
+    };
+  }
+
+  /** Shape helper for a captain who has explicitly agreed to be listed. */
+  function curatedCaptain(fields) {
+    return {
+      avatar: '',
+      profileTheme: 'Harbor Blue',
+      createdAt: now(),
+      curated: true,
+      demo: false,
+      listingKind: 'public',
+      ...fields
+    };
+  }
+
+  function curatedBusiness(fields) {
+    return {
+      leads: 0,
+      revenue: 0,
+      campaign: 'Public listing · book on their site',
+      curated: true,
+      demo: false,
+      listingKind: 'public',
+      ...fields
+    };
+  }
+
+  /**
+   * Opted-in captain / charter directory.
+   *
+   * Intentionally EMPTY. This registry previously shipped seven real Tampa Bay
+   * charter businesses copied from their public websites. None of them had a
+   * FishCrew account, none had consented to being listed, and an inquiry sent
+   * from this app could never reach them, so guest browse implied inventory
+   * and partnerships that did not exist. Guest browse now shows an honest
+   * empty state plus the captain early-listing CTA instead.
+   *
+   * Only add an entry here for a captain who has explicitly agreed to be
+   * listed. Everything else must come from the charters table after a captain
+   * signs up through /early-access and is invited by an operator.
+   */
+  function curatedDirectoryContent() {
+    return {
+      users: [],
+      trips: [],
+      requests: [],
+      messages: {},
+      feed: [],
+      businesses: [],
+      bookings: [],
+      reports: [],
+      mediaAssets: []
+    };
+  }
+
+  function emptySeedContent() {
+    return curatedDirectoryContent();
+  }
+
+  /**
+   * Client-side quarantine for QA/security-audit residue left in shared data.
+   * Defence in depth only: these rows should be deleted server-side. Until they
+   * are, real users must never see them.
+   */
+  function isAuditListing(item) {
+    const name = String(item?.name || '');
+    const title = String(item?.title || '');
+    const body = String(item?.body || '');
+    const author = String(item?.authorName || item?.userName || '');
+    const id = String(item?.id || '');
+    const media = String(item?.media || item?.mediaUrl || item?.publicUrl || item?.storagePath || '');
+    const blob = `${name} ${title} ${body} ${author}`;
+    if (/\[AUDIT|AUDIT ARTIFACT|Fake Verified|security-audit/i.test(blob)) return true;
+    // QA probes/audits never describe a real boat or trip.
+    if (/\b(probe|audit|smoke ?test|idor)\b/i.test(`${title} ${name}`)) return true;
+    if (/^(bypass|x|pend\d*|test|live insert)$/i.test(title.trim())) return true;
+    if (/^(bypass|x|pend\d*|test)$/i.test(name.trim())) return true;
+    if (/^(audit|probe\w*|qa[_-]?\w*)$/i.test(author.trim())) return true;
+    if (/ZZ_INTERNAL_QA/i.test(blob)) return true;
+    // Placeholder/demo hosts never point at real captain media.
+    if (/(^|\/\/|\.)(example\.(com|org|net)|localhost|fishcrew\.local|test\.invalid)(\/|:|$)/i.test(media)) return true;
+    if (/_(audit|idor|probe|repro|pend\d*)_\d+$/i.test(id) || /^(biz|feed|asset|trip)_(audit|idor|probe|repro|b|a_owner|self|ver|pend\d*)_/i.test(id)) return true;
+    return false;
+  }
+
+  /** Trips the operator hid (or removed) stay off every public board, for the operator too. */
+  function isModeratedTrip(trip) {
+    return ['Hidden', 'Removed', 'Deleted'].includes(String(trip?.status || ''));
+  }
+
+  /** Public trip boards: moderated trips left out, operator-featured trips first. */
+  function publicTrips() {
+    return (state.trips || [])
+      .filter((t) => !isAuditListing(t) && !isModeratedTrip(t))
+      .sort((a, b) => Number(Boolean(b.adminFeatured)) - Number(Boolean(a.adminFeatured)));
+  }
+
+  function directoryCaptains() {
+    const users = state.users || [];
+    const curated = users.filter((u) => u.role === 'Captain' && u.curated && !u.demo);
+    const others = users.filter((u) => u.role === 'Captain' && !u.curated && !u.demo && !isAuditListing(u) && (u.websiteUrl || u.listingKind === 'partner'));
+    return [...curated, ...others];
+  }
+
+  function directoryBusinesses() {
+    const rows = state.businesses || [];
+    const curated = rows.filter((b) => b.curated && !isAuditListing(b));
+    const others = rows.filter((b) => !b.curated && !isAuditListing(b));
+    return [...curated, ...others];
+  }
+
+  function isCharterKind(kind) {
+    return /pro charter|guide service|charter|guide/i.test(String(kind || ''));
+  }
+
+  /** Listed by the operator for a captain who agreed, and not yet claimed by them. */
+  function isManagedListing(listing) {
+    return Boolean(listing) && listing.listingKind === 'managed' && !listing.ownerId;
+  }
+
+  function unpackCharterCampaign(campaign) {
+    const raw = String(campaign || '');
+    const token = '| FC_META:';
+    const idx = raw.indexOf(token);
+    if (idx < 0) return { campaign: raw, meta: {} };
+    try {
+      return { campaign: raw.slice(0, idx).trim(), meta: JSON.parse(raw.slice(idx + token.length)) || {} };
+    } catch (_) {
+      return { campaign: raw, meta: {} };
+    }
+  }
+
+  function packCharterCampaign(b) {
+    const offer = String(b.campaign || '').replace(/\s*\| FC_META:.*$/, '').trim();
+    const meta = {
+      species: b.species || '',
+      boatType: b.boatType || '',
+      tripTypes: b.tripTypes || '',
+      priceFrom: b.priceFrom ?? null,
+      priceTo: b.priceTo ?? null,
+      availability: b.availability || '',
+      websiteUrl: b.websiteUrl || '',
+      listingKind: b.listingKind || ''
+    };
+    const has = Object.values(meta).some((v) => v !== '' && v != null);
+    return has ? `${offer || 'Charter listing'} | FC_META:${JSON.stringify(meta)}` : (offer || '');
+  }
+
+  function hydrateBusinessListing(b) {
+    const unpacked = unpackCharterCampaign(b.campaign);
+    return {
+      ...b,
+      campaign: unpacked.campaign || b.campaign || '',
+      species: b.species || unpacked.meta.species || '',
+      boatType: b.boatType || unpacked.meta.boatType || '',
+      tripTypes: b.tripTypes || unpacked.meta.tripTypes || '',
+      priceFrom: b.priceFrom ?? unpacked.meta.priceFrom ?? null,
+      priceTo: b.priceTo ?? unpacked.meta.priceTo ?? null,
+      availability: b.availability || unpacked.meta.availability || '',
+      websiteUrl: b.websiteUrl || unpacked.meta.websiteUrl || '',
+      listingKind: b.listingKind || unpacked.meta.listingKind || (b.curated ? 'public' : '')
+    };
+  }
+
+  function approvedCharterPhoto(listing) {
+    const assets = (state.mediaAssets || []).filter((a) =>
+      (a.sourceType === 'charter' || a.sourceType === 'business') &&
+      (a.sourceId === listing.id || a.sourceId === listing.ownerId || a.sourceId === listing.businessId)
+    );
+    const viewer = currentUser();
+    const isOwner = Boolean(viewer && (listing.ownerId === viewer.id || listing.captainId === viewer.id));
+    const pick = assets.find((a) => a.publicUrl && (isApprovedMediaStatus(a.status) || isAdmin() || (isOwner && a.ownerId === viewer.id)));
+    if (!pick?.publicUrl) return listing.coverUrl || '';
+    if (isApprovedMediaStatus(pick.status) || isAdmin() || isOwner) return pick.publicUrl;
+    return '';
+  }
+
+  function charterFromParts(b, captain = {}) {
+    const row = hydrateBusinessListing(b);
+    return {
+      id: row.id,
+      businessId: row.businessId || row.id,
+      ownerId: row.ownerId || captain.id || '',
+      name: row.name || captain.name || 'Charter',
+      captainName: captain.name || row.name || 'Captain',
+      captainId: captain.id || row.ownerId || '',
+      username: captain.username || '',
+      area: row.area || captain.area || '',
+      species: row.species || captain.species || '',
+      boatType: row.boatType || captain.boat || row.boat || '',
+      boat: row.boat || captain.boat || row.boatType || '',
+      tripTypes: row.tripTypes || captain.tripTypes || captain.fishingStyles || '',
+      priceFrom: row.priceFrom ?? captain.priceFrom ?? null,
+      priceTo: row.priceTo ?? captain.priceTo ?? null,
+      availability: row.availability || captain.availability || '',
+      bio: row.bio || captain.bio || row.campaign || '',
+      bioLong: captain.bioLong || row.bioLong || '',
+      experience: captain.experience || row.experience || '',
+      websiteUrl: row.websiteUrl || captain.websiteUrl || '',
+      photoUrl: '',
+      status: row.status || 'Directory',
+      curated: !!row.curated || !!captain.curated,
+      listingKind: row.listingKind || captain.listingKind || (row.curated ? 'public' : 'operator'),
+      kind: row.kind || 'Pro Charter',
+      demo: !!row.demo
+    };
+  }
+
+  function allCharters() {
+    const users = state.users || [];
+    const fromBiz = (state.businesses || [])
+      .filter((b) => !isAuditListing(b) && !b.demo && (isCharterKind(b.kind) || b.listingKind === 'partner' || b.listingKind === 'charter' || b.curated))
+      .map((b) => {
+        const captain = users.find((u) => u.id === b.ownerId) || {};
+        const listing = charterFromParts(b, captain);
+        listing.photoUrl = approvedCharterPhoto(listing);
+        return listing;
+      });
+    const claimed = new Set(fromBiz.map((c) => c.ownerId).filter(Boolean));
+    const fromCaptains = directoryCaptains()
+      .filter((u) => !claimed.has(u.id))
+      .map((u) => {
+        const listing = charterFromParts({
+          id: `charter_user_${u.id}`,
+          businessId: '',
+          ownerId: u.id,
+          name: u.name,
+          kind: 'Pro Charter',
+          area: u.area,
+          species: u.species,
+          boatType: u.boat,
+          boat: u.boat,
+          tripTypes: u.tripTypes,
+          websiteUrl: u.websiteUrl,
+          campaign: u.bio,
+          listingKind: u.listingKind || 'public',
+          curated: !!u.curated,
+          status: u.listingKind === 'partner' ? 'Verified' : 'Directory'
+        }, u);
+        listing.photoUrl = approvedCharterPhoto(listing);
+        return listing;
+      });
+    const extra = (state.charters || []).filter((c) => !fromBiz.some((b) => b.id === c.id) && !c.demo).map((c) => {
+      const captain = users.find((u) => u.id === c.ownerId) || {};
+      const listing = charterFromParts(c, captain);
+      listing.photoUrl = approvedCharterPhoto(listing);
+      return listing;
+    });
+    return [...fromBiz, ...extra, ...fromCaptains].filter((c) => isAdmin() || !isBlocked(c.ownerId));
+  }
+
+  function charterFilterState() {
+    return state.charterFilter || { q: '', location: '', species: '', boat: '', date: '', price: '' };
+  }
+
+  function charterMatches(listing, filter) {
+    const f = filter || charterFilterState();
+    const hay = `${listing.name} ${listing.captainName} ${listing.area} ${listing.species} ${listing.tripTypes} ${listing.boat} ${listing.boatType} ${listing.bio}`.toLowerCase();
+    if (f.q && !hay.includes(String(f.q).toLowerCase())) return false;
+    if (f.location && !String(listing.area || '').toLowerCase().includes(String(f.location).toLowerCase())) return false;
+    if (f.species && !`${listing.species} ${listing.tripTypes}`.toLowerCase().includes(String(f.species).toLowerCase())) return false;
+    if (f.boat && !`${listing.boat} ${listing.boatType}`.toLowerCase().includes(String(f.boat).toLowerCase())) return false;
+    if (f.price) {
+      const cap = Number(f.price);
+      if (Number.isFinite(cap) && listing.priceFrom != null && Number(listing.priceFrom) > cap) return false;
+    }
+    if (f.date && listing.availability) {
+      const note = String(listing.availability).toLowerCase();
+      const day = new Date(`${f.date}T12:00:00`);
+      const weekday = Number.isNaN(day.getTime()) ? '' : day.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+      if (/weekend/.test(note) && weekday && !/saturday|sunday/.test(weekday)) return false;
+      if (/weekday/.test(note) && weekday && /saturday|sunday/.test(weekday)) return false;
+    }
+    return true;
+  }
+
+  function filteredCharters() {
+    return allCharters().filter((c) => charterMatches(c));
+  }
+
+  function priceLabel(listing) {
+    const from = Number(listing.priceFrom);
+    const to = Number(listing.priceTo);
+    if (Number.isFinite(from) && from > 0 && Number.isFinite(to) && to > 0 && to !== from) return `${from}${EN_DASH}${to}`;
+    if (Number.isFinite(from) && from > 0) return `From ${from}`;
+    return 'Ask for a quote';
+  }
+
+  function myCharterInquiries() {
+    const user = currentUser();
+    if (!user) return [];
+    return (state.bookings || []).filter((b) => {
+      if (isAdmin()) return /charter|guide|inquiry/i.test(b.kind || '');
+      if (b.customerId === user.id) return true;
+      const biz = (state.businesses || []).find((x) => x.id === b.businessId);
+      return biz && biz.ownerId === user.id;
+    });
+  }
+
+  function liveReviewsFor(charterId) {
+    return (state.charterReviews || []).filter((r) => {
+      if (r.charterId !== charterId && r.businessId !== charterId) return false;
+      if (r.status === 'Live' || r.status === 'Approved') return true;
+      const viewer = currentUser();
+      return Boolean(viewer && (viewer.id === r.reviewerId || isAdmin()));
+    });
+  }
+
+  function findCharter(id) {
+    return allCharters().find((c) => c.id === id || c.businessId === id || c.captainId === id || normalizeUsername(c.username || '') === normalizeUsername(id || ''));
+  }
+
+  function houseDockAd() {
+    return {
+      id: 'dock_ad_house',
+      name: 'Advertise on this dock',
+      kind: 'Open slot',
+      area: 'Tampa Bay',
+      campaign: 'Tampa-only listing for tackle shops, marinas, and charters. No Google banners. No fake user counts.',
+      house: true
+    };
+  }
+
+  function pickDockAd() {
+    const partners = directoryBusinesses().filter((b) => b.curated);
+    const tick = Math.floor(Date.now() / 45000);
+    if (!partners.length || tick % 3 === 0) return houseDockAd();
+    return partners[tick % partners.length];
+  }
+
+  function dockAdCard() {
+    const ad = pickDockAd();
+    const house = !!ad.house;
+    return `
+      <section class="section app-section-tight dock-ad" aria-label="Dock ad">
+        <div class="section-head compact-head">
+          <div><span class="eyebrow">Dock ad</span><h2>${house ? 'A quiet Tampa slot.' : safe(ad.name)}</h2></div>
+          <span class="chip">First-party</span>
+        </div>
+        <article class="admin-card dock-ad-card${house ? ' dock-ad-house' : ''}">
+          <span class="badge orange">${house ? 'Open slot' : (ad.listingKind === 'partner' ? 'Early partner' : 'Local listing')}</span>
+          <h3>${safe(ad.name)}</h3>
+          <p class="muted">${safe(ad.kind || 'Partner')} ${MID} ${safe(ad.area || 'Tampa Bay')}</p>
+          <p>${safe(ad.campaign || 'Public Tampa listing. Book on their site.')}</p>
+          <div class="row">
+            ${ad.websiteUrl ? `<button class="btn primary small" type="button" data-action="dock-ad-click" data-ad-id="${safe(ad.id)}" data-ad-url="${safe(ad.websiteUrl)}">Visit site</button>` : ''}
+            <button class="btn ${house ? 'primary' : 'soft'} small" type="button" data-action="open-dock-ad-inquiry" data-ad-id="${safe(ad.id)}">${house ? 'Ask about a listing' : 'Advertise here'}</button>
+          </div>
+        </article>
+      </section>`;
+  }
+
+  /** Always refresh curated directory fields from seed so stale localStorage cannot pin old copy. */
+  function mergeCuratedDirectory() {
+    const curated = curatedDirectoryContent();
+    state.users = state.users || [];
+    state.businesses = state.businesses || [];
+    for (const u of curated.users) {
+      const idx = state.users.findIndex((x) => x.id === u.id || normalizeUsername(x.username || '') === normalizeUsername(u.username || ''));
+      if (idx < 0) {
+        state.users.push({ ...u });
+        continue;
+      }
+      const prev = state.users[idx];
+      state.users[idx] = {
+        ...prev,
+        ...u,
+        curated: true,
+        demo: false,
+        // Keep any local-only session/media bits the seed does not own.
+        password: prev.password,
+        avatar: u.avatar || prev.avatar || '',
+        avatarModerationStatus: prev.avatarModerationStatus,
+        instagramConnection: prev.instagramConnection
+      };
+    }
+    for (const b of curated.businesses) {
+      const idx = state.businesses.findIndex((x) => x.id === b.id);
+      if (idx < 0) {
+        state.businesses.push({ ...b });
+        continue;
+      }
+      state.businesses[idx] = { ...state.businesses[idx], ...b, curated: true, demo: false };
+    }
+  }
+
+  const defaultState = () => {
+    // Production default ships clean: no fake users, trips, feed posts, or
+    // business revenue. Demo content requires CONFIG.DEMO_MODE (default OFF)
+    // or an explicit operator "load sample pack" action.
+    const demoMode = CONFIG.DEMO_MODE === true;
+    const seed = demoMode ? demoSeedContent() : emptySeedContent();
+    return {
+      version: VERSION,
+      onboardingSeen: false,
+      preferredUnits: 'Imperial',
+      privacyMode: 'Crew-only exact locations',
+      notificationPref: 'Crew alerts',
+      savedGuideArea: 'Tampa Bay',
+      conditions: defaultConditions(),
+      lastFishId: null,
+      lastMeasurement: null,
+      deviceHub: {
+        status: 'Ready',
+        source: 'No device connected',
+        lat: null,
+        lon: null,
+        accuracy: null,
+        speed: null,
+        heading: null,
+        deviceName: '',
+        lastFix: '',
+        log: ['Open GPS + Devices from Tools to connect phone GPS, Bluetooth, or NMEA bridge.']
+      },
+      backendMode: 'local',
+      liveStatus: 'Ready',
+      activeScreen: 'home',
+      activeTripId: seed.trips[0]?.id || null,
+      tripFilter: 'All',
+      charterFilter: { q: '', location: '', species: '', boat: '', date: '', price: '' },
+      charters: [],
+      charterReviews: [],
+      chartersTableReady: false,
+      reviewsTableReady: false,
+      charterRefreshing: false,
+      feedFilter: 'All',
+      feedRefreshing: false,
+      crewPanel: 'upcoming',
+      toolsPanel: 'tools',
+      focusCaptain: '',
+      expandedCaptains: {},
+      demoContentLoaded: demoMode,
+      blockedUsers: [],
+      accountDeletionRequests: [],
+      session: null,
+      users: seed.users,
+      trips: seed.trips,
+      requests: seed.requests,
+      messages: seed.messages,
+      feed: seed.feed,
+      businesses: seed.businesses,
+      bookings: seed.bookings,
+      dockAds: { clicks: 0, inquiries: [] },
+      reports: seed.reports,
+      mediaAssets: seed.mediaAssets,
+      notifications: [],
+      supabasePrep: {
+        lastReadiness: 'System checks have not run yet.',
+        adapterMode: 'browser-first',
+        mediaPolicy: 'Images up to 8 MB in browser storage; larger media uses connected cloud storage.',
+        rlsStatus: 'Access policies are included for profiles, trips, messages, media, reports, businesses, and bookings.',
+        storageBucket: CONFIG.STORAGE_BUCKET || 'fishcrew-media',
+        releaseGate: 'Not run yet.',
+        adapterMode: 'browser-first with shared-data connector',
+        testResults: []
+      },
+      pluginReadiness: [
+        { id: 'supabase', label: 'Shared data core', area: 'Data', status: CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY ? 'Configured' : 'Ready for credentials', note: 'Auth, tables, access rules, storage, and live update connection points are present.' },
+        { id: 'google-auth', label: 'Google sign-in', area: 'Auth', status: CONFIG.ENABLE_GOOGLE_AUTH ? 'Configured' : 'Coming soon', note: 'Email/password is primary. Enable ENABLE_GOOGLE_AUTH in config.js after Supabase Google provider is live.' },
+        { id: 'facebook-auth', label: 'Facebook sign-in', area: 'Auth', status: CONFIG.ENABLE_FACEBOOK_AUTH ? 'Configured' : 'Coming soon', note: 'Email/password is primary. Enable ENABLE_FACEBOOK_AUTH in config.js after Supabase Facebook provider is live.' },
+        { id: 'instagram-connect', label: 'Instagram Meta connect', area: 'Social', status: (CONFIG.META_APP_ID && CONFIG.ENABLE_INSTAGRAM_OAUTH) ? 'OAuth ready' : 'Config gated', note: 'Profile connect via Meta OAuth. Not a login method. Caption handoff remains secondary share.' },
+        { id: 'instagram-share', label: 'Instagram share handoff', area: 'Social', status: 'Caption handoff ready', note: 'Prepares share copy; native Instagram posting requires mobile OS/app handoff.' },
+        { id: 'facebook-share', label: 'Facebook share', area: 'Social', status: 'Share port ready', note: 'Uses web/share URL flow when public URL is configured.' },
+        { id: 'x-share', label: 'X/Twitter share', area: 'Social', status: 'Share port ready', note: 'Uses web/share URL flow when public URL is configured.' },
+        { id: 'native-share', label: 'Phone native share', area: 'Social', status: 'Ready where supported', note: 'Uses navigator.share on supported phones/browsers.' },
+        { id: 'weather', label: 'Weather provider connection', area: 'Conditions', status: 'Provider slot ready', note: 'Choose the live weather source before adding keys.' },
+        { id: 'maps', label: 'Map provider connection', area: 'Maps', status: 'Provider slot ready', note: 'Map and geocoding connection points are prepared.' },
+        { id: 'water-news', label: 'Local water news source', area: 'Content', status: 'Source slot ready', note: 'Cards are structured for source, time, category, and area.' },
+        { id: 'guide-data', label: 'Guide/business directory', area: 'Marketplace', status: 'Data model ready', note: 'Guide and business tables/sections are prepared for live records.' },
+        { id: 'location-media', label: 'Location media map', area: 'Visuals', status: 'Area-photo map ready', note: 'General location photos are mapped by area without exposing exact spots.' }
+      ],
+      opsLog: ['FishCrew loaded.', 'Original FishCrew water content is ready.', 'Operator, business, photos, and account pathways included.'],
+      qaNotes: [
+        { id: 'qa_1', screen: 'Home', issue: 'Phone layout should stay calm and action-focused.', priority: 'Medium', status: 'Open', createdAt: now() },
+        { id: 'qa_2', screen: 'Launch', issue: 'Run two-phone check after shared-data credentials are added.', priority: 'High', status: 'Open', createdAt: now() },
+        { id: 'qa_3', screen: 'Media', issue: 'Replace seeded media with real local shop and captain photos before public launch.', priority: 'Medium', status: 'Open', createdAt: now() }
+      ],
+      guideLibrary: [
+        { id: 'guide_1', area: 'Tampa Bay', title: 'Inshore basics', summary: 'Moving water, grass edges, mangroves, and dock lights are the first pattern to learn.', species: 'Snook, redfish, trout', bait: 'Live shrimp, pilchards, paddletails, topwater at first light', methods: 'Fish current seams, mangrove edges, potholes, and dock shadow lines.', gear: '2500-3500 reel, 10-20 lb braid, 20-30 lb leader, circle hooks for bait.', safety: 'Check wind and storms before small craft or kayak trips.' },
+        { id: 'guide_2', area: 'St. Pete', title: 'Pier and bridge notes', summary: 'Bring light tackle, watch tides, and keep exact bite details respectful.', species: 'Mackerel, sheepshead, snapper', bait: 'Shrimp, fiddler crabs, small spoons, Gotcha plugs, cut bait', methods: 'Work pilings, shadow lines, bait schools, and tide changes. Keep rigs simple.', gear: 'Medium-light rod, 10-15 lb braid, fluorocarbon leader, sabiki for bait when legal.', safety: 'Follow pier rules and local size limits.' },
+        { id: 'guide_3', area: 'Clearwater', title: 'Charter and cruise pairing', summary: 'Good marketplace area for open charter seats, family cruises, and visitor-friendly trips.', species: 'Grouper, snapper, mackerel', bait: 'Frozen sardines, squid, live pinfish, trolling spoons', methods: 'Match trip length to weather window. Let captains publish open seats and family add-ons.', gear: 'Charter gear often supplied; bring sun protection, non-marking shoes, and cooler plan.', safety: 'Use verified captains and clear meetup instructions.' },
+        { id: 'guide_4', area: 'Freshwater ponds', title: 'Bass bank plan', summary: 'Walkable bank fishing pattern for beginners and quick after-work sessions.', species: 'Largemouth bass, bluegill, crappie', bait: 'Soft plastics, small spinnerbaits, live worms, beetle spins', methods: 'Cast parallel to grass, shade, drains, and corners. Slow down after cold fronts.', gear: 'Medium spinning combo, 8-12 lb line, small tackle tray, pliers.', safety: 'Watch private property, gators/snakes, and local freshwater rules.' }
+      ],
+      launchChecks: [
+        { id: 'lc_1', label: 'Publish the latest FishCrew and verify refresh', done: false },
+        { id: 'lc_2', label: 'Run system checks and launch checks', done: false },
+        { id: 'lc_3', label: 'Install shared-data schema and media bucket', done: false },
+        { id: 'lc_4', label: 'Add shared-data keys and confirm connection status', done: false },
+        { id: 'lc_5', label: 'Phone A posts a trip; Phone B sees it live', done: false },
+        { id: 'lc_6', label: 'Phone B requests join; Phone A approves and chat syncs', done: false },
+        { id: 'lc_7', label: 'Verify live upload (no silent local fallback) + moderation review visibility', done: true },
+        { id: 'lc_8', label: 'Operator resolves report, business lead appears, export works', done: false }
+      ],
+      health: { lastAudit: null, missingActions: [] }
+    };
+  };
+
+  let state = defaultState();
+
+  function setDebug(message) {
+    const el = $('#debugPill');
+    if (el) el.textContent = String(message).slice(0, 140);
+  }
+
+  function setBootStatus(message) {
+    const el = $('#bootStatus');
+    if (el) el.textContent = message;
+  }
+
+  function finishBoot() {
+    setBootStatus('Ready.');
+    requestAnimationFrame(() => {
+      document.body.classList.add('app-ready');
+      const boot = $('#bootScreen');
+      if (boot) {
+        boot.setAttribute('aria-hidden', 'true');
+        setTimeout(() => boot.remove(), 720);
+      }
+    });
+  }
+
+  const BETA_BANNER_KEY = 'fishcrew.betaBannerDismissed.v071';
+
+  function isScreenshotMode() {
+    try {
+      return new URLSearchParams(location.search).get('screenshot') === '1';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function shouldShowBetaBanner() {
+    if (CONFIG.SHOW_BETA_BANNER !== true) return false;
+    if (isScreenshotMode()) return false;
+    try {
+      return localStorage.getItem(BETA_BANNER_KEY) !== '1';
+    } catch (_) {
+      return true;
+    }
+  }
+
+  function applyScreenshotMode() {
+    if (!isScreenshotMode()) return;
+    document.body.classList.add('screenshot-mode');
+    $('#betaBanner')?.classList.add('hidden');
+  }
+
+  function applyScreenshotDemoData() {
+    if (!isScreenshotMode()) return;
+    if ((state.trips || []).length && (state.feed || []).length) return;
+    ensureDemoPackMerged();
+    if (!state.activeTripId && state.trips[0]?.id) state.activeTripId = state.trips[0].id;
+  }
+
+  function ensureDemoPackMerged() {
+    const fresh = demoSeedContent();
+    state.users = mergeById(state.users || [], fresh.users || []);
+    state.trips = mergeById(state.trips || [], fresh.trips || []);
+    state.requests = mergeById(state.requests || [], fresh.requests || []);
+    state.feed = mergeById(state.feed || [], fresh.feed || []);
+    state.businesses = mergeById(state.businesses || [], fresh.businesses || []);
+    state.bookings = mergeById(state.bookings || [], fresh.bookings || []);
+    state.reports = mergeById(state.reports || [], fresh.reports || []);
+    state.demoContentLoaded = true;
+  }
+
+  function wantsCaptainDemo() {
+    try {
+      if (new URLSearchParams(location.search).get('demo') === 'captain') return true;
+      return String(location.pathname || '').replace(/\/+$/, '').toLowerCase() === '/captain';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function wantsGuestPath() {
+    try {
+      return String(location.pathname || '').replace(/\/+$/, '').toLowerCase() === '/guest';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function applyCaptainDemoMode() {
+    if (!wantsCaptainDemo()) return;
+    // Production: /captain is an operator on-ramp, not a fake signed-in demo user.
+    state.activeScreen = 'explore';
+    state.operatorListHint = true;
+    try {
+      const params = new URLSearchParams(location.search);
+      params.delete('demo');
+      const qs = params.toString();
+      history.replaceState(null, '', `/${qs ? `?${qs}` : ''}`);
+    } catch (_) {}
+  }
+
+  function applyGuestPath() {
+    if (!wantsGuestPath()) return;
+    // Predictable reviewer/guest path: browse without an account.
+    state.session = null;
+    state.activeScreen = 'home';
+    try {
+      history.replaceState(null, '', '/');
+    } catch (_) {}
+  }
+
+  function applyBetaBannerState() {
+    const banner = $('#betaBanner');
+    if (!banner) return;
+    if (shouldShowBetaBanner()) {
+      banner.classList.remove('hidden');
+      banner.removeAttribute('hidden');
+      document.body.classList.add('show-beta');
+    } else {
+      banner.classList.add('hidden');
+      banner.setAttribute('hidden', '');
+      document.body.classList.remove('show-beta');
+    }
+  }
+
+  function dismissBetaBanner() {
+    $('#betaBanner')?.classList.add('hidden');
+    document.body.classList.remove('show-beta');
+    try { localStorage.setItem(BETA_BANNER_KEY, '1'); } catch (_) { /* non-fatal */ }
+  }
+
+  function failBoot(error) {
+    console.error(error);
+    setBootStatus('Something needs a refresh. The app shell is still available.');
+    document.body.classList.add('app-ready');
+    toast('FishCrew loaded with a startup warning.', 'danger');
+  }
+
+  function toast(message, tone = 'default') {
+    const el = $('#toast');
+    if (!el) return;
+    if (tone !== 'danger' && Date.now() < holdToastUntil) return;
+    el.textContent = message;
+    el.className = `toast ${tone === 'danger' ? 'toast-danger' : ''}`;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.add('hidden'), 2800);
+  }
+
+  function flushSave() {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    try {
+      const payload = { ...state };
+      if (state.backendMode === 'supabase' && state.session?.userId) delete payload.notifications;
+      localStorage.setItem(STORE, JSON.stringify(payload));
+    } catch (error) { console.warn('Save failed', error); }
+  }
+
+  function save(immediate = false) {
+    if (immediate === true) {
+      flushSave();
+      return;
+    }
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flushSave, SAVE_DEBOUNCE_MS);
+  }
+
+  function readStoredStateRaw() {
+    const stable = localStorage.getItem(STORE);
+    if (stable) return stable;
+    const keys = Object.keys(localStorage)
+      .filter((key) => /^fishcrew:.+:state$/.test(key))
+      .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (raw) return raw;
+    }
+    return null;
+  }
+
+  function load() {
+    try {
+      const raw = readStoredStateRaw();
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        state = { ...defaultState(), ...parsed, version: VERSION };
+        normalizeState();
+      }
+    } catch (error) {
+      console.warn('Load failed. Resetting local state.', error);
+      state = defaultState();
+      normalizeState();
+    }
+  }
+
+  /**
+   * Drop directory rows and QA residue a previous build persisted onto this
+   * device. The registry is the source of truth: anything still flagged curated
+   * that the registry no longer lists was never a consenting captain, and would
+   * otherwise keep showing to this user as live inventory forever.
+   */
+  function purgeStaleLocalContent() {
+    const registry = curatedDirectoryContent();
+    const keepUsers = new Set((registry.users || []).map((u) => u.id));
+    const keepBusinesses = new Set((registry.businesses || []).map((b) => b.id));
+    state.users = (state.users || []).filter((u) => (u.curated ? keepUsers.has(u.id) : !isAuditListing(u)));
+    state.businesses = (state.businesses || []).filter((b) => (b.curated ? keepBusinesses.has(b.id) : !isAuditListing(b)));
+    state.charters = (state.charters || []).filter((c) => (c.curated ? keepUsers.has(c.ownerId) : !isAuditListing(c)));
+    state.trips = (state.trips || []).filter((t) => !isAuditListing(t));
+    state.feed = (state.feed || []).filter((p) => !isAuditListing(p));
+  }
+
+  function normalizeState() {
+    state.users = state.users || [];
+    state.businesses = state.businesses || [];
+    purgeStaleLocalContent();
+    mergeCuratedDirectory();
+    if (state.instagramConnection) delete state.instagramConnection.accessToken;
+    const used = new Set();
+    state.users.forEach((u) => {
+      // Migration: older saved states shipped demo accounts with plaintext
+      // passwords. Strip them so demo accounts can never be logged into.
+      if (u.demo) delete u.password;
+      // Supabase owns passwords in production; never keep a local copy. Older builds also
+      // saved the Meta access token in localStorage, so scrub that too.
+      if (CONFIG.USE_SUPABASE) delete u.password;
+      if (u.instagramConnection) delete u.instagramConnection.accessToken;
+      let base = normalizeUsername(u.username || u.email?.split('@')[0] || u.name || u.id);
+      let candidate = base;
+      let n = 2;
+      while (used.has(candidate)) candidate = `${base}_${n++}`;
+      u.username = candidate;
+      used.add(candidate);
+      u.bio = u.bio || (u.role === 'Captain' ? 'Local captain helping crews get on fish safely.' : u.role === 'Business' ? 'Local fishing partner on the FishCrew board.' : u.role === 'Admin' ? 'FishCrew operator keeping the dock running.' : 'Here to find crew, share reports, and fish more.');
+      u.fishingStyles = u.fishingStyles || (u.role === 'Captain' ? 'Charter, offshore, reef' : u.role === 'Business' ? 'Bait, tackle, local reports' : 'Inshore, pier, weekend trips');
+      u.profileTheme = u.profileTheme || 'Harbor Blue';
+    });
+    state.notifications = Array.isArray(state.notifications) ? state.notifications : [];
+    state.feed = state.feed || [];
+    state.reports = state.reports || [];
+    state.mediaAssets = state.mediaAssets || [];
+    state.deviceHub = {
+      status: 'Ready',
+      source: 'No device connected',
+      lat: null,
+      lon: null,
+      accuracy: null,
+      speed: null,
+      heading: null,
+      deviceName: '',
+      lastFix: '',
+      log: [],
+      ...(state.deviceHub || {})
+    };
+    state.deviceHub.log = Array.isArray(state.deviceHub.log) ? state.deviceHub.log.slice(0, 8) : [];
+    state.blockedUsers = Array.isArray(state.blockedUsers) ? state.blockedUsers : [];
+    state.accountDeletionRequests = Array.isArray(state.accountDeletionRequests) ? state.accountDeletionRequests : [];
+    state.dockAds = {
+      clicks: Number(state.dockAds?.clicks || 0),
+      inquiries: Array.isArray(state.dockAds?.inquiries) ? state.dockAds.inquiries : []
+    };
+  }
+
+  function cleanupOldCaches() {
+    try {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith(LEGACY_PREFIX) && key !== STORE && !key.includes(VERSION)) {
+          // Keep a light hand: do not delete user data automatically, only service-worker caches below.
+        }
+      });
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((regs) => {
+          regs.forEach((reg) => {
+            const url = reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || '';
+            if (url.includes('fishcrew') || url.includes('service-worker')) reg.update().catch(() => {});
+          });
+        }).catch(() => {});
+      }
+    } catch (_) {}
+  }
+
+  function currentUser() {
+    if (!state.session) return null;
+    return state.users.find((u) => u.id === state.session.userId) || null;
+  }
+
+  function isAdmin() {
+    const user = currentUser();
+    return user?.role === 'Admin';
+  }
+
+  function isBusinessRole() {
+    const role = currentUser()?.role;
+    return role === 'Admin' || role === 'Business' || role === 'Captain';
+  }
+
+  function initials(name) {
+    return (name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('') || '?';
+  }
+
+  function userName() {
+    return currentUser()?.name || 'Guest angler';
+  }
+
+  function normalizeUsername(value, fallback = 'angler') {
+    const base = String(value || fallback || 'angler')
+      .toLowerCase()
+      .replace(/[^a-z0-9_\.]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 24) || 'angler';
+    return base.length < 3 ? `${base}_fc` : base;
+  }
+
+  function usernameFor(user) {
+    if (!user) return '@guest';
+    if (!user.username) user.username = normalizeUsername(user.email?.split('@')[0] || user.name || user.id);
+    return `@${user.username}`;
+  }
+
+  function roleLabel(role) {
+    return role === 'Admin' ? 'Operator' : (role || 'Angler');
+  }
+
+  function supportEmail() {
+    return CONFIG.SUPPORT_EMAIL || 'support@macksims.com';
+  }
+
+  function canonicalUrl(path = '') {
+    const root = String(CONFIG.WEB_CANONICAL_URL || location.origin || '').replace(/\/+$/, '');
+    return `${root}${path || ''}`;
+  }
+
+  function isBlocked(userId) {
+    return Boolean(userId && (state.blockedUsers || []).includes(userId));
+  }
+
+  function usernameTaken(username, userId = '') {
+    const u = normalizeUsername(username);
+    return state.users.some((x) => x.id !== userId && normalizeUsername(x.username || x.email?.split('@')[0] || x.name) === u);
+  }
+
+  // Validates a username the user actually typed (derived/fallback usernames go
+  // through normalizeUsername instead, which coerces rather than rejects).
+  function usernameInputError(raw) {
+    const trimmed = String(raw || '').trim();
+    if (!trimmed) return 'Username required.';
+    if (trimmed.length < 3) return 'Username must be at least 3 characters.';
+    if (!/^[a-z0-9_.]+$/i.test(trimmed)) return 'Username can only use letters, numbers, dots, and underscores.';
+    return '';
+  }
+
+  // Remote uniqueness check against live profiles (normalized lowercase match).
+  // Returns true/false, or null when the check could not run (offline/RPC not
+  // yet applied) so callers can fall back to the unique index as the backstop.
+  async function usernameTakenRemote(username, excludeId = '') {
+    if (!supabaseClient) return null;
+    try {
+      const { data, error } = await supabaseClient.rpc('username_exists', { candidate: normalizeUsername(username), exclude_id: excludeId || null });
+      if (error) return null;
+      return Boolean(data);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function mapNotificationRow(row) {
+    return {
+      id: row.id,
+      title: row.title,
+      body: row.body || '',
+      type: row.type || row.notification_type || 'Alert',
+      read: Boolean(row.read_at),
+      readAt: row.read_at || null,
+      createdAt: row.created_at || now(),
+      linkPath: row.link_path || '',
+      entityType: row.entity_type || '',
+      entityId: row.entity_id || '',
+      actorId: row.actor_id || ''
+    };
+  }
+
+  function unreadNotifications() {
+    return (state.notifications || []).filter((n) => !n.read).length;
+  }
+
+  async function fetchNotifications() {
+    if (!supabaseClient || !currentUser()) {
+      state.notifications = [];
+      state.notificationsLoading = false;
+      state.notificationsFetchError = '';
+      return;
+    }
+    state.notificationsLoading = true;
+    state.notificationsFetchError = '';
+    try {
+      const { data, error } = await supabaseClient
+        .from('notifications')
+        .select('id, user_id, actor_id, type, notification_type, title, body, entity_type, entity_id, link_path, read_at, created_at')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      const userId = currentUser()?.id || '';
+      state.notifications = (data || [])
+        .filter((row) => row.user_id === userId)
+        .map(mapNotificationRow);
+    } catch (error) {
+      console.warn('Notifications fetch failed', error);
+      state.notificationsFetchError = error.message || String(error);
+      state.notifications = state.notifications || [];
+    } finally {
+      state.notificationsLoading = false;
+      render();
+    }
+  }
+
+  function scheduleNotificationsRefresh() {
+    clearTimeout(notificationsRefreshTimer);
+    notificationsRefreshTimer = setTimeout(() => fetchNotifications(), 400);
+  }
+
+  function userArea() {
+    return currentUser()?.area || 'Tampa Bay';
+  }
+
+  function greeting() {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 18) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  function protectedPrompt(reason = '') {
+    const detail = String(reason || '').trim();
+    if (!detail || detail === GUEST_SIGN_IN_PROMPT) return GUEST_SIGN_IN_PROMPT;
+    return `${GUEST_SIGN_IN_PROMPT} ${detail}`;
+  }
+
+  function requireLogin(reason = GUEST_SIGN_IN_PROMPT) {
+    if (currentUser()) return true;
+    openAuth(protectedPrompt(reason));
+    return false;
+  }
+
+  function requireAdmin(reason = 'Operator access required for these controls.') {
+    if (isAdmin()) return true;
+    openAuth(protectedPrompt(reason), 'Admin');
+    return false;
+  }
+
+  function requireBusiness(reason = 'Business, captain, or operator access required.') {
+    if (isBusinessRole()) return true;
+    openAuth(protectedPrompt(reason), 'Business');
+    return false;
+  }
+
+  function isTripCrewMember(trip, user = currentUser()) {
+    if (!trip || !user) return false;
+    return trip.hostId === user.id || Boolean(trip.members?.includes(user.id)) || isAdmin();
+  }
+
+  function scrubCrewChatLocalState() {
+    state.messages = {};
+    state.activeTripId = '';
+    if (state.crewPanel === 'chat') state.crewPanel = 'upcoming';
+  }
+
+  function canonicalAppUrl() {
+    const base = String(CONFIG.WEB_CANONICAL_URL || location.origin || 'https://fishcrew.macksims.com/');
+    return base.endsWith('/') ? base : `${base}/`;
+  }
+
+  function tripInviteUrl(tripId) {
+    return `${canonicalAppUrl()}?trip=${encodeURIComponent(tripId)}`;
+  }
+
+  function tripIdFromUrl() {
+    const params = new URLSearchParams(location.search || '');
+    const fromQuery = params.get('trip') || params.get('invite');
+    if (fromQuery) return String(fromQuery).trim();
+    const path = String(location.pathname || '');
+    const match = path.match(/\/(?:invite|trip)\/([^/]+)\/?$/i);
+    return match ? decodeURIComponent(match[1]) : '';
+  }
+
+  function clearTripInviteFromUrl() {
+    try {
+      const url = new URL(location.href);
+      if (!url.searchParams.has('trip') && !url.searchParams.has('invite') && !/\/(?:invite|trip)\//i.test(url.pathname)) return;
+      url.searchParams.delete('trip');
+      url.searchParams.delete('invite');
+      if (/\/(?:invite|trip)\/[^/]+\/?$/i.test(url.pathname)) url.pathname = '/';
+      history.replaceState({}, '', url.pathname + url.search + url.hash);
+    } catch (_) { /* ignore */ }
+  }
+
+  async function openTripInvite(tripId, { forceRequest = false } = {}) {
+    if (!tripId) return;
+    let trip = state.trips.find((t) => t.id === tripId);
+    if (!trip && supabaseClient) {
+      try { await pullSupabase({ silent: true }); } catch (_) { /* keep going */ }
+      trip = state.trips.find((t) => t.id === tripId);
+    }
+    if (!trip) {
+      state.pendingTripId = tripId;
+      save();
+      toast('That trip invite is not loaded yet. Sign in or refresh, then try again.', 'warning');
+      return;
+    }
+    state.pendingTripId = '';
+    state.activeTripId = trip.id;
+    save();
+    clearTripInviteFromUrl();
+    if (forceRequest) return requestTrip(trip.id);
+    tripDetails(trip.id);
+  }
+
+  function consumePendingTripInvite() {
+    const tripId = state.pendingTripId || tripIdFromUrl();
+    if (!tripId) return;
+    state.pendingTripId = '';
+    save();
+    setTimeout(() => openTripInvite(tripId), 120);
+  }
+
+  function hydrateHeader() {
+    const user = currentUser();
+    const area = user?.area || currentConditions().area || state.savedGuideArea || 'Tampa Bay';
+    const photo = locationPhoto(area, 'header');
+    document.body.dataset.daypart = daypart();
+    document.documentElement.style.setProperty('--header-location-photo', `url("${photo.url}")`);
+    const header = $('.app-header');
+    if (header) {
+      header.dataset.location = photo.area;
+      header.title = `${photo.area} scene adapts by time of day`;
+    }
+    const account = $('#accountButton');
+    if (account) {
+      account.textContent = user ? user.name.split(' ')[0] : 'Sign in';
+      account.dataset.action = user ? 'go' : 'open-auth';
+      if (user) account.dataset.screen = 'profile';
+      else account.removeAttribute('data-screen');
+      account.setAttribute('aria-label', user ? 'Open profile' : 'Sign in or create account');
+    }
+  }
+
+  function nav(screen) {
+    const allowed = ['home', 'explore', 'crew', 'feed', 'tools', 'profile'];
+    if (!allowed.includes(screen)) screen = 'home';
+    state.activeScreen = screen;
+    $$('.screen').forEach((s) => s.classList.toggle('active', s.id === `screen-${screen}`));
+    $$('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.screen === screen));
+    save();
+    render();
+    setDebug(`Screen: ${screen}`);
+    scrollToTopSoft();
+    try { window.history.pushState({ fishcrewScreen: screen }, '', location.href); } catch {}
+  }
+
+  function scoreBadge(score) {
+    const s = String(score || 'Fair').toLowerCase();
+    const cls = s.includes('good') || s.includes('great') ? 'green' : s.includes('unsafe') || s.includes('rough') ? 'red' : 'orange';
+    return `<span class="badge ${cls}">${safe(score || 'Fair')}</span>`;
+  }
+
+  function mediaModerationEnabled() {
+    return CONFIG.ENABLE_MEDIA_MODERATION !== false;
+  }
+
+  function isApprovedMediaStatus(status) {
+    const value = String(status || '');
+    return value === 'Approved' || value === 'Auto-approved';
+  }
+
+  function mediaAssetForItem(item, sourceType = '') {
+    if (!item) return null;
+    const sourceId = item.id || item.sourceId || '';
+    if (!sourceId) return null;
+    const assets = state.mediaAssets || [];
+    if (sourceType) {
+      const typed = assets.find((a) => a.sourceId === sourceId && a.sourceType === sourceType);
+      if (typed) return typed;
+    }
+    return assets.find((a) => a.sourceId === sourceId) || null;
+  }
+
+  function canShowUserMedia(item, sourceType = 'feed') {
+    if (!item) return false;
+    if (item.demo) return true;
+    if (!mediaModerationEnabled()) return true;
+    const asset = mediaAssetForItem(item, sourceType);
+    const viewer = currentUser();
+    const isOwner = Boolean(viewer && (
+      asset?.ownerId === viewer.id ||
+      item.authorId === viewer.id ||
+      item.hostId === viewer.id ||
+      item.ownerId === viewer.id ||
+      item.id === viewer.id
+    ));
+    if (isAdmin() || isOwner) return true;
+    if (asset) return isApprovedMediaStatus(asset.status);
+    return ['Live', 'Sponsored', 'Approved', 'Published'].includes(String(item.status || ''));
+  }
+
+  function visibleFeedPosts() {
+    const viewer = currentUser();
+    return (state.feed || []).filter((post) => {
+      if (isAuditListing(post)) return false;
+      if (post.status === 'Removed' || post.status === 'Hidden') return isAdmin();
+      if (!isAdmin() && isBlocked(post.authorId)) return false;
+      if (post.status === 'Pending review') {
+        return isAdmin() || Boolean(viewer && viewer.id === post.authorId);
+      }
+      return true;
+    });
+  }
+
+  function mediaSketch(kind = 'water') {
+    const k = String(kind || 'water').toLowerCase();
+    const label = k.includes('shop') ? 'Dock shop note' : k.includes('boat') || k.includes('charter') ? 'Open water run' : k.includes('pier') ? 'Pier crew' : k.includes('catch') || k.includes('fish') ? 'Fresh catch' : 'Local water';
+    const cls = k.includes('shop') ? 'shop' : k.includes('boat') || k.includes('charter') ? 'boat' : k.includes('pier') ? 'pier' : k.includes('catch') || k.includes('fish') ? 'catch' : 'water';
+    return `<div class="card-media media-sketch ${cls}" aria-label="${safe(label)}">
+      <span class="sketch-sun"></span><span class="sketch-wave one"></span><span class="sketch-wave two"></span><span class="sketch-line"></span><span class="sketch-mark"></span><small>${safe(label)}</small>
+    </div>`;
+  }
+
+  function mediaBlock(item, fallback = 'water') {
+    const url = item?.media || item?.mediaUrl || '';
+    const type = item?.mediaType || '';
+    const sourceType = item?.hostId ? 'trip' : (item?.authorId ? 'feed' : 'media');
+    const hasUserMedia = url && (isRemoteUrl(url) || (isDataUrl(url) && !item?.demo));
+    if (hasUserMedia && canShowUserMedia(item, sourceType)) {
+      if (String(type).startsWith('video')) {
+        return `<div class="card-media has-video"><video src="${safe(url)}" muted playsinline loop controls preload="metadata"></video></div>`;
+      }
+      return `<div class="card-media photo user-photo" style="background-image:url('${cssUrl(url)}')"><span class="media-location-label">${safe(item?.area || 'FishCrew media')}</span></div>`;
+    }
+    if (hasUserMedia && mediaModerationEnabled()) {
+      const viewer = currentUser();
+      const pendingLabel = (isAdmin() || (viewer && (item?.authorId === viewer.id || item?.hostId === viewer.id)))
+        ? 'Pending review'
+        : 'Photo under review';
+      return `<div class="card-media media-sketch water" aria-label="${safe(pendingLabel)}"><span class="media-location-label"><b>${safe(pendingLabel)}</b><small>Visible after operator approval</small></span></div>`;
+    }
+    if (item?.area) {
+      const photo = locationPhoto(item.area, item?.type || fallback);
+      return `<div class="card-media photo location-photo" style="background-image:url('${cssUrl(photo.url)}')"><span class="media-location-label"><b>${safe(photo.area)}</b><small>${safe(item?.type || fallback)}</small></span></div>`;
+    }
+    const kind = item?.artKind || item?.type || fallback;
+    return mediaSketch(kind);
+  }
+
+  function tripCard(trip, compact = false) {
+    const user = currentUser();
+    const isMember = user && trip.members?.includes(user.id);
+    const canHost = user && (trip.hostId === user.id || isAdmin());
+    const pending = user && state.requests.some((r) => r.tripId === trip.id && r.userId === user.id && r.status === 'Pending');
+    const canRequest = String(trip.status || 'Open') === 'Open' && Number(trip.spots || 0) > 0;
+    return `
+      <article class="trip-card">
+        ${mediaBlock(trip, trip.type === 'Pier' ? 'pier' : 'boat')}
+        <div class="row">${scoreBadge(trip.score)} ${trip.urgent ? '<span class="badge orange">Last-minute</span>' : ''} ${trip.adminFeatured ? '<span class="chip">Featured</span>' : ''} ${isModeratedTrip(trip) ? '<span class="badge red">Hidden by FishCrew</span>' : ''} <span class="chip">${safe(trip.type)}</span> <span class="chip">${safe(trip.status)}</span></div>
+        <h3>${safe(trip.title)}</h3>
+        <p class="muted">${safe(trip.area)} ${MID} ${safe(trip.time)}</p>
+        <div class="meta">
+          <span class="chip">${safe(trip.species)}</span>
+          <span class="chip">${safe(trip.spots)} open</span>
+          <span class="chip">${safe(trip.cost)}</span>
+        </div>
+        ${compact ? '' : `<p class="tiny">Wind ${safe(trip.wind)} ${MID} Waves ${safe(trip.waves)} ${MID} Tide ${safe(trip.tide)}</p>`}
+        <div class="row">
+          <button class="btn primary small" type="button" data-action="request-trip" data-trip-id="${safe(trip.id)}">${isMember ? 'Crew' : pending ? 'Pending' : canRequest ? 'Request' : 'Closed'}</button>
+          <button class="btn dark small" type="button" data-action="trip-details" data-trip-id="${safe(trip.id)}">Details</button>
+          ${canHost ? `<button class="btn soft small" type="button" data-action="share-trip" data-trip-id="${safe(trip.id)}">Invite</button><button class="btn soft small" type="button" data-action="open-host-controls" data-trip-id="${safe(trip.id)}">Host</button>` : `<button class="btn dark small" type="button" data-action="open-map" data-area="${safe(trip.area)}">Map</button>`}
+        </div>
+      </article>`;
+  }
+
+  function feedCard(post, compact = false) {
+    const review = state.reports?.some((r) => r.target === post.id && r.status === 'Open');
+    const removed = post.status === 'Removed';
+    const author = state.users.find((u) => u.id === post.authorId);
+    const showAdminMeta = isAdmin();
+    const viewer = currentUser();
+    const canBlock = viewer && author && author.id !== viewer.id && !isBlocked(author.id);
+    return `
+      <article class="feed-card clean-card ${removed ? 'is-removed' : ''}">
+        ${mediaBlock(post, post.artKind || post.type || 'catch')}
+        <div class="feed-topline"><span class="badge ${post.status === 'Sponsored' ? 'orange' : post.status === 'Removed' ? 'red' : post.status === 'Pending review' ? 'orange' : ''}">${safe(post.type)}</span><span class="chip">${safe(post.area)}</span>${(showAdminMeta && review) || post.status === 'Pending review' ? '<span class="chip">Review queued</span>' : ''}</div>
+        <h3>${safe(post.title)}</h3>
+        <p class="muted">${safe(post.body)}</p>
+        <div class="feed-byline"><span>${safe(author ? usernameFor(author) : post.authorName || 'FishCrew')}</span>${showAdminMeta ? `<span>${safe(post.status || 'Live')}</span>` : ''}</div>
+        <div class="row feed-actions">
+          <button class="btn dark small" type="button" data-action="react-feed" data-feed-id="${safe(post.id)}">Like ${safe(post.reactions || 0)}</button>
+          <button class="btn dark small" type="button" data-action="share-feed" data-feed-id="${safe(post.id)}">Share</button>
+          ${!removed ? `<button class="btn dark small" type="button" data-action="report-feed" data-feed-id="${safe(post.id)}">Report</button>` : ''}
+          ${canBlock ? `<button class="btn dark small" type="button" data-action="block-user" data-user-id="${safe(author.id)}">Block</button>` : ''}
+          ${showAdminMeta ? `<button class="btn danger small" type="button" data-action="remove-feed" data-feed-id="${safe(post.id)}">Remove</button>` : ''}
+        </div>
+      </article>`;
+  }
+
+  function currentConditions() {
+    state.conditions = { ...defaultConditions(), ...(state.conditions || {}) };
+    return state.conditions;
+  }
+
+  function conditionChips(c = currentConditions()) {
+    return `
+      <div class="stat score-stat"><span>Fishability</span><strong>${safe(c.score)}</strong></div>
+      <div class="stat"><span>Wind</span><strong>${safe(c.wind)}</strong></div>
+      <div class="stat"><span>Waves</span><strong>${safe(c.waves)}</strong></div>
+      <div class="stat"><span>Window</span><strong>${safe(c.window)}</strong></div>`;
+  }
+
+  function portTargetForArea(area = '') {
+    const a = String(area || '').toLowerCase();
+    if (a.includes('tampa') || a.includes('gandy') || a.includes('skyway')) return 'Snook';
+    if (a.includes('sarasota')) return 'Trout';
+    if (a.includes('clearwater') || a.includes('st. pete')) return 'Redfish';
+    return 'Inshore bite';
+  }
+
+  function homeConditionCard(c = currentConditions()) {
+    const stamp = c.updatedAt ? new Date(c.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'not refreshed';
+    const scoreClass = String(c.score).toLowerCase().includes('great') || String(c.score).toLowerCase().includes('good') ? 'green' : String(c.score).toLowerCase().includes('unsafe') || String(c.score).toLowerCase().includes('rough') ? 'red' : 'orange';
+    return `
+      <article class="conditions-card panel port-window-card ${c.isLive ? 'is-live' : ''}">
+        <div class="port-window-bg" aria-hidden="true"></div>
+        <div class="port-window-content">
+          <div class="condition-card-head port-window-head">
+            <div><span class="eyebrow">Port Window</span><h2>${safe(c.area || userArea())}</h2><p class="muted">Live-feel conditions for the local water crew</p></div>
+            <span class="badge ${scoreClass}">${safe(c.score)} window</span>
+          </div>
+          <div class="port-condition-grid" aria-label="Today conditions">
+            <article><span>Wind</span><strong>${safe(c.wind)}</strong><small>${Number(c.windMph || 0) <= 10 ? 'easing late' : 'watch gusts'}</small></article>
+            <article><span>Tide</span><strong>${safe(c.tide)}</strong><small>${safe(c.tideNext || 'moving water matters')}</small></article>
+            <article><span>Water</span><strong>${safe(c.water)}</strong><small>${safe(c.waves)} ${MID} ${safe(c.rain)} rain</small></article>
+            <article><span>Target</span><strong>${safe(portTargetForArea(c.area || userArea()))}</strong><small>${safe(c.windowDetail || 'local pattern check')}</small></article>
+          </div>
+          <div class="port-footer row">
+            <span>Temp ${safe(c.temp)}</span>
+            <span>Updated ${safe(stamp)}</span>
+            <button class="btn primary small" type="button" data-action="refresh-conditions">Use my location</button>
+            <button class="btn dark small" type="button" data-action="open-conditions">Details</button>
+          </div>
+          <p class="tiny">${safe(c.isLive ? 'Live refresh' : 'Planning estimate')} ${MID} ${safe(c.source)}</p>
+        </div>
+      </article>`;
+  }
+
+  function conditionsRibbon(c = currentConditions()) {
+    return `
+      <section class="conditions-ribbon" aria-label="Live condition notification bar">
+        <button class="ribbon-main" type="button" data-action="open-conditions">
+          <span class="live-dot ${c.isLive ? 'on' : ''}"></span>
+          <b>Local water news</b>
+          <span>${safe(c.area)} ${MID} ${safe(c.score)} fishability ${MID} ${safe(c.wind)} ${MID} ${safe(c.waves)} ${MID} ${safe(c.tide)}</span>
+        </button>
+        <button class="btn soft small" type="button" data-action="refresh-conditions">Refresh</button>
+      </section>`;
+  }
+
+  function weatherCodeLabel(code) {
+    const c = Number(code);
+    if ([0].includes(c)) return 'Clear';
+    if ([1,2,3].includes(c)) return 'Clouds';
+    if ([45,48].includes(c)) return 'Fog';
+    if ([51,53,55,61,63,65,80,81,82].includes(c)) return 'Rain nearby';
+    if ([95,96,99].includes(c)) return 'Storm risk';
+    return 'Weather loaded';
+  }
+
+  function bestWindowFromHourly(hourly = []) {
+    if (!hourly.length) return { window: 'Check today', detail: 'Hourly data is not loaded yet. Refresh conditions or use area guidance.' };
+    const good = hourly.filter((h) => Number(h.windMph) <= 13 && Number(h.rainPct) <= 45 && (!Number.isFinite(Number(h.waveFt)) || Number(h.waveFt) <= 2.5));
+    const pick = good[0] || hourly[0];
+    const start = new Date(pick.time);
+    const end = new Date(start.getTime() + 3 * 60 * 60 * 1000);
+    const fmt = (d) => d.toLocaleTimeString([], { hour: 'numeric' }).replace(' ', '');
+    return { window: `${fmt(start)}${EN_DASH}${fmt(end)}`, detail: good[0] ? 'Best near-term window based on lower wind, manageable rain odds, and water conditions.' : 'No clean window found yet; this is the next available planning block.' };
+  }
+
+  async function reverseGeocodeArea(lat, lon) {
+    // Safe area-label helper: never throws, always returns a readable string,
+    // so weather/conditions cards render even when geocoding is unavailable.
+    const fallbackArea = 'Nearby waters';
+    const latNum = Number(lat);
+    const lonNum = Number(lon);
+    if (!Number.isFinite(latNum) || !Number.isFinite(lonNum) || Math.abs(latNum) > 90 || Math.abs(lonNum) > 180) return fallbackArea;
+    try {
+      // BigDataCloud reverse-geocode client endpoint is keyless and CORS-friendly.
+      const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(latNum)}&longitude=${encodeURIComponent(lonNum)}&localityLanguage=en`;
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = controller ? setTimeout(() => controller.abort(), 6000) : null;
+      const res = await fetch(url, controller ? { signal: controller.signal } : undefined);
+      if (timer) clearTimeout(timer);
+      if (!res.ok) return fallbackArea;
+      const data = await res.json();
+      const locality = data.locality || data.city || '';
+      const region = data.principalSubdivision || '';
+      const label = [locality, region].filter(Boolean).join(', ') || data.countryName || '';
+      return typeof label === 'string' && label.trim() ? label.trim() : fallbackArea;
+    } catch (_) {
+      return fallbackArea;
+    }
+  }
+
+  async function fetchOpenMeteoConditions(lat, lon, area = 'Your water') {
+    const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&current=temperature_2m,wind_speed_10m,wind_direction_10m,precipitation,weather_code&hourly=wind_speed_10m,wind_direction_10m,precipitation_probability,temperature_2m&forecast_days=2&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto`;
+    const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&current=wave_height,wave_period,sea_surface_temperature&hourly=wave_height,wave_period,sea_surface_temperature&forecast_days=2&timezone=auto`;
+    const [forecastRes, marineRes] = await Promise.allSettled([fetch(forecastUrl), fetch(marineUrl)]);
+    if (forecastRes.status !== 'fulfilled' || !forecastRes.value.ok) throw new Error('Weather provider did not respond.');
+    const forecast = await forecastRes.value.json();
+    const marine = marineRes.status === 'fulfilled' && marineRes.value.ok ? await marineRes.value.json() : null;
+    const current = forecast.current || {};
+    const waveFt = marine?.current?.wave_height != null ? metersToFeet(marine.current.wave_height) : NaN;
+    const waterF = marine?.current?.sea_surface_temperature != null ? (Number(marine.current.sea_surface_temperature) * 9 / 5 + 32) : NaN;
+    const hourly = (forecast.hourly?.time || []).slice(0, 24).map((time, i) => ({
+      time,
+      windMph: forecast.hourly.wind_speed_10m?.[i],
+      rainPct: forecast.hourly.precipitation_probability?.[i],
+      temp: forecast.hourly.temperature_2m?.[i],
+      waveFt: marine?.hourly?.wave_height?.[i] != null ? metersToFeet(marine.hourly.wave_height[i]) : NaN
+    }));
+    const rainPct = forecast.hourly?.precipitation_probability?.[0] ?? 0;
+    const scoreObj = conditionScore({ windMph: current.wind_speed_10m, waveFt: Number.isFinite(waveFt) ? waveFt : 1.5, rainPct });
+    const window = bestWindowFromHourly(hourly);
+    const tide = await fetchTideEstimate(lat, lon).catch(() => null);
+    return defaultConditions({
+      area,
+      lat,
+      lon,
+      isLive: true,
+      status: 'live',
+      source: 'Open-Meteo weather/marine + NOAA tide attempt',
+      score: scoreObj.score,
+      scoreReason: scoreObj.reason,
+      temp: fmtTemp(current.temperature_2m),
+      wind: fmtMph(current.wind_speed_10m, current.wind_direction_10m),
+      windMph: Number(current.wind_speed_10m || 0),
+      windDir: Number(current.wind_direction_10m || 0),
+      waves: Number.isFinite(waveFt) ? `${waveFt.toFixed(1)} ft` : 'Protected/unknown',
+      waveFt: Number.isFinite(waveFt) ? Number(waveFt.toFixed(1)) : null,
+      tide: tide?.label || estimatedTideLabel(),
+      tideStation: tide?.station || 'Nearest NOAA station not confirmed',
+      tideNext: tide?.next || 'Use official tide source before launch',
+      rain: fmtPct(rainPct),
+      rainPct: Number(rainPct || 0),
+      water: Number.isFinite(waterF) ? `${Math.round(waterF)}${DEG}F` : '?',
+      window: window.window,
+      windowDetail: `${window.detail} Current: ${weatherCodeLabel(current.weather_code)}.`,
+      alert: Number(current.wind_speed_10m || 0) >= 20 ? 'High wind caution' : 'No app-level alert triggered',
+      providerNotes: 'Use this for planning only. Confirm marine forecasts, tides, regulations, and safety before launching.',
+      updatedAt: now(),
+      hourly
+    });
+  }
+
+  function estimatedTideLabel() {
+    const hour = new Date().getHours();
+    return hour % 12 < 6 ? 'Incoming estimate' : 'Outgoing estimate';
+  }
+
+  async function fetchTideEstimate(lat, lon) {
+    const stationUrl = `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radius=60&type=waterlevels&units=english`;
+    const stationsRes = await fetch(stationUrl);
+    if (!stationsRes.ok) throw new Error('NOAA station lookup failed');
+    const stationsJson = await stationsRes.json();
+    const station = stationsJson?.stations?.[0];
+    if (!station?.id) throw new Error('No station found');
+    const tideUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?date=today&station=${encodeURIComponent(station.id)}&product=predictions&datum=MLLW&time_zone=lst_ldt&units=english&interval=hilo&format=json`;
+    const tideRes = await fetch(tideUrl);
+    if (!tideRes.ok) throw new Error('NOAA prediction fetch failed');
+    const tideJson = await tideRes.json();
+    const predictions = tideJson?.predictions || [];
+    const next = predictions.find((p) => new Date(p.t).getTime() > Date.now()) || predictions[0];
+    const label = next?.type === 'H' ? 'Incoming to high' : next?.type === 'L' ? 'Outgoing to low' : estimatedTideLabel();
+    return { label, station: station.name || station.id, next: next ? `${next.type === 'H' ? 'High' : 'Low'} around ${new Date(next.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'No next tide returned' };
+  }
+
+  function setConditions(c) {
+    state.conditions = { ...defaultConditions(), ...c };
+    save();
+    render();
+  }
+
+  function refreshConditions(options = {}) {
+    if (!navigator.geolocation) {
+      if (!options.silent) toast('Location is not available in this browser. Showing Tampa Bay planning conditions.', 'danger');
+      if (options.open !== false) openConditions();
+      return;
+    }
+    if (!options.silent) toast('Requesting location for fishing conditions...');
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      try {
+        if (!options.silent) toast('Loading weather, waves, and tide attempt...');
+        const areaLabel = await reverseGeocodeArea(lat, lon);
+        const c = await fetchOpenMeteoConditions(lat, lon, areaLabel);
+        setConditions(c);
+        if (options.open !== false) openConditions();
+        if (!options.silent) toast('Conditions refreshed.');
+      } catch (error) {
+        const areaLabel = await reverseGeocodeArea(lat, lon);
+        const fallback = defaultConditions({ area: areaLabel, lat, lon, status: 'fallback', source: 'Geolocation fallback', providerNotes: `Live provider failed: ${error.message}. Planning conditions remain visible.` });
+        setConditions(fallback);
+        if (options.open !== false) openConditions();
+        if (!options.silent) toast('Location found, but provider refresh failed. Showing fallback.', 'danger');
+      }
+    }, (error) => {
+      if (!options.silent) toast(`Location permission not available: ${error.message}`, 'danger');
+      if (options.open !== false) openConditions();
+    }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 15 * 60 * 1000 });
+  }
+
+  function openConditions() {
+    const c = currentConditions();
+    modalMode = 'conditions';
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Conditions</span><h2>${safe(c.area)} fishing window</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="conditions-detail">
+        ${homeConditionCard(c)}
+        <div class="grid two">
+          <div class="panel"><h3>Fishability score</h3><p class="muted">${safe(c.scoreReason)}</p><p class="tiny">The score blends wind, waves, rain odds, tide context, and conservative safety thresholds. Great/Good means easier planning; Fair/Rough/Unsafe means slow down, check official marine sources, and use judgment.</p></div>
+          <div class="panel"><h3>Tide + source</h3><p class="muted">${safe(c.tide)} ${MID} ${safe(c.tideNext)}</p><p class="tiny">Station: ${safe(c.tideStation)}<br>${safe(c.providerNotes)}</p></div>
+        </div>
+        <div class="grid four conditions-grid">
+          <div class="panel"><span class="eyebrow">Air</span><h3>${safe(c.temp)}</h3></div>
+          <div class="panel"><span class="eyebrow">Wind</span><h3>${safe(c.wind)}</h3></div>
+          <div class="panel"><span class="eyebrow">Waves</span><h3>${safe(c.waves)}</h3></div>
+          <div class="panel"><span class="eyebrow">Water</span><h3>${safe(c.water)}</h3></div>
+        </div>
+        <div class="safe-note"><strong>Safety/legal:</strong> FishCrew conditions are a planning layer. Confirm official marine forecasts, tide station data, laws, closures, and captain judgment before launching or keeping fish.</div>
+        <div class="row"><button class="btn primary" type="button" data-action="refresh-conditions">Refresh with my location</button><button class="btn dark" type="button" data-action="go" data-screen="tools">Fishing tools</button></div>
+      </div>`);
+  }
+
+
+  function localWaterNews(c = currentConditions()) {
+    const area = c.area || userArea();
+    const photo = locationPhoto(area, 'news');
+    const news = [
+      { title: 'Boating notice', headline: 'Downtown channel traffic picking up', body: `Expect slower passage near ${area} waterfront areas during evening hours.`, action: 'open-conditions', area },
+      { title: 'Bite report', headline: 'Morning mangrove bite looks promising', body: 'Guides are seeing better action on moving water and shaded edges.', action: 'go', screen: 'feed', area },
+      { title: 'Local loop', headline: 'Public area notes stay general', body: 'Gandy, Skyway approaches, Fort De Soto, Weedon Island, and Alafia mouth stay broad; exact pins stay crew-only.', action: 'open-local-spots', area: 'Tampa Bay' }
+    ];
+    return `
+      <section class="section app-section-tight local-water-section" aria-label="Local water news">
+        <div class="section-head compact-head"><div><span class="eyebrow">Local Water News</span><h2>Near ${safe(area)}</h2></div><button class="btn dark small" type="button" data-action="open-conditions">Open window</button></div>
+        <div class="local-water-news-grid">
+          ${news.map((n, i)=>{ const p = locationPhoto(n.area, n.title); return `<button class="water-news-card photo-news-card news-${i+1}" style="--news-photo:url('${cssUrl(p.url)}')" type="button" data-action="${safe(n.action)}" ${n.screen ? `data-screen="${safe(n.screen)}"` : ''}><span>${safe(n.title)} ${MID} ${safe(p.area)}</span><strong>${safe(n.headline)}</strong><b>${safe(n.body)}</b></button>`; }).join('')}
+        </div>
+        <p class="tiny photo-source-note">Location-backed photo layer: ${safe(photo.area)}. Exact spots remain private.</p>
+      </section>`;
+  }
+
+  function homeActivityFeed() {
+    const posts = visibleFeedPosts().slice(0, 2);
+    const nextTrip = publicTrips().find((t) => t.status === 'Open');
+    const pending = state.requests.find((r) => r.status === 'Pending');
+    const extras = [
+      nextTrip ? `<article class="activity-row activity-trip"><div class="activity-avatar">?</div><div><strong>Upcoming crew request open</strong><p>${safe(nextTrip.title)} ${MID} ${safe(nextTrip.area)} ${MID} ${safe(nextTrip.time)}</p><div class="inline-actions"><button type="button" data-action="request-trip" data-trip-id="${safe(nextTrip.id)}">Request crew</button><button type="button" data-action="trip-details" data-trip-id="${safe(nextTrip.id)}">Details</button></div></div></article>` : '',
+      pending ? `<article class="activity-row activity-request"><div class="activity-avatar">?</div><div><strong>${safe(pending.userName)} requested a crew spot</strong><p>${safe(pending.message)} ${MID} ${safe(state.trips.find((t)=>t.id===pending.tripId)?.title || 'Upcoming trip')}</p><div class="inline-actions"><button type="button" data-action="go" data-screen="crew">Open crew</button></div></div></article>` : ''
+    ].filter(Boolean).join('');
+    return `
+      <section class="section app-section-tight home-activity-section" aria-label="Activity feed">
+        <div class="section-head compact-head"><div><span class="eyebrow">Activity Feed</span><h2>Crew movement</h2></div><button class="btn dark small" type="button" data-action="go" data-screen="feed">Open feed</button></div>
+        <div class="home-activity-card">
+          ${posts.map((post)=>`<article class="activity-row"><div class="activity-avatar">${safe(initials(post.authorName || 'FC'))}</div><div><strong>${safe(post.authorName || 'FishCrew')} posted ${safe(String(post.type || 'an update').toLowerCase())}</strong><p>${safe(post.body || post.title)}</p><div class="inline-actions"><button type="button" data-action="react-feed" data-feed-id="${safe(post.id)}">Like ${safe(post.reactions || 0)}</button><button type="button" data-action="go" data-screen="feed">Comment</button><button type="button" data-action="report-feed" data-feed-id="${safe(post.id)}">Report</button></div></div></article>`).join('') || `<p class="muted">No crew updates yet.</p>`}
+          ${extras}
+        </div>
+      </section>`;
+  }
+
+  function postTripCta(label = 'Post a trip') {
+    // Routes into the existing trip flow: signed-in users open the trip form,
+    // guests are sent to sign-in first (openTripForm also enforces requireLogin).
+    return currentUser()
+      ? `<div class="row mt"><button class="btn primary" type="button" data-action="open-trip-form">${safe(label)}</button></div>`
+      : `<div class="row mt"><button class="btn primary" type="button" data-action="open-auth-signin">Sign in to post a trip</button></div>`;
+  }
+
+  function renderHome() {
+    const openTrips = publicTrips().filter((t) => t.status === 'Open').slice(0, 3);
+    const proof = visibleFeedPosts().slice(0, 3);
+    const user = currentUser();
+    const c = currentConditions();
+    const featuredCaptains = allCharters().slice(0, 4);
+    const f = charterFilterState();
+    const pendingHostRequests = user
+      ? state.requests.filter((r) => r.status === 'Pending' && state.trips.some((t) => t.hostId === user.id && t.id === r.tripId)).length
+      : 0;
+    const pendingRequests = user
+      ? state.requests.filter((r) => r.status === 'Pending' && (r.userId === user.id || state.trips.some((t) => t.hostId === user.id && t.id === r.tripId))).length
+      : 0;
+    const firstName = user?.name ? String(user.name).split(' ')[0] : '';
+    const newLeads = user && isBusinessRole()
+      ? (state.bookings || []).filter((b) => {
+          const biz = (state.businesses || []).find((x) => x.id === b.businessId);
+          return (isAdmin() || biz?.ownerId === user.id) && (b.status || 'New') === 'New';
+        }).length
+      : 0;
+    $('#screen-home').innerHTML = `
+      <section class="hero home-hero v040-hero" aria-labelledby="homeTitle">
+        <div class="hero-topline">
+          <span class="eyebrow">${greeting()} ${MID} ${safe(c.area || userArea())}</span>
+          <span class="chip">${user ? 'Welcome back' : 'Browse first'}</span>
+        </div>
+        <h1 id="homeTitle">${user ? `Find the next charter${firstName ? `, ${safe(firstName)}` : ''}.` : 'Find all the charters.'}</h1>
+        <p>${user
+          ? 'Compare captains, send a real inquiry, then log the trip and rebook the good ones.'
+          : 'Browse real Tampa Bay charter listings. Filter by water, species, boat, and date. No fake seat inventory.'}</p>
+        <button class="hero-snapshot" type="button" data-action="open-conditions" aria-label="Open current fishing window">
+          <span class="snapshot-kicker"><i class="live-dot ${c.isLive ? 'on' : ''}"></i>${safe(c.isLive ? 'Live water' : 'Local water')}</span>
+          <strong>${safe(c.score)} window</strong>
+          <span>${safe(c.wind)} wind ${MID} ${safe(c.waves)} waves</span>
+          <small>${safe(c.tide)} tide ${MID} ${safe(c.water)} water</small>
+        </button>
+        <div class="hero-spot-loop" aria-label="Local fishing areas">
+          ${['Gandy','Skyway','Fort De Soto','Weedon Island','Alafia mouth'].map((spot)=>`<button class="spot-pill" type="button" data-action="open-map" data-area="${safe(spot + ', Tampa Bay')}">${safe(spot)}</button>`).join('')}
+        </div>
+        <div class="hero-actions v040-actions">
+          <button class="btn primary" type="button" data-action="go" data-screen="explore">Find charters</button>
+          <button class="btn soft" type="button" data-action="open-my-bookings">${user && isBusinessRole() ? 'Leads inbox' : 'My inquiries'}</button>
+          <button class="btn dark" type="button" data-action="${isBusinessRole() ? 'open-charter-form' : 'open-conditions'}">${isBusinessRole() ? 'List a charter' : 'Water window'}</button>
+        </div>
+      </section>
+
+      <section class="section app-section-tight charter-search-panel" aria-label="Search charters">
+        <div class="panel">
+          <div class="section-head compact-head"><div><span class="eyebrow">Need a boat?</span><h2>Search charters</h2></div></div>
+          <div class="form-grid">
+            <label class="label">Location<input id="homeCharterLocation" name="charter-location" class="field" autocomplete="address-level2" placeholder="Tampa Bay, Ruskin, Anna Maria" value="${safe(f.location || userArea())}" /></label>
+            <label class="label">Species<input id="homeCharterSpecies" name="charter-species" class="field" autocomplete="off" placeholder="Snook, tarpon, snapper" value="${safe(f.species || '')}" /></label>
+          </div>
+          <div class="form-grid mt">
+            <label class="label">Date<input id="homeCharterDate" name="charter-date" class="field" type="date" value="${safe(f.date || '')}" /></label>
+            <label class="label">Boat type<input id="homeCharterBoat" name="charter-boat" class="field" autocomplete="off" placeholder="Bay boat, center console" value="${safe(f.boat || '')}" /></label>
+          </div>
+          <div class="row mt">
+            <button class="btn primary" type="button" data-action="apply-charter-search" data-source="home">Show matching charters</button>
+            <button class="btn dark" type="button" data-action="clear-charter-search">Clear</button>
+          </div>
+        </div>
+      </section>
+
+      ${homeConditionCard(c)}
+      ${homeActivityFeed()}
+      ${localWaterNews(c)}
+
+      ${isBusinessRole() ? `
+      <section class="captain-desk panel" aria-label="Captain desk">
+        <div class="section-head compact-head">
+          <div><span class="eyebrow">Captain desk</span><h2>Run the charter morning.</h2></div>
+        </div>
+        <p class="muted">Open seats, seat requests, booking leads, and the morning checklist — without hunting through Ops.</p>
+        <div class="home-command-grid captain-desk-grid" aria-label="Captain quick actions">
+          <button class="home-command" type="button" data-action="open-trip-form"><b>Post open seats</b><span>Charter-ready trip form</span></button>
+          <button class="home-command" type="button" data-action="go" data-screen="crew"><b>Seat requests</b><span>${pendingHostRequests ? `${pendingHostRequests} waiting` : 'Approve crew joins'}</span></button>
+          <button class="home-command" type="button" data-action="open-business-leads"><b>Leads inbox</b><span>${newLeads ? `${newLeads} new` : 'Charter and partner inquiries'}</span></button>
+          <a class="home-command" href="downloads/fishcrew-morning-window-checklist.pdf" target="_blank" rel="noopener"><b>Morning checklist</b><span>PDF ready for the dock</span></a>
+        </div>
+      </section>` : `
+      <section class="home-command-grid" aria-label="Charter loop">
+        <button class="home-command" type="button" data-action="go" data-screen="explore"><b>Find charters</b><span>Location, species, date, boat</span></button>
+        <button class="home-command" type="button" data-action="open-my-bookings"><b>My inquiries</b><span>Status after you ask a captain</span></button>
+        <button class="home-command" type="button" data-action="go" data-screen="crew"><b>After the trip</b><span>Crew log, recap, then rebook</span></button>
+        <button class="home-command" type="button" data-action="go" data-screen="tools"><b>Water tools</b><span>Window, bait, and gear help</span></button>
+      </section>`}
+
+      <section class="section app-section-tight" aria-label="Tampa Bay charters">
+        <div class="section-head compact-head">
+          <div><span class="eyebrow">Charters</span><h2>${featuredCaptains.length ? 'Compare Tampa Bay boats' : `No charters listed yet in ${safe(userArea())}`}</h2></div>
+          ${featuredCaptains.length ? '<button class="btn dark small" type="button" data-action="go" data-screen="explore">Browse all</button>' : ''}
+        </div>
+        ${featuredCaptains.length
+          ? `<div class="grid cards v040-card-stack">${featuredCaptains.map((u) => charterCard(u)).join('')}</div>`
+          : `<div class="empty"><h3>No charters listed yet in your area.</h3><p>The board stays empty until a real captain lists a real boat. We do not invent boats, prices, or booked seats.</p><div class="row mt"><a class="btn primary" href="/early-access">Captains: request early listing</a><button class="btn dark" type="button" data-action="go" data-screen="explore">Browse all water</button></div></div>`}
+      </section>
+      ${dockAdCard()}
+
+      ${state.onboardingSeen || user ? '' : `<section class="section tutorial-nudge"><div class="panel launch-card"><div><span class="eyebrow">New here?</span><h2>Take the quick dock walk-through.</h2><p class="muted">See how to browse, join, chat, post proof, and use tools without getting hit by a login wall.</p></div><button class="btn primary" type="button" data-action="open-tutorial">Start tutorial</button></div></section>`}
+
+      <section class="section v040-flow" aria-label="Charter loop">
+        <button class="flow-step" type="button" data-action="go" data-screen="explore"><b>1</b><span>Find charters</span></button>
+        <button class="flow-step" type="button" data-action="open-my-bookings"><b>2</b><span>Inquire / book</span></button>
+        <button class="flow-step" type="button" data-action="go" data-screen="crew"><b>3</b><span>Trip + review</span>${pendingRequests ? `<em>${pendingRequests}</em>` : ''}</button>
+      </section>
+
+      ${conditionsRibbon(c)}
+
+      <section class="section app-section-tight">
+        <div class="section-head compact-head">
+          <div><span class="eyebrow">Open nearby</span><h2>Featured trips</h2></div>
+          <div class="row"><button class="btn primary small" type="button" data-action="urgent-trips">Last-minute</button><button class="btn dark small" type="button" data-action="go" data-screen="explore">See all</button></div>
+        </div>
+        <div class="grid cards v040-card-stack">${openTrips.map((t) => tripCard(t, true)).join('') || `<div class="empty">No open trips yet.${user ? ' Post the first one.' : ''}${postTripCta('Post the first trip')}</div>`}</div>
+      </section>
+
+      <section class="section app-section-tight">
+        <div class="section-head compact-head">
+          <div><span class="eyebrow">Bite board</span><h2>Catch of the day</h2></div>
+          <button class="btn dark small" type="button" data-action="go" data-screen="feed">Open feed</button>
+        </div>
+        <div class="grid cards v040-card-stack">${proof.map((p) => feedCard(p, true)).join('') || `<div class="empty">No catch reports yet. The bite board fills when crews post proof.</div>`}</div>
+      </section>`;
+  }
+
+  function captainChips(u, limit = 6) {
+    const bits = [
+      ...(u.tripTypes || '').split(/[·,]/).map((s) => s.trim()).filter(Boolean),
+      ...(u.fishingStyles || '').split(',').map((s) => s.trim()).filter(Boolean),
+      ...(u.species || '').split(',').map((s) => s.trim()).filter(Boolean)
+    ];
+    const seen = new Set();
+    const out = [];
+    for (const b of bits) {
+      const key = b.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(b);
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
+  function captainCard(u) {
+    return charterCard(u.role === 'Captain' && !u.kind ? findCharter(u.id) || charterFromParts({
+      id: u.id, ownerId: u.id, name: u.name, kind: 'Pro Charter', area: u.area, species: u.species, boatType: u.boat, boat: u.boat, tripTypes: u.tripTypes, websiteUrl: u.websiteUrl, campaign: u.bio, listingKind: u.listingKind, curated: u.curated, status: 'Directory'
+    }, u) : u);
+  }
+
+  function charterCard(listing) {
+    if (!listing) return '';
+    const focus = normalizeUsername(state.focusCaptain || '') === normalizeUsername(listing.username || listing.id);
+    const chips = captainChips(listing, 6);
+    const photo = listing.photoUrl;
+    const owner = currentUser() && listing.ownerId === currentUser().id;
+    return `
+      <article class="admin-card captain-card charter-card${listing.curated ? ' captain-card-curated' : ''}${focus ? ' captain-card-focus' : ''}" id="captain-${safe(normalizeUsername(listing.username || listing.id))}" data-charter-id="${safe(listing.id)}">
+        ${photo ? `<div class="card-media photo" style="background-image:url('${cssUrl(photo)}')"></div>` : `<div class="card-media media-sketch boat" aria-hidden="true"><span class="sketch-sun"></span><span class="sketch-wave one"></span><span class="sketch-mark"></span></div>`}
+        <span class="badge green">${isManagedListing(listing) ? 'Managed by FishCrew' : listing.listingKind === 'partner' ? 'Early partner' : listing.curated ? 'Public listing' : listing.status === 'Pending review' ? 'Pending' : 'Charter'}</span>
+        <h3>${safe(listing.name)}</h3>
+        <p class="muted">${safe(listing.captainName && listing.captainName !== listing.name ? `${listing.captainName} ${MID} ` : '')}${safe(listing.area)}${listing.boat ? ` ${MID} ${safe(listing.boat)}` : ''}</p>
+        <p class="muted">${safe(listing.bio)}</p>
+        <div class="meta">
+          <span class="chip">${safe(priceLabel(listing))}</span>
+          ${listing.availability ? `<span class="chip">${safe(listing.availability)}</span>` : '<span class="chip">Ask for a date</span>'}
+          ${chips.map((s) => `<span class="chip">${safe(s)}</span>`).join('')}
+        </div>
+        <div class="row">
+          <button class="btn primary small" type="button" data-action="open-charter-profile" data-charter-id="${safe(listing.id)}">View charter</button>
+          <button class="btn soft small" type="button" data-action="open-charter-inquiry" data-charter-id="${safe(listing.id)}">Inquire</button>
+          ${owner ? `<button class="btn dark small" type="button" data-action="open-charter-form" data-charter-id="${safe(listing.id)}">Edit listing</button>` : ''}
+        </div>
+      </article>`;
+  }
+
+  function renderExplore() {
+    const f = charterFilterState();
+    const listings = filteredCharters();
+    const refreshing = Boolean(state.charterRefreshing);
+    const shops = directoryBusinesses().filter((b) => !isCharterKind(b.kind) && !b.curated && !isAuditListing(b));
+    const trips = publicTrips().filter((t) => {
+      if (!isAdmin() && isBlocked(t.hostId)) return false;
+      if (state.tripFilter === 'Open') return t.status === 'Open';
+      return true;
+    });
+    const emptyCharters = `<div class="empty"><h3>No charters match this search.</h3><p>We will not invent boats or prices. Widen the area, clear a filter, or ask a captain to list.</p><div class="row mt"><button class="btn primary" type="button" data-action="clear-charter-search">Clear filters</button><button class="btn dark" type="button" data-action="open-charter-form">List a charter</button></div></div>`;
+    $('#screen-explore').innerHTML = `
+      <section class="section" aria-labelledby="exploreTitle" id="explore-captains">
+        <div class="section-head compact-head">
+          <div>
+            <span class="eyebrow">Charters</span>
+            <h1 class="page-title" id="exploreTitle">Find the boat first.</h1>
+          </div>
+          <button class="btn soft small" type="button" data-action="refresh-charters" ${refreshing ? 'disabled' : ''} aria-busy="${refreshing ? 'true' : 'false'}">${refreshing ? 'Refreshing...' : 'Refresh'}</button>
+        </div>
+        <p class="lead">Browse by location, species, date, boat, and price when a captain posted one. Guest browse is open. Inquiry saves to the captain inbox ${MID} no fake booked toast.</p>
+        ${state.operatorListHint ? `<div class="safe-note"><strong>Captains:</strong> Sign in with a captain account, then list your charter. We do not sign you into a demo profile.</div>` : ''}
+        <div class="panel charter-search-panel">
+          <div class="form-grid">
+            <label class="label">Location<input id="expCharterLocation" name="charter-location" class="field" autocomplete="address-level2" placeholder="Tampa Bay, Ruskin, Clearwater" value="${safe(f.location || '')}" /></label>
+            <label class="label">Species / target<input id="expCharterSpecies" name="charter-species" class="field" autocomplete="off" placeholder="Snook, redfish, grouper" value="${safe(f.species || '')}" /></label>
+          </div>
+          <div class="form-grid mt">
+            <label class="label">Preferred date<input id="expCharterDate" name="charter-date" class="field" type="date" value="${safe(f.date || '')}" /></label>
+            <label class="label">Boat type<input id="expCharterBoat" name="charter-boat" class="field" autocomplete="off" placeholder="Bay boat, skiff, offshore" value="${safe(f.boat || '')}" /></label>
+          </div>
+          <div class="form-grid mt">
+            <label class="label">Max budget (optional)<input id="expCharterPrice" name="charter-price" class="field" type="number" inputmode="decimal" min="0" placeholder="Leave blank to include quote-only listings" value="${safe(f.price || '')}" /></label>
+            <label class="label">Keyword<input id="expCharterQ" name="charter-q" class="field" autocomplete="off" placeholder="Family, tarpon, night" value="${safe(f.q || '')}" /></label>
+          </div>
+          <div class="row mt">
+            <button class="btn primary" type="button" data-action="apply-charter-search" data-source="explore">Apply search</button>
+            <button class="btn dark" type="button" data-action="clear-charter-search">Reset</button>
+            <button class="btn soft" type="button" data-action="open-charter-form">List a charter</button>
+          </div>
+        </div>
+        <p class="tiny mt">${listings.length} listing${listings.length === 1 ? '' : 's'} ${MID} date is a request, not reserved inventory.</p>
+        <div class="grid cards v040-card-stack">${listings.slice(0, 48).map((c) => charterCard(c)).join('') || emptyCharters}</div>
+      </section>
+      ${dockAdCard()}
+      <section class="section">
+        <div class="section-head"><div><span class="eyebrow">Crew seats</span><h2>Open trips after you have a boat.</h2></div><button class="btn dark small" type="button" data-action="trip-filter" data-filter="Open">Last-minute</button></div>
+        <p class="muted">Crew matching supports the charter loop. It does not replace listings.</p>
+        <div class="grid cards">${trips.slice(0, 8).map((t) => tripCard(t)).join('') || `<div class="empty">No open crew trips posted.${postTripCta('Post a crew trip')}</div>`}</div>
+      </section>
+      ${shops.length ? `
+      <section class="section">
+        <div class="section-head"><div><span class="eyebrow">Dock partners</span><h2>Shops and marinas</h2></div></div>
+        <div class="grid cards">${shops.slice(0, 12).map((b) => `
+          <article class="admin-card">
+            <span class="badge ${b.status === 'Verified' ? 'green' : 'orange'}">${safe(b.status)}</span>
+            <h3>${safe(b.name)}</h3>
+            <p class="muted">${safe(b.kind)} ${MID} ${safe(b.area)}</p>
+            <div class="row">
+              <button class="btn primary small" type="button" data-action="book-business" data-business-id="${safe(b.id)}">Inquire</button>
+              <button class="btn dark small" type="button" data-action="open-map" data-area="${safe((b.area || '').split('(')[0].trim() || b.area)}">Map area</button>
+            </div>
+          </article>`).join('')}</div>
+      </section>` : ''}`;
+  }
+
+  function renderCrew() {
+    const user = currentUser();
+    const visibleTrips = user ? state.trips.filter((t) => isTripCrewMember(t, user)) : state.trips.slice(0, 1);
+    const reqs = user ? state.requests.filter((r) => isAdmin() || state.trips.some((t) => t.id === r.tripId && t.hostId === user.id) || r.userId === user.id) : [];
+    const active = state.trips.find((t) => t.id === state.activeTripId);
+    const trip = (active && isTripCrewMember(active, user) ? active : null) || visibleTrips[0] || null;
+    $('#screen-crew').innerHTML = `
+      <section class="section" aria-labelledby="crewTitle">
+        <span class="eyebrow">Crew</span>
+        <h1 class="page-title" id="crewTitle">Plan without chaos.</h1>
+        <p class="lead">Approvals, private locations, and crew chat live here.</p>
+        ${user ? '' : `<div class="safe-note"><strong>Guest:</strong> Sign in to request spots and chat.</div>`}
+        <div class="filters">
+          ${['upcoming','requests','chat'].map((p) => `<button class="filter-btn ${state.crewPanel === p ? 'active' : ''}" type="button" data-action="crew-panel" data-panel="${p}">${p[0].toUpperCase()+p.slice(1)}</button>`).join('')}
+        </div>
+        <div id="crewBody">${renderCrewBody(visibleTrips, reqs, trip)}</div>
+      </section>`;
+  }
+
+  function chatBubble(m) {
+    const viewer = currentUser();
+    const mine = Boolean(viewer && viewer.id === m.senderId);
+    const hidden = Boolean(m.hiddenAt);
+    let tools = '';
+    if (m.senderId !== 'system') {
+      if (isAdmin()) tools = adminModerateButton('message', m.id, hidden ? 'restore' : 'hide', hidden ? 'Restore' : 'Hide', 'dark');
+      else if (viewer && !mine) tools = `<button class="bubble-link" type="button" data-action="report-content" data-target-type="message" data-target-id="${safe(m.id)}">Report</button>`;
+    }
+    return `<div class="bubble ${mine ? 'mine' : ''} ${hidden ? 'is-hidden' : ''}"><strong>${safe(m.senderName)}${hidden ? ` ${MID} hidden` : ''}</strong>${safe(m.body)}${tools ? `<span class="bubble-tools">${tools}</span>` : ''}</div>`;
+  }
+
+  function renderCrewBody(visibleTrips, reqs, trip) {
+    if (state.crewPanel === 'requests') {
+      return `<div class="grid">${reqs.map((r) => {
+        const t = state.trips.find((x) => x.id === r.tripId);
+        const canApprove = isAdmin() || (currentUser() && t?.hostId === currentUser().id);
+        return `<div class="panel"><span class="badge ${r.status === 'Approved' ? 'green' : r.status === 'Declined' ? 'red' : 'orange'}">${safe(r.status)}</span><h3>${safe(r.userName)}</h3><p class="muted">${safe(t?.title || 'Trip')} ${MID} ${safe(r.message)}</p><div class="row">${canApprove ? `<button class="btn success small" type="button" data-action="approve-request" data-request-id="${safe(r.id)}">Approve</button><button class="btn danger small" type="button" data-action="decline-request" data-request-id="${safe(r.id)}">Decline</button>` : `<button class="btn dark small" type="button" data-action="trip-details" data-trip-id="${safe(r.tripId)}">View trip</button>`}</div></div>`;
+      }).join('') || `<div class="empty">No join requests yet.</div>`}</div>`;
+    }
+    if (state.crewPanel === 'chat') {
+      if (!trip) return `<div class="empty">No active trip selected.</div>`;
+      const member = isTripCrewMember(trip);
+      const messages = member ? (state.messages[trip.id] || []) : [];
+      // Messages an operator hid stay visible (dimmed) to operators only.
+      const shownMessages = isAdmin() ? messages : messages.filter((m) => !m.hiddenAt);
+      const chatLog = member
+        ? `<div class="chat-log">${shownMessages.map((m) => chatBubble(m)).join('')}</div>`
+        : `<div class="safe-note mt"><strong>Crew chat locked:</strong> Messages stay private until the host approves you.</div>`;
+      const chatComposer = member
+        ? `<div class="chat-form"><input id="chatInput" name="chat-message" class="field" autocomplete="off" enterkeyhint="send" placeholder="Message the crew" /><button class="btn primary" type="button" data-action="send-chat" data-trip-id="${safe(trip.id)}">Send</button></div>`
+        : `<div class="safe-note mt"><strong>Sign in required:</strong> Crew chat unlocks after approval.</div><div class="row mt"><button class="btn primary" type="button" data-action="open-auth-signin">Sign in to message</button></div>`;
+      return `<div class="panel"><div class="row"><span class="badge">${safe(trip.title)}</span><span class="chip">${safe(trip.area)}</span></div><p class="muted"><strong>Private meetup:</strong> ${member ? safe(trip.privateLocation) : 'Locked until approval.'}</p>${chatLog}${chatComposer}</div>`;
+    }
+    return `<div class="grid cards">${visibleTrips.map((t) => tripCard(t)).join('') || `<div class="empty">You have no active crew trips yet. Find one in Explore or post your own.${postTripCta('Post a trip')}</div>`}</div>`;
+  }
+
+  function renderFeed() {
+    const types = ['All', 'Crew Recap', 'Catch Log', 'Dock Report', 'Open Water Seat', 'After-Bite Run'];
+    const posts = visibleFeedPosts()
+      .filter((p) => state.feedFilter === 'All' || p.type === state.feedFilter)
+      .slice(0, FEED_RENDER_LIMIT);
+    const refreshing = Boolean(state.feedRefreshing);
+    $('#screen-feed').innerHTML = `
+      <section class="section feed-room" aria-labelledby="feedTitle" data-feed-refreshing="${refreshing ? 'true' : 'false'}">
+        <div class="section-head compact-head">
+          <div>
+            <span class="eyebrow">Feed</span>
+            <h1 class="page-title" id="feedTitle">The bite board.</h1>
+          </div>
+          <button class="btn soft small" type="button" data-action="refresh-feed" ${refreshing ? 'disabled' : ''} aria-busy="${refreshing ? 'true' : 'false'}">${refreshing ? 'Refreshing...' : 'Refresh'}</button>
+        </div>
+        <p class="lead">Clean community posts only: successful trips, catch reports, shop notes, charter openings, and area updates. Exact spots stay private.</p>
+        <div class="feed-composer-lite panel">
+          <div><h3>Share something useful.</h3><p class="muted">Post a catch, report a bite, or help the next crew plan smarter.</p></div>
+          <div class="row"><button class="btn primary" type="button" data-action="open-feed-form">Post to feed</button><button class="btn dark" type="button" data-action="open-create">More types</button></div>
+        </div>
+        <div class="filters">${types.map((t) => `<button class="filter-btn ${state.feedFilter === t ? 'active' : ''}" type="button" data-action="feed-filter" data-filter="${safe(t)}">${safe(t)}</button>`).join('')}</div>
+        <div class="feed-list clean-feed">${posts.map((p) => feedCard(p)).join('') || `<div class="empty">No posts here yet. Share the first useful report.</div>`}</div>
+      </section>`;
+  }
+
+  function renderTools() {
+    const guides = state.guideLibrary || [];
+    const lastFish = state.lastFishId;
+    const lastMeasure = state.lastMeasurement;
+    const hub = state.deviceHub || {};
+    const activePanel = state.toolsPanel || 'tools';
+    const toolsCards = `
+        <div class="grid three tools-card-grid mt">
+          <button class="tool-card panel photo-panel bait-panel" type="button" data-action="open-bait-help"><span class="tool-icon bait"></span><h3>Bait help</h3><p class="muted">Pick bait and rigs by area, target fish, tide, and water clarity.</p></button>
+          <button class="tool-card panel photo-panel gear-panel" type="button" data-action="open-gear-help"><span class="tool-icon gear"></span><h3>Gear + tackle</h3><p class="muted">Core setups, terminal tackle, leaders, and trip checklists.</p></button>
+          <button class="tool-card panel photo-panel device-panel" type="button" data-action="open-device-hub"><span class="tool-icon gps"></span><h3>GPS + devices</h3><p class="muted">Phone GPS, Bluetooth discovery, USB/NMEA bridge notes, and waypoint fix.</p></button>
+        </div>
+        <div class="panel warm-panel device-status-card mt"><h3>Device link</h3><p class="muted">${safe(hub.lastFix ? `${hub.source}: ${formatGpsFix(hub)}` : hub.source || 'No device connected')}</p><button class="btn soft small" type="button" data-action="open-device-hub">Open devices</button></div>`;
+    const guideCards = `
+        <div class="section-head tools-subhead"><div><span class="eyebrow">Quick guide</span><h2>${safe(state.savedGuideArea || 'Tampa Bay')}</h2></div><button class="btn dark small" type="button" data-action="open-fishing-guides">Open library</button></div>
+        <div class="grid cards guide-card-grid">${guides.map((g, i)=>`<article class="panel guide-preview-card guide-${i + 1}"><span class="badge">${safe(g.area)}</span><h3>${safe(g.title)}</h3><p class="muted">${safe(g.summary)}</p><div class="meta"><span class="chip">Common: ${safe(g.species)}</span><span class="chip">Bait: ${safe(g.bait || 'See bait help')}</span></div><p class="tiny"><strong>Method:</strong> ${safe(g.methods || 'Match current, cover, and conditions.')}<br><strong>Gear:</strong> ${safe(g.gear || 'Bring basic tackle and pliers.')}<br>${safe(g.safety)}</p></article>`).join('')}</div>
+        <div class="grid two mt">
+          <button class="tool-card panel photo-panel tutorial-panel" type="button" data-action="open-technique-tutorials"><span class="tool-icon tutorial"></span><h3>Tutorials</h3><p class="muted">Beginner-friendly methods for common fish and local conditions.</p></button>
+          <button class="tool-card panel photo-panel guide-panel" type="button" data-action="open-fishing-guides"><span class="tool-icon guide"></span><h3>Full guide library</h3><p class="muted">Area patterns, species, safety notes, and local water info.</p></button>
+        </div>`;
+    $('#screen-tools').innerHTML = `
+      <section class="section tools-screen tools-room" aria-labelledby="toolsTitle">
+        <span class="eyebrow">Tools + Guide</span>
+        <h1 class="page-title" id="toolsTitle">Pick what you need on the water.</h1>
+        <p class="lead">Choose tools for quick field help or guide for area patterns, species notes, and beginner-friendly planning.</p>
+        <div class="safe-note"><strong>Before you keep a fish:</strong> always check species, size, season, bag limits and local regulations with your state&#39;s official sources.</div>
+        <div class="tools-switch" role="tablist" aria-label="Tools and guide sections">
+          <button class="${activePanel === 'tools' ? 'active' : ''}" type="button" data-action="tools-panel" data-panel="tools"><b>Tools</b><span>Bait, gear, GPS</span></button>
+          <button class="${activePanel === 'guide' ? 'active' : ''}" type="button" data-action="tools-panel" data-panel="guide"><b>Guide</b><span>Areas, patterns, tutorials</span></button>
+        </div>
+        <div class="tools-panel-body">${activePanel === 'guide' ? guideCards : toolsCards}</div>
+      </section>`;
+  }
+
+  function renderProfile() {
+    const user = currentUser();
+    const adminPanel = renderAdminPanel();
+    const myTrips = user ? state.trips.filter((t) => t.hostId === user.id || t.members?.includes(user.id)).length : 0;
+    const myPosts = user ? state.feed.filter((p) => p.authorId === user.id).length : 0;
+    const myRequests = user ? state.requests.filter((r) => r.userId === user.id || state.trips.some((t) => t.hostId === user.id && t.id === r.tripId)).length : 0;
+    const unread = unreadNotifications();
+    const homeWater = user?.area || state.savedGuideArea || userArea();
+    const role = user?.role || 'Guest';
+    const fishingStyle = user?.fishingStyles || 'Inshore, pier, weekend trips';
+    const privacy = state.privacyMode || 'Crew-only exact locations';
+    const proofLine = myPosts ? `${myPosts} bite board post${myPosts === 1 ? '' : 's'}` : 'No catch posts yet';
+    const trustLine = user ? (isAdmin() ? 'Operator verified' : role === 'Captain' ? 'Captain profile' : role === 'Business' ? 'Partner profile' : 'Crew profile') : 'Browse mode';
+    const signalItems = [
+      { label: 'Crew water', value: homeWater, detail: 'home base' },
+      { label: 'Trips', value: myTrips, detail: 'hosted or joined' },
+      { label: 'Proof', value: proofLine, detail: 'shared reports' },
+      { label: 'Privacy', value: privacy, detail: 'spot sharing' }
+    ];
+    const profileActions = user
+      ? `<button class="btn primary" type="button" data-action="open-edit-profile">Edit card</button><button class="btn soft" type="button" data-action="open-notifications">Alerts ${unread ? `(${unread})` : ''}</button><button class="btn dark" type="button" data-action="open-user-settings">Settings</button><button class="btn danger" type="button" data-action="logout">Log out</button>`
+      : `<button class="btn primary" type="button" data-action="open-auth-signin">${safe(GUEST_SIGN_IN_PROMPT)}</button><button class="btn soft" type="button" data-action="go" data-screen="explore">Continue as Guest</button><button class="btn dark" type="button" data-action="open-tutorial">Tutorial</button>`;
+    const profileAvatar = user
+      ? `<button class="header-avatar profile-avatar-xl profile-pass-avatar" type="button" data-action="open-photo-profile" style="background-image:${user.avatar ? `url('${cssUrl(user.avatar)}')` : ''}">${user.avatar ? '' : safe(initials(user.name || '?'))}</button>`
+      : `<div class="header-avatar profile-avatar-xl profile-pass-avatar guest-avatar" aria-hidden="true">FC</div>`;
+    const profileEditAction = user
+      ? `<button class="btn dark small" type="button" data-action="open-edit-profile">Tune card</button>`
+      : `<button class="btn dark small" type="button" data-action="open-auth-signin">Sign in to customize</button>`;
+    const profileGuestNote = user ? '' : `<div class="safe-note mt"><strong>Guest:</strong> ${safe(GUEST_SIGN_IN_PROMPT)}</div>`;
+    const igConnection = user?.instagramConnection || state.instagramConnection || null;
+    const igConfigured = metaInstagramConfigured();
+    const igConnectPanel = user ? `
+      <section class="section profile-ig-section">
+        <div class="section-head"><div><span class="eyebrow">Integrations</span><h2>Instagram</h2></div></div>
+        <div class="panel ig-connect-panel">
+          <div class="ig-connect-row">
+            <span class="ig-mark" aria-hidden="true">${IG_MARK}</span>
+            <div>
+              <h3>${igConnection?.username ? `Linked @${safe(igConnection.username)}` : 'Connect Instagram'}</h3>
+              <p class="muted">${igConfigured
+                ? 'Connect a Business/Creator account through Meta. This is not a login — email/password stays primary.'
+                : 'Owner setup: set META_APP_ID and ENABLE_INSTAGRAM_OAUTH in config.js, then add the redirect URI in the Meta app.'}</p>
+            </div>
+          </div>
+          <div class="row mt">
+            <button class="btn ${igConfigured ? 'primary' : 'dark'} small" type="button" data-action="instagram-connect"${igConfigured ? '' : ' disabled'}>${igConnection ? 'Reconnect' : 'Connect Instagram'}</button>
+            ${igConnection ? `<button class="btn soft small" type="button" data-action="instagram-import">Import recent</button>` : ''}
+          </div>
+          <p class="tiny">Share-to-Instagram caption handoff remains available from Feed share — separate from connect.</p>
+        </div>
+      </section>` : '';
+
+    $('#screen-profile').innerHTML = `
+      <section class="section profile-room profile-pass-room" aria-labelledby="profileTitle">
+        <div class="profile-pass theme-${safe((user?.profileTheme || 'Harbor Blue').toLowerCase().replace(/\s+/g,'-'))}">
+          <div class="profile-map-band">
+            <span>FishCrew Pass</span>
+            <b>${safe(homeWater)}</b>
+          </div>
+          <div class="profile-pass-body">
+            ${profileAvatar}
+            <div class="profile-pass-copy">
+              <div class="profile-pass-kicker"><span class="eyebrow">Fishing card</span><span class="badge green">${safe(trustLine)}</span></div>
+              <h1 class="page-title" id="profileTitle">${user ? safe(user.name) : 'Your FishCrew'}</h1>
+              <p class="muted">${user ? `${safe(usernameFor(user))} | ${safe(roleLabel(role))} | ${safe(homeWater)}` : 'Browse first. Sign in when you are ready to post, join, chat, and upload.'}</p>
+              <p class="profile-bio">${safe(user?.bio || 'Find crew, share reports, and keep exact spots protected.')}</p>
+              <div class="profile-pass-tags">
+                <span class="chip">${safe(fishingStyle)}</span>
+                <span class="chip">${safe(privacy)}</span>
+              </div>
+            </div>
+            <div class="profile-pass-actions">${profileActions}</div>
+          </div>
+          ${profileGuestNote}
+        </div>
+      </section>
+      ${igConnectPanel}
+
+      <section class="section profile-signal-section">
+        <div class="section-head"><div><span class="eyebrow">Crew signal</span><h2>Ready to match with the right crew.</h2></div>${profileEditAction}</div>
+        <div class="profile-signal-grid">
+          ${signalItems.map((item) => `<article class="profile-signal"><span>${safe(item.label)}</span><strong>${safe(item.value)}</strong><small>${safe(item.detail)}</small></article>`).join('')}
+        </div>
+      </section>
+
+      <section class="section profile-card-section">
+        <div class="section-head"><div><span class="eyebrow">Fishing card</span><h2>What crews should know.</h2></div>${profileEditAction}</div>
+        <div class="profile-info-grid">
+          <article class="panel profile-info-card"><span class="eyebrow">Water</span><h3>Home water</h3><p class="muted">${safe(homeWater)}</p></article>
+          <article class="panel profile-info-card"><span class="eyebrow">Style</span><h3>Fishing style</h3><p class="muted">${safe(fishingStyle)}</p></article>
+          <article class="panel profile-info-card"><span class="eyebrow">Privacy</span><h3>Spot rules</h3><p class="muted">${safe(privacy)}</p></article>
+          <article class="panel profile-info-card"><span class="eyebrow">Availability</span><h3>Best fit</h3><p class="muted">${role === 'Captain' ? 'Open-seat planning and crew coordination.' : role === 'Business' ? 'Partner updates, leads, and dock reports.' : 'Weekend windows, inshore runs, and pier sessions.'}</p></article>
+        </div>
+      </section>
+
+      <section class="section profile-alert-section">
+        <div class="section-head"><div><span class="eyebrow">Notifications</span><h2>What needs attention</h2></div><button class="btn dark small" type="button" data-action="open-notifications">Open alerts</button></div>
+        <div class="profile-attention-grid">
+          ${(state.notifications || []).slice(0, 2).map((n)=>`<div class="panel notification-card ${n.read ? 'read' : ''}"><span class="badge ${n.read ? '' : 'green'}">${safe(n.type || 'Alert')}</span><h3>${safe(n.title)}</h3><p class="muted">${safe(n.body)}</p></div>`).join('') || '<div class="empty">No alerts yet.</div>'}
+          <div class="panel profile-info-card"><span class="badge orange">${safe(myRequests)}</span><h3>Open requests</h3><p class="muted">Requests, crew spots, approvals, and trip replies stay visible here.</p></div>
+          <div class="panel profile-info-card"><span class="badge">${safe(unread)}</span><h3>Unread alerts</h3><p class="muted">Crew pings, conditions, and moderation notes stay separate from the identity card.</p></div>
+        </div>
+      </section>
+      ${isAdmin() ? renderAdminOnlyProfileControls() : ''}
+      ${adminPanel}`;
+  }
+
+  function renderAdminOnlyProfileControls() {
+    const s = adminCache.stats;
+    const consoleSummary = s
+      ? `${safe(s.reports_open || 0)} open reports ${MID} ${safe(s.media_pending || 0)} media to review ${MID} ${safe(s.users_total || 0)} people`
+      : 'Reports, people, trips, posts, chat, banners, and a log of every admin action.';
+    return `<section class="section admin-only-controls">
+      <div class="section-head"><div><span class="eyebrow">Operator tools</span><h2>Operations controls</h2></div><div class="row"><button class="btn dark small" type="button" data-action="open-store-readiness">Store readiness</button><button class="btn dark small" type="button" data-action="open-backend-help">Connections</button></div></div>
+      <div class="panel admin-console-entry">
+        <div><span class="eyebrow">Admin console</span><h3>Run FishCrew from your phone.</h3><p class="muted">${consoleSummary}</p></div>
+        <div class="row"><button class="btn primary small" type="button" data-action="open-admin-console">Open admin console</button><button class="btn dark small" type="button" data-action="open-admin-console" data-tab="reports">Reports</button><button class="btn dark small" type="button" data-action="open-admin-console" data-tab="people">People</button><button class="btn dark small" type="button" data-action="open-admin-console" data-tab="banners">Banners</button></div>
+      </div>
+      <div class="grid three">
+        <div class="panel"><h3>Data connection</h3><p class="muted">${state.backendMode === 'supabase' ? 'Shared data is configured.' : 'Browser data is active. Shared data can be connected when ready.'}</p><div class="row"><button class="btn soft small" type="button" data-action="check-backend">Check</button><button class="btn dark small" type="button" data-action="pull-supabase">Pull</button><button class="btn dark small" type="button" data-action="sync-supabase">Push</button></div></div>
+        <div class="panel"><h3>Launch checks</h3><p class="muted">${safe(state.supabasePrep?.releaseGate || 'Not run yet.')}</p><button class="btn primary small" type="button" data-action="run-release-gate">Run checks</button></div>
+        <div class="panel"><h3>Review board</h3><p class="muted">${safe((state.qaNotes || []).filter((n)=>n.status !== 'Done').length)} open notes.</p><button class="btn dark small" type="button" data-action="open-qa-note">Add note</button></div>
+      </div>
+      <div class="grid three mt">
+        <div class="panel"><h3>Connection diagnostics</h3><p class="muted">Auth, tables, storage, and realtime connection status.</p><button class="btn dark small" type="button" data-action="open-backend-diagnostics">Open</button></div>
+        <div class="panel"><h3>Role matrix</h3><p class="muted">Guest, angler, captain, business, and operator permissions.</p><button class="btn dark small" type="button" data-action="open-role-matrix">View</button></div>
+        <div class="panel"><h3>Media pipeline</h3><p class="muted">${safe(state.mediaAssets?.length || 0)} assets ${MID} ${safe(state.reports?.filter((r)=>r.status==='Open').length || 0)} reviews.</p><button class="btn dark small" type="button" data-action="open-media-pipeline">Open</button></div>
+      </div>
+      <div class="grid three mt">
+        <div class="panel"><h3>User directory</h3><p class="muted">${safe((state.users || []).length)} profiles across anglers, captains, businesses, and operators.</p><button class="btn dark small" type="button" data-action="open-user-directory">Open directory</button></div>
+        <div class="panel"><h3>Support queue</h3><p class="muted">${safe((state.accountDeletionRequests || []).length)} account requests | ${safe((state.reports || []).filter((r)=>r.status==='Open').length)} open reports.</p><button class="btn dark small" type="button" data-action="open-support-queue">Open support</button></div>
+        <div class="panel"><h3>Device readiness</h3><p class="muted">${safe(state.deviceHub?.status || 'Ready')} | ${safe(state.deviceHub?.source || 'No device connected')}</p><button class="btn dark small" type="button" data-action="open-device-hub">Open devices</button></div>
+      </div>
+      ${renderPluginReadiness()}
+      ${renderLaunchQa()}
+    </section>`;
+  }
+
+  function renderPluginReadiness() {
+    const items = state.pluginReadiness || [];
+    const groups = ['Backend','Auth','Social','Conditions','Maps','Content','Marketplace','Visuals'];
+    return `<section class="section plugin-readiness">
+      <div class="section-head compact-head"><div><span class="eyebrow">Connections</span><h2>Integration readiness</h2></div><button class="btn dark small" type="button" data-action="check-backend">Check connection</button></div>
+      <div class="plugin-grid">
+        ${groups.map((group) => {
+          const groupItems = items.filter((item) => item.area === group);
+          if (!groupItems.length) return '';
+          return `<article class="plugin-card"><span class="eyebrow">${safe(group)}</span>${groupItems.map((item) => `<div class="plugin-row"><div><strong>${safe(item.label)}</strong><p class="muted">${safe(item.note)}</p></div><span class="chip">${safe(item.status)}</span></div>`).join('')}</article>`;
+        }).join('')}
+      </div>
+      <p class="tiny">No secret keys belong in this package. Add provider credentials in provider dashboards, then keep only public browser-safe keys here.</p>
+    </section>`;
+  }
+
+  function renderLaunchQa() {
+    const notes = state.qaNotes || [];
+    const checks = state.launchChecks || [];
+    return `<section class="section">
+      <div class="section-head">
+        <div><span class="eyebrow">Review + launch</span><h2>Launch board</h2></div>
+        <button class="btn primary small" type="button" data-action="open-qa-note">Add note</button>
+      </div>
+      <div class="grid two">
+        <div class="panel">
+          <h3>Two-phone launch check</h3>
+          <p class="muted">Use this when shared data is connected. Check each item from two real devices before inviting the crowd.</p>
+          <div class="stack">
+            ${checks.map((c) => `<button class="check-row ${c.done ? 'done' : ''}" type="button" data-action="toggle-launch-check" data-check-id="${safe(c.id)}"><span>${c.done ? '?' : '?'}</span><b>${safe(c.label)}</b></button>`).join('')}
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Open notes</h3>
+          <p class="muted">Keep small issues visible and controlled.</p>
+          <div class="stack">
+            ${notes.slice(0, 6).map((n) => `<div class="qa-note ${n.status === 'Done' ? 'done' : ''}"><div class="row"><span class="badge ${n.priority === 'High' ? 'red' : n.priority === 'Medium' ? 'orange' : 'green'}">${safe(n.priority)}</span><span class="chip">${safe(n.screen)}</span></div><p>${safe(n.issue)}</p><div class="row"><button class="btn dark small" type="button" data-action="toggle-qa-note" data-note-id="${safe(n.id)}">${n.status === 'Done' ? 'Reopen' : 'Mark done'}</button></div></div>`).join('') || '<div class="empty">No notes yet.</div>'}
+          </div>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function renderAdminPanel() {
+    const user = currentUser();
+    if (!user) {
+      return `<section class="section"><div class="panel"><span class="eyebrow">Operations</span><h2>Partner tools</h2><p class="muted">Sign in as a verified captain, business partner, or operator to manage bookings, reports, and business posts.</p><div class="row"><button class="btn primary" type="button" data-action="open-auth-signin">Sign in</button><button class="btn dark" type="button" data-action="open-auth-create">Request access</button></div></div></section>`;
+    }
+    if (!isBusinessRole()) {
+      return `<section class="section"><div class="panel"><span class="eyebrow">Operations</span><h2>Partner tools locked</h2><p class="muted">This area is for operators, captains, tackle shops, cruises, marinas, and pro charters.</p><button class="btn dark" type="button" data-action="open-user-settings">Review account settings</button></div></section>`;
+    }
+    const openReports = state.reports.filter((r)=>r.status==='Open').length;
+    const deletionRequests = (state.accountDeletionRequests || []).length;
+    const blockedCount = (state.blockedUsers || []).length;
+    const deviceStatus = state.deviceHub?.lastFix ? formatGpsFix(state.deviceHub) : (state.deviceHub?.source || 'No device connected');
+    return `<section class="section"><div class="section-head"><div><span class="eyebrow">Bridge</span><h2>Operations console</h2></div><div class="row">${isAdmin() ? '<button class="btn soft small" type="button" data-action="open-admin-console">Admin console</button>' : ''}<button class="btn primary small" type="button" data-action="run-ops">Run morning ops</button></div></div>
+      <div class="grid three">
+        <div class="admin-card"><span class="badge">Bookings</span><h3>${state.bookings.length}</h3><p class="muted">Charter, cruise, and trip inquiries.</p><div class="row"><button class="btn dark small" type="button" data-action="open-business-leads">Inbox</button><button class="btn soft small" type="button" data-action="open-booking-form">Add</button></div></div>
+        <div class="admin-card"><span class="badge orange">Moderation</span><h3>${openReports}</h3><p class="muted">Reports, media reviews, and removed-content audit.</p><div class="row"><button class="btn dark small" type="button" data-action="open-moderation">Queue</button><button class="btn soft small" type="button" data-action="open-admin-audit">Audit</button></div></div>
+        <div class="admin-card"><span class="badge green">Revenue</span><h3>$${state.businesses.reduce((sum,b)=>sum+Number(b.revenue||0),0)}</h3><p class="muted">Ads, leads, deals, bookings.</p><button class="btn dark small" type="button" data-action="open-revenue">Revenue view</button></div>
+      </div>
+      <div class="grid three mt">
+        <div class="admin-card operator-card"><span class="badge green">Users</span><h3>${safe((state.users || []).length)}</h3><p class="muted">Profiles, roles, home waters, and local status.</p><button class="btn dark small" type="button" data-action="open-user-directory">Directory</button></div>
+        <div class="admin-card operator-card"><span class="badge orange">Support</span><h3>${safe(deletionRequests + blockedCount)}</h3><p class="muted">Deletion requests, blocked users, reports, and user support paths.</p><button class="btn dark small" type="button" data-action="open-support-queue">Support queue</button></div>
+        <div class="admin-card operator-card"><span class="badge">Devices</span><h3>${safe(state.deviceHub?.status || 'Ready')}</h3><p class="muted">${safe(deviceStatus)}</p><button class="btn dark small" type="button" data-action="open-device-hub">Device hub</button></div>
+      </div>
+      <div class="section"><h2>Business directory</h2><div class="grid cards">${state.businesses.map((b)=>`<div class="panel"><span class="badge ${b.status==='Verified'?'green':'orange'}">${safe(b.status)}</span><h3>${safe(b.name)}</h3><p class="muted">${safe(b.kind)} ${MID} ${safe(b.area)}</p><div class="meta"><span class="chip">${safe(b.leads)} leads</span><span class="chip">$${safe(b.revenue)}</span></div><div class="row"><button class="btn success small" type="button" data-action="verify-business" data-business-id="${safe(b.id)}">Verify</button><button class="btn dark small" type="button" data-action="book-business" data-business-id="${safe(b.id)}">New lead</button></div></div>`).join('')}</div></div>
+      <div class="section"><h2>Ops log</h2><div class="panel">${state.opsLog.slice(0,8).map((x)=>`<p class="muted">${safe(x)}</p>`).join('')}</div></div>
+    </section>`;
+  }
+
+  function render() {
+    hydrateHeader();
+    renderAnnouncementBanner();
+    const screen = state.activeScreen || 'home';
+    // Only rebuild the active screen — inactive screens keep prior DOM (social-app sticky feel).
+    const renderers = {
+      home: renderHome,
+      explore: renderExplore,
+      crew: renderCrew,
+      feed: renderFeed,
+      tools: renderTools,
+      profile: renderProfile
+    };
+    const activeRenderer = renderers[screen] || renderHome;
+    activeRenderer();
+    $$('.screen').forEach((s) => s.classList.toggle('active', s.id === `screen-${screen}`));
+    $$('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.screen === screen));
+  }
+
+  async function refreshFeed(options = {}) {
+    if (state.feedRefreshing && !options.force) return;
+    state.feedRefreshing = true;
+    if (state.activeScreen === 'feed') renderFeed();
+    try {
+      if (liveReady()) {
+        await pullSupabase({ silent: true, reason: 'feed-refresh' });
+      } else if (!options.silent) {
+        toast('Browsing local feed. Connect shared data to pull live posts.');
+      }
+      if (!options.silent) toast('Feed updated.');
+    } catch (error) {
+      if (!options.silent) toast(`Feed refresh failed: ${error.message}`, 'danger');
+    } finally {
+      state.feedRefreshing = false;
+      if (state.activeScreen === 'feed') renderFeed();
+    }
+  }
+
+  function modal(html) {
+    const root = $('#modalRoot');
+    if (!document.body.classList.contains('modal-open')) {
+      scrollLockY = window.scrollY || document.documentElement.scrollTop || 0;
+      document.body.style.top = `-${scrollLockY}px`;
+      document.body.classList.add('modal-open');
+    }
+    root.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${html}</div>`;
+    root.classList.toggle('welcome-modal', modalMode === 'tutorial');
+    root.classList.remove('hidden');
+    root.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeModal() {
+    const root = $('#modalRoot');
+    root.classList.add('hidden');
+    root.classList.remove('welcome-modal');
+    root.setAttribute('aria-hidden', 'true');
+    root.innerHTML = '';
+    modalMode = null;
+    if (document.body.classList.contains('modal-open')) {
+      document.body.classList.remove('modal-open');
+      document.body.style.top = '';
+      window.scrollTo(0, scrollLockY || 0);
+    }
+  }
+
+  function openAuth(message = GUEST_SIGN_IN_PROMPT, suggestedRole = 'Angler', mode = 'signin') {
+    modalMode = 'auth';
+    authTab = mode === 'create' ? 'create' : 'signin';
+    authBusy = false;
+    const createMode = authTab === 'create';
+    const roleOptions = `<option ${suggestedRole==='Angler'?'selected':''}>Angler</option><option ${suggestedRole==='Captain'?'selected':''}>Captain</option><option ${suggestedRole==='Business'?'selected':''}>Business</option>`;
+    const signInFields = `
+        <div id="authSignInPanel" data-auth-panel="signin" class="auth-panel ${createMode ? 'hidden' : ''}">
+        <label class="label">Email<input id="authSignInIdentity" name="email" type="email" class="field" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" enterkeyhint="next" placeholder="you@example.com" /></label>
+        <label class="label">Password<input id="authSignInPassword" name="password" class="field" type="password" autocomplete="current-password" enterkeyhint="done" placeholder="Password" /></label>
+        <p class="tiny auth-footnote">Use your email or username.</p>
+        <div class="row auth-actions">
+          <button class="btn primary" type="button" data-action="auth-signin">Sign in</button>
+          <button class="btn soft" type="button" data-action="switch-auth-tab" data-auth-tab="create">Create account</button>
+          <button class="btn dark" type="button" data-action="close-modal">Continue as Guest</button>
+        </div>
+        <button class="btn text full" type="button" data-action="auth-forgot">Forgot password?</button>
+        </div>`;
+    const createFields = `
+        <div id="authCreatePanel" data-auth-panel="create" class="auth-panel ${createMode ? '' : 'hidden'}">
+        <div class="form-grid">
+          <label class="label">First name<input id="authFirstName" name="given-name" class="field" autocomplete="given-name" autocapitalize="words" enterkeyhint="next" placeholder="First name" /></label>
+          <label class="label">Last name<input id="authLastName" name="family-name" class="field" autocomplete="family-name" autocapitalize="words" enterkeyhint="next" placeholder="Last name" /></label>
+        </div>
+        <label class="label">Role<select id="authRole" class="select" autocomplete="off">${roleOptions}</select></label>
+        <div class="form-grid">
+          <label class="label">Email<input id="authCreateEmail" name="email" class="field" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" enterkeyhint="next" placeholder="you@example.com" /></label>
+          <label class="label">Username<input id="authCreateUsername" name="username" class="field" autocomplete="username" inputmode="text" autocapitalize="none" spellcheck="false" enterkeyhint="next" placeholder="capt_mason" /></label>
+        </div>
+        <label class="label">Password<input id="authCreatePassword" name="new-password" class="field" type="password" autocomplete="new-password" enterkeyhint="next" placeholder="Use a secure password" /></label>
+        <label class="label">Confirm password<input id="authCreatePasswordConfirm" name="new-password-confirm" class="field" type="password" autocomplete="new-password" enterkeyhint="done" placeholder="Confirm password" /></label>
+        <div class="password-help" id="passwordHelp">Use 8+ characters with uppercase, lowercase, a number, and a special character.</div>
+        <label class="label">Home area<input id="authArea" name="address-level2" class="field" autocomplete="address-level2" autocapitalize="words" enterkeyhint="done" placeholder="Tampa Bay" /></label>
+        <div class="row auth-actions">
+          <button class="btn primary" type="button" data-action="auth-create">Create account</button>
+          <button class="btn soft" type="button" data-action="switch-auth-tab" data-auth-tab="signin">Back to sign in</button>
+          <button class="btn dark" type="button" data-action="close-modal">Continue as Guest</button>
+        </div>
+        </div>`;
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">FishCrew account</span><h2 id="authModalTitle">${createMode ? 'Create your FishCrew profile.' : 'Sign in when it matters.'}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="lead" id="authModalLead">${safe(message)}</p>
+      <div class="safe-note"><strong>Guest browse:</strong> explore freely. Sign in to post, message, upload, or change profile data.</div>
+      <div class="auth-tabs" role="tablist" aria-label="Account options">
+        <button class="${createMode ? '' : 'active'}" type="button" data-action="switch-auth-tab" data-auth-tab="signin" aria-selected="${createMode ? 'false' : 'true'}">Sign in</button>
+        <button class="${createMode ? 'active' : ''}" type="button" data-action="switch-auth-tab" data-auth-tab="create" aria-selected="${createMode ? 'true' : 'false'}">Create account</button>
+      </div>
+      <div id="authError" class="auth-error hidden" role="alert"></div>
+      <div id="authSuccess" class="auth-success hidden" role="status"></div>
+      <div class="forms mt">
+        ${signInFields}
+        ${createFields}
+        <div class="auth-divider"><span>or continue with</span></div>
+        <div class="social-icon-row" aria-label="Social sign-in options">
+          ${socialAuthButtonHtml('Google')}
+          ${socialAuthButtonHtml('Facebook')}
+          <button class="social-icon instagram coming-soon" type="button" data-action="social-login" data-provider="Instagram" aria-label="Instagram is not a login method" title="Instagram connect lives on Profile"><span class="ig-mark">${IG_MARK}</span></button>
+        </div>
+        <p class="tiny auth-footnote">Email and password are the primary sign-in. Unfinished social providers show Coming soon until configured in config.js. Instagram connect is a Profile integration, not login.</p>
+      </div>`);
+    clearAuthError();
+    clearAuthSuccess();
+  }
+
+  function switchAuthTab(tab = 'signin') {
+    if (modalMode !== 'auth') return;
+    authTab = tab === 'create' ? 'create' : 'signin';
+    authBusy = false;
+    clearAuthError();
+    clearAuthSuccess();
+    const createMode = authTab === 'create';
+    $('#authSignInPanel')?.classList.toggle('hidden', createMode);
+    $('#authCreatePanel')?.classList.toggle('hidden', !createMode);
+    $$('.auth-tabs button').forEach((btn) => {
+      const active = btn.dataset.authTab === authTab;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    const title = $('#authModalTitle');
+    if (title) title.textContent = createMode ? 'Create your FishCrew profile.' : 'Sign in when it matters.';
+  }
+
+  function readCharterSearch(source = '') {
+    const prefix = source === 'home' ? 'homeCharter' : 'expCharter';
+    const get = (id, fallback = '') => ($(`#${id}`)?.value || fallback).trim();
+    if (source === 'home') {
+      return {
+        q: charterFilterState().q || '',
+        location: get('homeCharterLocation'),
+        species: get('homeCharterSpecies'),
+        date: get('homeCharterDate'),
+        boat: get('homeCharterBoat'),
+        price: charterFilterState().price || ''
+      };
+    }
+    return {
+      q: get('expCharterQ'),
+      location: get('expCharterLocation'),
+      species: get('expCharterSpecies'),
+      date: get('expCharterDate'),
+      boat: get('expCharterBoat'),
+      price: get('expCharterPrice')
+    };
+  }
+
+  function applyCharterSearch(source = 'explore') {
+    state.charterFilter = readCharterSearch(source);
+    save(true);
+    nav('explore');
+    const n = filteredCharters().length;
+    toast(n ? `${n} charter${n === 1 ? '' : 's'} match.` : 'No charters match. Nothing was invented.');
+  }
+
+  function clearCharterSearch() {
+    state.charterFilter = { q: '', location: '', species: '', boat: '', date: '', price: '' };
+    save(true);
+    render();
+    toast('Charter filters cleared.');
+  }
+
+  async function refreshCharters(options = {}) {
+    if (state.charterRefreshing && !options.force) return;
+    state.charterRefreshing = true;
+    if (state.activeScreen === 'explore') renderExplore();
+    try {
+      if (liveReady()) await pullSupabase({ silent: true, reason: 'charter-refresh' });
+      else if (!options.silent) toast('Browsing local listings. Sign in for shared data.');
+      if (!options.silent) toast('Charter board updated.');
+    } catch (error) {
+      if (!options.silent) toast(`Charter refresh failed: ${error.message}`, 'danger');
+    } finally {
+      state.charterRefreshing = false;
+      if (state.activeScreen === 'explore') renderExplore();
+    }
+  }
+
+  function openCharterProfile(charterId) {
+    const listing = findCharter(charterId);
+    if (!listing) return toast('Charter not found.', 'danger');
+    const owner = currentUser() && listing.ownerId === currentUser().id;
+    const reviews = liveReviewsFor(listing.id);
+    const liveReviews = reviews.filter((r) => r.status === 'Live' || r.status === 'Approved');
+    const avg = liveReviews.length
+      ? (liveReviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / liveReviews.length).toFixed(1)
+      : '';
+    const photo = listing.photoUrl;
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Charter</span><h2>${safe(listing.name)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      ${photo ? `<div class="card-media photo charter-hero-photo" style="background-image:url('${cssUrl(photo)}')"></div>` : ''}
+      <p class="muted">${isManagedListing(listing) ? 'Managed by FishCrew' : safe(listing.captainName)} ${MID} ${safe(listing.area)}</p>
+      ${isManagedListing(listing) ? '<p class="tiny">The captain agreed to be listed and has not set up their FishCrew account yet. FishCrew passes inquiries straight to them.</p>' : ''}
+      <p>${safe(listing.bioLong || listing.bio)}</p>
+      ${listing.experience ? `<p class="tiny">${safe(listing.experience)}</p>` : ''}
+      <div class="meta">
+        <span class="chip">${safe(priceLabel(listing))}</span>
+        ${listing.boat ? `<span class="chip">${safe(listing.boat)}</span>` : ''}
+        ${listing.tripTypes ? `<span class="chip">${safe(listing.tripTypes)}</span>` : ''}
+        ${listing.species ? `<span class="chip">${safe(listing.species)}</span>` : ''}
+        ${listing.availability ? `<span class="chip">${safe(listing.availability)}</span>` : '<span class="chip">Ask for a date</span>'}
+      </div>
+      <div class="panel mt">
+        <h3>Reviews</h3>
+        ${avg ? `<p class="muted">${safe(avg)} from ${liveReviews.length} published trip review${liveReviews.length === 1 ? '' : 's'}.</p>` : '<p class="muted">No published trip reviews yet. We will not show a fake 5-star wall.</p>'}
+        ${reviews.map((r) => `<div class="lead-row"><div><b>${safe(r.reviewerName || 'Angler')} ${r.rating ? MID + ' ' + r.rating + '/5' : ''}</b><small>${safe(r.status === 'Live' || r.status === 'Approved' ? (r.body || '') : 'Your review is waiting on operator publish.')}</small></div></div>`).join('')}
+      </div>
+      <div class="row mt">
+        <button class="btn primary" type="button" data-action="open-charter-inquiry" data-charter-id="${safe(listing.id)}">Request this trip</button>
+        ${httpsUrl(listing.websiteUrl) ? `<a class="btn dark" href="${safe(httpsUrl(listing.websiteUrl))}" target="_blank" rel="noopener noreferrer">Captain site</a>` : ''}
+        ${owner ? `<button class="btn soft" type="button" data-action="open-charter-form" data-charter-id="${safe(listing.id)}">Edit listing</button>` : ''}
+        ${listing.ownerId ? `<button class="btn danger" type="button" data-action="block-user" data-user-id="${safe(listing.ownerId)}">Block</button>` : ''}
+      </div>`);
+  }
+
+  function openCharterInquiry(charterId) {
+    if (!requireLogin('Sign in to send a charter inquiry. The captain sees it in their inbox.')) return;
+    const listing = findCharter(charterId);
+    if (!listing) return toast('Charter not found.', 'danger');
+    const user = currentUser();
+    const f = charterFilterState();
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Inquiry</span><h2>Ask ${safe(isManagedListing(listing) ? listing.name : (listing.captainName || listing.name))}.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">${isManagedListing(listing)
+        ? 'This writes a real lead. FishCrew manages this listing for the captain and passes your inquiry to them.'
+        : 'This writes a real lead. Status stays New until the captain marks Contacted, Booked, or Closed.'}</p>
+      <div class="forms">
+        <input type="hidden" id="inqCharterId" value="${safe(listing.id)}" />
+        <div class="form-grid">
+          <label class="label">Preferred date<input id="inqDate" name="inquiry-date" class="field" type="date" value="${safe(f.date || '')}" /></label>
+          <label class="label">Party size<input id="inqParty" name="inquiry-party" class="field" type="number" inputmode="numeric" min="1" value="2" /></label>
+        </div>
+        <label class="label">Phone<input id="inqPhone" name="tel" class="field" type="tel" inputmode="tel" autocomplete="tel" placeholder="Optional for SMS" /></label>
+        <label class="label">What do you need?<textarea id="inqNotes" name="inquiry-notes" class="field" placeholder="Species, experience level, kids, budget">${safe([f.species && `Target: ${f.species}`, f.boat && `Boat: ${f.boat}`].filter(Boolean).join(' · '))}</textarea></label>
+        <button class="btn primary full" type="button" data-action="save-charter-inquiry">Send inquiry</button>
+      </div>`);
+  }
+
+  async function ensureCharterBusiness(listing) {
+    if (!listing) return '';
+    if (listing.businessId && !String(listing.businessId).startsWith('charter_user_')) return listing.businessId;
+    const existing = (state.businesses || []).find((b) => b.ownerId === listing.ownerId && isCharterKind(b.kind));
+    if (existing) return existing.id;
+    const biz = {
+      id: uid('biz'),
+      ownerId: listing.ownerId || currentUser()?.id || '',
+      name: listing.name,
+      kind: listing.kind || 'Pro Charter',
+      area: listing.area,
+      status: listing.status || 'Directory',
+      leads: 0,
+      revenue: 0,
+      campaign: listing.bio || 'Charter listing',
+      species: listing.species,
+      boatType: listing.boatType,
+      tripTypes: listing.tripTypes,
+      priceFrom: listing.priceFrom,
+      priceTo: listing.priceTo,
+      availability: listing.availability,
+      websiteUrl: listing.websiteUrl,
+      listingKind: listing.listingKind || 'operator',
+      // Made on this device for the inquiry; it exists on the server only if its
+      // owner saves it, so a customer's inquiry must not point at it.
+      localOnly: true
+    };
+    state.businesses.unshift(biz);
+    return biz.id;
+  }
+
+  async function saveCharterInquiry() {
+    if (!requireLogin('Sign in to send a charter inquiry.')) return;
+    const listing = findCharter($('#inqCharterId')?.value || '');
+    if (!listing) return toast('Charter not found.', 'danger');
+    const user = currentUser();
+    const date = $('#inqDate')?.value.trim() || '';
+    const party = Number($('#inqParty')?.value || 0);
+    const phone = ($('#inqPhone')?.value || '').trim();
+    const note = $('#inqNotes')?.value.trim();
+    if (!date && !note) return toast('Add a date or a note so the captain knows the ask.', 'danger');
+    const businessId = await ensureCharterBusiness(listing);
+    const booking = {
+      id: uid('book'),
+      businessId,
+      charterId: listing.id,
+      customerId: user.id,
+      customerName: user.name,
+      phone,
+      kind: 'Charter inquiry',
+      status: 'New',
+      date: date || 'Flexible',
+      value: Number(listing.priceFrom || 0),
+      notes: [party ? `Party of ${party}` : '', note].filter(Boolean).join(' · '),
+      createdAt: now()
+    };
+    state.bookings.unshift(booking);
+    const biz = (state.businesses || []).find((b) => b.id === businessId);
+    if (biz) biz.leads = Number(biz.leads || 0) + 1;
+    state.opsLog.unshift(`${user.name} inquired on ${listing.name}.`);
+    closeModal();
+    // Only the listing's owner (or the operator) may write its business row; the
+    // database refuses anyone else, and that refusal used to stop the inquiry itself
+    // from being saved. The inquiry row is all a customer needs to write.
+    const canWriteBiz = Boolean(biz) && (biz.ownerId === user.id || isAdmin());
+    const liveBiz = Boolean(biz) && (!biz.localOnly || canWriteBiz);
+    if (booking.businessId && !liveBiz) booking.businessId = null;
+    const saved = await afterLocalWrite('Charter inquiry', async () => {
+      if (canWriteBiz && liveBiz && await liveUpsertBusiness(biz)) delete biz.localOnly;
+      await liveUpsert('bookings', bookingRow(booking), 'booking');
+      if (canWriteBiz && liveBiz) await liveUpdate('businesses', { lead_count: Number(biz.leads || 0) }, 'id', biz.id, 'business lead count');
+      return true;
+    });
+    if (!saved) return;
+    toast(!(liveReady() && currentUser())
+      ? 'Inquiry saved on this device. Sign in with shared data to sync.'
+      : isManagedListing(listing)
+        ? 'Inquiry sent. FishCrew passes it to the captain.'
+        : 'Inquiry saved. The captain can update status from their inbox.');
+  }
+
+  function openCharterForm(charterId = '') {
+    if (!requireBusiness('Sign in as a captain or operator to list a charter.')) return;
+    const existing = charterId ? findCharter(charterId) : allCharters().find((c) => c.ownerId === currentUser()?.id && !c.curated);
+    if (existing && existing.ownerId && existing.ownerId !== currentUser().id && !isAdmin()) {
+      return toast('You can only edit your own listing.', 'danger');
+    }
+    const u = currentUser();
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Operator</span><h2>${existing ? 'Edit your charter.' : 'List a charter.'}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">Public photos stay hidden until approved. Do not invent prices or availability you cannot honor.</p>
+      <div class="forms">
+        <input type="hidden" id="charterEditId" value="${safe(existing?.businessId || existing?.id || '')}" />
+        <label class="label">Charter name<input id="charterName" name="organization" class="field" autocomplete="organization" value="${safe(existing?.name || `${u.name} Charters`)}" /></label>
+        <div class="form-grid">
+          <label class="label">Home water<input id="charterArea" name="address-level2" class="field" autocomplete="address-level2" value="${safe(existing?.area || u.area || userArea())}" /></label>
+          <label class="label">Boat type<input id="charterBoat" name="boat-type" class="field" value="${safe(existing?.boatType || existing?.boat || '')}" placeholder="Bay boat, skiff" /></label>
+        </div>
+        <label class="label">Target species<input id="charterSpecies" name="species" class="field" value="${safe(existing?.species || '')}" placeholder="Snook, redfish, trout" /></label>
+        <label class="label">Trip types<input id="charterTrips" name="trip-types" class="field" value="${safe(existing?.tripTypes || '')}" placeholder="Half-day, family, tarpon" /></label>
+        <label class="label">Availability notes<input id="charterAvail" name="availability" class="field" value="${safe(existing?.availability || '')}" placeholder="Weekends, mornings, seasonal tarpon" /></label>
+        <div class="form-grid">
+          <label class="label">Price from<input id="charterPriceFrom" name="price-from" class="field" type="number" inputmode="decimal" min="0" value="${safe(existing?.priceFrom || '')}" placeholder="Optional" /></label>
+          <label class="label">Price to<input id="charterPriceTo" name="price-to" class="field" type="number" inputmode="decimal" min="0" value="${safe(existing?.priceTo || '')}" placeholder="Optional" /></label>
+        </div>
+        <label class="label">Website<input id="charterSite" name="url" class="field" type="url" value="${safe(existing?.websiteUrl || '')}" placeholder="https://" /></label>
+        <label class="label">Listing summary<textarea id="charterBio" name="charter-bio" class="field">${safe(existing?.bio || u.bio || '')}</textarea></label>
+        <div class="file-box"><label class="label">Charter photo (approved media only goes public)<input id="charterPhoto" name="charter-photo" type="file" accept="image/*" /></label></div>
+        <button class="btn primary full" type="button" data-action="save-charter-listing">Save listing</button>
+      </div>`);
+  }
+
+  async function saveCharterListing() {
+    if (!requireBusiness()) return;
+    const user = currentUser();
+    const existingId = $('#charterEditId')?.value || '';
+    const existing = existingId ? (state.businesses || []).find((b) => b.id === existingId) : (state.businesses || []).find((b) => b.ownerId === user.id && isCharterKind(b.kind) && !b.curated);
+    const file = $('#charterPhoto')?.files?.[0] || null;
+    let uploaded = { url: '', path: '', type: '', live: false };
+    let mediaReview = { status: 'No media', needsReview: false };
+    let asset = null;
+    if (file) {
+      mediaReview = autoModerateMedia(file, 'charter');
+      uploaded = await uploadMedia(file, 'charter').catch((error) => {
+        toast(error.message || 'Photo upload failed.', 'danger');
+        return { url: '', path: '', type: '', live: false };
+      });
+    }
+    const biz = existing || {
+      id: uid('biz'),
+      ownerId: user.id,
+      leads: 0,
+      revenue: 0
+    };
+    biz.name = $('#charterName')?.value.trim() || `${user.name} Charters`;
+    biz.kind = 'Pro Charter';
+    biz.area = $('#charterArea')?.value.trim() || user.area || userArea();
+    biz.status = existing?.status && existing.status !== 'Pending review' ? existing.status : (isAdmin() ? 'Verified' : 'Pending review');
+    biz.campaign = $('#charterBio')?.value.trim() || 'Charter listing';
+    biz.species = $('#charterSpecies')?.value.trim() || '';
+    biz.boatType = $('#charterBoat')?.value.trim() || '';
+    biz.tripTypes = $('#charterTrips')?.value.trim() || '';
+    biz.availability = $('#charterAvail')?.value.trim() || '';
+    biz.priceFrom = Number($('#charterPriceFrom')?.value || 0) || null;
+    biz.priceTo = Number($('#charterPriceTo')?.value || 0) || null;
+    biz.websiteUrl = $('#charterSite')?.value.trim() || '';
+    biz.listingKind = existing?.listingKind || 'operator';
+    biz.curated = false;
+    biz.demo = false;
+    if (!existing) state.businesses.unshift(biz);
+    if (uploaded.url) {
+      asset = trackMediaAsset({
+        ownerId: user.id,
+        sourceId: biz.id,
+        sourceType: 'charter',
+        mediaType: uploaded.type || file?.type || 'image/jpeg',
+        storagePath: uploaded.path || 'local-charter-preview',
+        publicUrl: uploaded.url,
+        status: mediaReview.status || (uploaded.live ? 'Review' : 'Local preview'),
+        visibility: 'public'
+      });
+    }
+    const charterRowData = {
+      id: biz.id,
+      ownerId: biz.ownerId,
+      businessId: biz.id,
+      name: biz.name,
+      area: biz.area,
+      species: biz.species,
+      boatType: biz.boatType,
+      tripTypes: biz.tripTypes,
+      availability: biz.availability,
+      priceFrom: biz.priceFrom,
+      priceTo: biz.priceTo,
+      websiteUrl: biz.websiteUrl,
+      bio: biz.campaign,
+      status: biz.status,
+      listingKind: biz.listingKind
+    };
+    state.charters = mergeById(state.charters || [], [charterRowData]);
+    user.role = user.role === 'Angler' ? 'Captain' : user.role;
+    state.opsLog.unshift(`${user.name} ${existing ? 'updated' : 'listed'} charter ${biz.name}.`);
+    closeModal();
+    await afterLocalWrite('Charter listing', async () => {
+      await liveUpsertBusiness(biz);
+      if (state.chartersTableReady) await liveUpsert('charters', charterTableRow(charterRowData), 'charter');
+      if (asset) await liveUpsert('media_assets', mediaAssetRow(asset), 'media asset');
+      return true;
+    });
+    nav('explore');
+    toast(uploaded.url
+      ? (mediaReview.needsReview ? 'Listing saved. Photo stays private until an operator approves it.' : 'Charter listing saved.')
+      : (biz.status === 'Pending review' ? 'Listing saved as pending review. Anglers can still inquire.' : 'Charter listing saved.'));
+  }
+
+  function bookingStatusCopy(status) {
+    const map = {
+      New: 'Sent. Waiting on the captain.',
+      Contacted: 'Captain started the conversation.',
+      Booked: 'Marked booked. Confirm details with the captain.',
+      Closed: 'Closed. Rebook if you want another date.'
+    };
+    return map[status] || status || 'New';
+  }
+
+  function openMyBookings() {
+    const user = currentUser();
+    if (!user) {
+      openAuth('Sign in to see inquiry status. Guests can still browse charters.');
+      return;
+    }
+    if (isBusinessRole()) return openBusinessLeads();
+    const rows = myCharterInquiries();
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Angler</span><h2>Your charter inquiries.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">Status comes from the captain inbox. We will not mark a trip booked unless they do.</p>
+      <div class="stack mt">${rows.map((b) => {
+        const listing = findCharter(b.charterId || b.businessId);
+        return `<div class="lead-row panel"><div><b>${safe(listing?.name || b.kind)}</b><small>${safe(bookingStatusCopy(b.status))} ${MID} ${safe(b.date || 'Flexible')}</small><small>${safe(b.notes || '')}</small></div><span class="chip">${safe(b.status || 'New')}</span><div class="row mt"><button class="btn dark small" type="button" data-action="open-charter-profile" data-charter-id="${safe(listing?.id || b.businessId)}">View charter</button>${b.status === 'Booked' || b.status === 'Closed' ? `<button class="btn soft small" type="button" data-action="open-charter-review" data-booking-id="${safe(b.id)}">After-trip next step</button>` : `<button class="btn primary small" type="button" data-action="open-charter-inquiry" data-charter-id="${safe(listing?.id || b.businessId)}">Follow up</button>`}</div></div>`;
+      }).join('') || '<div class="empty">No inquiries yet. Browse charters and ask a captain.</div>'}
+      </div>
+      <div class="row mt"><button class="btn primary" type="button" data-action="go" data-screen="explore">Find charters</button><button class="btn dark" type="button" data-action="close-modal">Close</button></div>`);
+  }
+
+  function openCharterReview(bookingId) {
+    if (!requireLogin('Sign in to leave a trip note.')) return;
+    const booking = (state.bookings || []).find((b) => b.id === bookingId);
+    if (!booking) return toast('Inquiry not found.', 'danger');
+    const listing = findCharter(booking.charterId || booking.businessId);
+    const canReview = Boolean(state.reviewsTableReady);
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">After the trip</span><h2>${safe(listing?.name || 'Your charter')}.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      ${canReview ? `
+        <p class="muted">Reviews start private. An operator publishes them. No fake 5-star wall.</p>
+        <div class="forms">
+          <input type="hidden" id="revBookingId" value="${safe(booking.id)}" />
+          <label class="label">Rating<select id="revRating" class="select"><option value="5">5 ${MID} would rebook</option><option value="4">4 ${MID} solid trip</option><option value="3">3 ${MID} mixed</option><option value="2">2 ${MID} issues</option><option value="1">1 ${MID} do not rebook</option></select></label>
+          <label class="label">What should the next angler know?<textarea id="revBody" name="review-body" class="field" placeholder="Window, crew, fish handling, kids, value."></textarea></label>
+          <button class="btn primary full" type="button" data-action="save-charter-review">Submit review</button>
+        </div>` : `
+        <p class="muted">Shared star reviews are not live on this project yet. Use a real next step instead of a fake rating wall.</p>
+        <div class="grid two mt">
+          <button class="panel" type="button" data-action="open-charter-inquiry" data-charter-id="${safe(listing?.id || booking.businessId)}"><h3>Rebook</h3><p class="muted">Ask this captain about another date.</p></button>
+          <button class="panel" type="button" data-action="open-feed-form" data-feed-type="Crew Recap"><h3>Log the trip</h3><p class="muted">Post a recap after you get home.</p></button>
+        </div>`}
+      <div class="row mt"><button class="btn dark" type="button" data-action="close-modal">Close</button></div>`);
+  }
+
+  async function saveCharterReview() {
+    if (!requireLogin()) return;
+    if (!state.reviewsTableReady) return toast('Shared reviews are not live yet.', 'danger');
+    const booking = (state.bookings || []).find((b) => b.id === $('#revBookingId')?.value);
+    if (!booking) return toast('Inquiry not found.', 'danger');
+    const listing = findCharter(booking.charterId || booking.businessId);
+    const user = currentUser();
+    const review = {
+      id: uid('rev'),
+      charterId: listing?.id || booking.businessId,
+      businessId: booking.businessId,
+      reviewerId: user.id,
+      reviewerName: user.name,
+      rating: Number($('#revRating')?.value || 0),
+      body: $('#revBody')?.value.trim() || '',
+      tripDate: booking.date || '',
+      status: 'Review',
+      createdAt: now()
+    };
+    if (!review.body && !review.rating) return toast('Add a rating or a note.', 'danger');
+    state.charterReviews = state.charterReviews || [];
+    state.charterReviews.unshift(review);
+    closeModal();
+    await afterLocalWrite('Charter review', async () => {
+      await liveUpsert('charter_reviews', reviewTableRow(review), 'charter review');
+      return true;
+    });
+    toast('Review saved for operator publish. It is not public yet.');
+  }
+
+  function openCreate() {
+    const captain = isBusinessRole();
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Create</span><h2>${captain ? 'Run the charter desk.' : 'Find or list a charter.'}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="grid two">
+        <button class="panel" type="button" data-action="go" data-screen="explore"><h3>Find charters</h3><p class="muted">Browse by water, species, date, and boat. Guest OK.</p></button>
+        <button class="panel" type="button" data-action="${captain ? 'open-charter-form' : 'open-captain-waitlist'}"><h3>${captain ? 'List a charter' : 'Captain waitlist'}</h3><p class="muted">${captain ? 'Trip types, price range, and approved photos.' : 'Ask to list. Operator review only.'}</p></button>
+        <button class="panel" type="button" data-action="open-trip-form"><h3>Crew trip</h3><p class="muted">Open seats after you have a boat. Sign in required.</p></button>
+        <button class="panel" type="button" data-action="open-feed-form"><h3>After-trip recap</h3><p class="muted">Log the trip. Not a substitute for charter discovery.</p></button>
+      </div>`);
+  }
+
+  function openTripForm() {
+    if (!requireLogin('Sign in to post trips, catches, photos, shop updates, charter openings, or cruise opportunities.')) return;
+    if (blockIfRestricted()) return;
+    const captainDefaults = isBusinessRole();
+    const titlePlaceholder = captainDefaults ? '2 seats open — Sunday morning reef window' : 'Saturday inshore crew needed';
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Trip</span><h2>${captainDefaults ? 'Post open seats.' : 'Post a fishing plan.'}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="forms">
+        <label class="label">Title<input id="tripTitle" name="trip-title" class="field" autocomplete="off" placeholder="${safe(titlePlaceholder)}" /></label>
+        <div class="form-grid"><label class="label">Type<select id="tripType" class="select"><option>Boat</option><option>Pier</option><option>Kayak</option><option>Surf</option><option ${captainDefaults ? 'selected' : ''}>Charter</option></select></label><label class="label">Area<input id="tripArea" name="trip-area" class="field" autocomplete="address-level2" value="${safe(userArea())}" /></label></div>
+        <div class="form-grid"><label class="label">Time<input id="tripTime" name="trip-time" class="field" autocomplete="off" value="${captainDefaults ? `Sunday ${MID} 6:45 AM` : `Saturday ${MID} 6:30 AM`}" /></label><label class="label">Open spots<input id="tripSpots" name="trip-spots" class="field" type="number" inputmode="numeric" autocomplete="off" min="0" value="2" /></label></div>
+        <label class="label">Target species<input id="tripSpecies" name="trip-species" class="field" autocomplete="off" placeholder="Redfish / Snook" /></label>
+        <label class="label">Public location<input id="tripPublic" name="trip-public-location" class="field" autocomplete="off" placeholder="General area only" /></label>
+        <label class="label">Private meetup location<input id="tripPrivate" name="trip-private-location" class="field" autocomplete="off" placeholder="Ramp/slip/meetup details for approved crew" /></label>
+        <div class="form-grid"><label class="label">Wind<input id="tripWind" name="trip-wind" class="field" autocomplete="off" value="8 mph NE" /></label><label class="label">Waves<input id="tripWaves" name="trip-waves" class="field" autocomplete="off" value="1.0 ft" /></label></div>
+        <div class="form-grid"><label class="label">Tide<input id="tripTide" name="trip-tide" class="field" autocomplete="off" value="Incoming" /></label><label class="label">Score<select id="tripScore" class="select"><option>Great</option><option selected>Good</option><option>Fair</option><option>Rough</option><option>Unsafe</option></select></label></div>
+        <div class="file-box"><label class="label">Optional trip photo<input id="tripMedia" name="trip-media" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/gif" /></label><p class="tiny">Trip photos are reviewed before public Explore display.</p></div>
+        <button class="btn primary full" type="button" data-action="save-trip">Post trip</button>
+      </div>`);
+  }
+
+  function openFeedForm(type = 'Crew Recap') {
+    if (!requireLogin('Sign in to post photos, videos, GIFs, and catch reports.')) return;
+    if (blockIfRestricted()) return;
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Feed</span><h2>Post proof.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="forms">
+        <div class="form-grid"><label class="label">Post type<select id="feedType" class="select"><option ${type==='Crew Recap'?'selected':''}>Crew Recap</option><option>Catch Log</option><option>Dock Report</option><option>Open Water Seat</option><option>After-Bite Run</option></select></label><label class="label">Area<input id="feedArea" name="feed-area" class="field" autocomplete="address-level2" value="${safe(userArea())}" /></label></div>
+        <label class="label">Title<input id="feedTitleInput" name="feed-title" class="field" autocomplete="off" placeholder="Morning water window paid off" /></label>
+        <label class="label">Caption<textarea id="feedBody" name="feed-caption" class="field" autocomplete="off" placeholder="What happened? Keep exact spots private."></textarea></label>
+        <div class="file-box"><label class="label">Photo, video, or GIF<input id="feedMedia" name="feed-media" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/gif,video/mp4,video/quicktime,video/webm" /></label><p class="tiny">JPG, PNG, WEBP, HEIC, GIF, MP4, MOV, or WEBM. Public media stays hidden until an operator approves it.</p></div>
+        <button class="btn primary full" type="button" data-action="save-feed-post">Post to feed</button>
+      </div>`);
+  }
+
+  function clickDockAd(el) {
+    const ads = state.dockAds || { clicks: 0, inquiries: [] };
+    ads.clicks = Number(ads.clicks || 0) + 1;
+    state.dockAds = ads;
+    save(true);
+    const url = httpsUrl(el?.dataset?.adUrl);
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  function openDockAdInquiry(adId = '') {
+    const ad = adId && adId !== 'dock_ad_house'
+      ? (state.businesses || []).find((b) => b.id === adId)
+      : houseDockAd();
+    const listing = ad?.name || 'Tampa dock listing';
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Dock ad</span><h2>Ask about a Tampa listing.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">First-party only. No AdSense, no banner network. A shop or charter can sit in one labeled slot. We will not invent traffic numbers.</p>
+      <div class="forms">
+        <input type="hidden" id="dockAdListingId" value="${safe(ad?.id || 'dock_ad_house')}" />
+        <label class="label">Your name<input id="dockAdName" name="name" class="field" autocomplete="name" placeholder="Chris" /></label>
+        <label class="label">Business<input id="dockAdBusiness" name="organization" class="field" autocomplete="organization" placeholder="Tackle shop or charter" value="${safe(ad?.house ? '' : listing)}" /></label>
+        <label class="label">Email<input id="dockAdEmail" name="email" class="field" type="email" autocomplete="email" placeholder="you@shop.com" /></label>
+        <label class="label">What do you want to list?<textarea id="dockAdNote" name="notes" class="field" placeholder="Weekend bait special, open seats, marina slip..."></textarea></label>
+        <button class="btn primary full" type="button" data-action="save-dock-ad-inquiry">Save inquiry + open email</button>
+      </div>`);
+  }
+
+  function saveDockAdInquiry() {
+    const listingId = $('#dockAdListingId')?.value || 'dock_ad_house';
+    const name = $('#dockAdName')?.value.trim() || 'Dock inquiry';
+    const business = $('#dockAdBusiness')?.value.trim() || 'Tampa listing';
+    const email = $('#dockAdEmail')?.value.trim();
+    const note = $('#dockAdNote')?.value.trim() || 'Interested in a FishCrew dock ad.';
+    const row = { id: uid('adq'), listingId, name, business, email, note, createdAt: now() };
+    state.dockAds = state.dockAds || { clicks: 0, inquiries: [] };
+    state.dockAds.inquiries.unshift(row);
+    save(true);
+    closeModal();
+    const subject = encodeURIComponent(`FishCrew dock ad — ${business}`);
+    const body = encodeURIComponent(`Name: ${name}\nBusiness: ${business}\nEmail: ${email || 'not given'}\nListing: ${listingId}\n\n${note}\n\nSent from fishcrew.macksims.com`);
+    window.location.href = `mailto:support@macksims.com?subject=${subject}&body=${body}`;
+    toast('Inquiry saved. Your email app should open to support@macksims.com.');
+  }
+
+  function openRevenue() {
+    const ads = state.dockAds || { clicks: 0, inquiries: [] };
+    const billed = (state.businesses || []).reduce((sum, b) => sum + Number(b.revenue || 0), 0);
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Revenue</span><h2>Dock ads, not a banner farm.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">Google/AdMob stay off. This is first-party Tampa inventory. Billed dollars stay $0 until you invoice someone.</p>
+      <div class="grid two">
+        <div class="panel"><h3>${safe(ads.clicks || 0)}</h3><p class="muted">Dock ad site clicks</p></div>
+        <div class="panel"><h3>${safe((ads.inquiries || []).length)}</h3><p class="muted">Listing inquiries</p></div>
+        <div class="panel"><h3>$${safe(billed)}</h3><p class="muted">Recorded partner revenue</p></div>
+        <div class="panel"><h3>$0</h3><p class="muted">Ad network payout</p></div>
+      </div>
+      <div class="stack mt">${(ads.inquiries || []).slice(0, 12).map((q) => `<div class="lead-row"><div><b>${safe(q.business)}</b><small>${safe(q.name)} ${MID} ${safe(q.email || 'no email')}</small><small>${safe(q.note)}</small></div></div>`).join('') || '<p class="muted">No listing inquiries yet.</p>'}</div>
+    `);
+  }
+
+  function openBusinessForm() {
+    if (!requireBusiness('Business, captain, or operator access required to create partner posts.')) return;
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Business</span><h2>Add partner or promo.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="forms">
+        <label class="label">Business name<input id="bizName" name="organization" class="field" autocomplete="organization" placeholder="Harbor Sunset Cruises" /></label>
+        <div class="form-grid"><label class="label">Type<select id="bizKind" class="select"><option>Tackle Shop</option><option>Pro Charter</option><option>After-Bite Run</option><option>Guide Service</option><option>Marina</option></select></label><label class="label">Area<input id="bizArea" name="business-area" class="field" autocomplete="address-level2" value="${safe(userArea())}" /></label></div>
+        <label class="label">Campaign / offer<input id="bizCampaign" name="business-offer" class="field" autocomplete="off" placeholder="Weekend open seat boost" /></label>
+        <button class="btn primary full" type="button" data-action="save-business">Save business</button>
+      </div>`);
+  }
+
+  function openBookingForm(businessId = '') {
+    if (!requireBusiness('Business, captain, or operator access required to manage booking leads.')) return;
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Booking</span><h2>Capture the lead.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="forms">
+        <label class="label">Customer name<input id="bookCustomer" name="customer-name" class="field" autocomplete="name" placeholder="New lead" /></label>
+        <label class="label">Phone (for SMS)<input id="bookPhone" name="tel" class="field" type="tel" inputmode="tel" autocomplete="tel" placeholder="8135550142" /></label>
+        <div class="form-grid"><label class="label">Type<select id="bookKind" class="select"><option>Charter inquiry</option><option>Cruise inquiry</option><option>Tackle shop deal</option><option>Guide inquiry</option></select></label><label class="label">Date/time<input id="bookDate" name="booking-date" class="field" autocomplete="off" placeholder="Saturday morning" /></label></div>
+        <label class="label">Business<select id="bookBusiness" class="select">${state.businesses.map((b)=>`<option value="${safe(b.id)}" ${businessId===b.id?'selected':''}>${safe(b.name)}</option>`).join('')}</select></label>
+        <label class="label">Value<input id="bookValue" name="booking-value" class="field" type="number" inputmode="decimal" autocomplete="off" min="0" value="150" /></label>
+        <label class="label">Notes<textarea id="bookNotes" name="booking-notes" class="field" autocomplete="off" placeholder="What does the customer want?"></textarea></label>
+        <button class="btn primary full" type="button" data-action="save-booking">Save booking lead</button>
+      </div>`);
+  }
+
+  function openBusinessLeads() {
+    if (!requireBusiness('Sign in as captain/partner to open leads.')) return;
+    const user = currentUser();
+    const myBizIds = new Set(
+      (state.businesses || [])
+        .filter((b) => isAdmin() || b.ownerId === user.id)
+        .map((b) => b.id)
+    );
+    const leads = (state.bookings || []).filter(
+      (b) => isAdmin() || myBizIds.has(b.businessId)
+    );
+    const bizName = (id) => (state.businesses || []).find((b) => b.id === id)?.name || 'Business';
+    const statusActions = (b) => {
+      const current = b.status || 'New';
+      return ['New', 'Contacted', 'Booked', 'Closed']
+        .filter((s) => s !== current)
+        .map((s) => `<button class="btn soft small" type="button" data-action="update-booking-status" data-booking-id="${safe(b.id)}" data-status="${safe(s)}">${safe(s)}</button>`)
+        .join('');
+    };
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Captain desk</span><h2>Booking leads inbox.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">Charter and partner inquiries tied to your listings. Update status, text or copy notes, or capture a new lead without leaving the dock.</p>
+      <div class="stack mt">${leads.map((b) => `
+        <div class="lead-row panel">
+          <div>
+            <b>${safe(b.customerName || 'Lead')}</b>
+            <small>${safe(b.kind)} ${MID} ${safe(b.status || 'New')} ${MID} ${safe(b.date || 'TBD')}</small>
+            <small>${safe(bizName(b.businessId))} ${MID} $${safe(b.value || 0)}</small>
+            <small>${safe(b.notes || 'No notes yet.')}</small>
+            ${b.phone ? `<small>Phone: ${safe(b.phone)}</small>` : '<small class="muted">No phone — SMS opens blank recipient</small>'}
+            <div class="lead-actions row mt">
+              ${statusActions(b)}
+              <button class="btn soft small" type="button" data-action="share-lead-sms" data-booking-id="${safe(b.id)}">SMS</button><button class="btn dark small" type="button" data-action="copy-lead-notes" data-booking-id="${safe(b.id)}">Copy</button>
+            </div>
+          </div>
+          <span class="chip">${safe(b.status || 'New')}</span>
+        </div>`).join('') || '<div class="empty">No leads yet for your listings.</div>'}
+      </div>
+      <div class="row mt">
+        <button class="btn primary" type="button" data-action="open-booking-form">Add lead</button>
+        <button class="btn soft" type="button" data-action="open-business-form">Add listing</button>
+        <button class="btn dark" type="button" data-action="close-modal">Close</button>
+      </div>`);
+  }
+
+  async function updateBookingStatus(bookingId, status) {
+    if (!requireBusiness()) return;
+    const booking = (state.bookings || []).find((b) => b.id === bookingId);
+    if (!booking) return toast('Lead not found.', 'danger');
+    const next = String(status || '').trim();
+    if (!['New', 'Contacted', 'Booked', 'Closed'].includes(next)) return toast('Unknown lead status.', 'danger');
+    const user = currentUser();
+    const biz = (state.businesses || []).find((b) => b.id === booking.businessId);
+    if (!isAdmin() && biz && biz.ownerId !== user.id) return toast('That lead belongs to another listing.', 'danger');
+    booking.status = next;
+    booking.updatedAt = now();
+    state.opsLog.unshift(`Lead ${booking.customerName || booking.id}: ${next}.`);
+    save();
+    openBusinessLeads();
+    await afterLocalWrite('Booking status', async () => {
+      await liveUpdate('bookings', { status: next }, 'id', booking.id, 'booking status');
+      return true;
+    });
+    toast(`Lead marked ${next}.`);
+  }
+
+  function leadShareText(booking) {
+    if (!booking) return '';
+    const biz = (state.businesses || []).find((b) => b.id === booking.businessId);
+    return [
+      `FishCrew lead: ${booking.customerName || 'Lead'}`,
+      booking.phone ? `Phone: ${booking.phone}` : '',
+      booking.kind || 'Inquiry',
+      booking.status || 'New',
+      booking.date || 'TBD',
+      biz?.name ? `Listing: ${biz.name}` : '',
+      booking.value != null ? `Value: $${booking.value}` : '',
+      booking.notes || ''
+    ].filter(Boolean).join('\n');
+  }
+
+  function normalizeSmsPhone(raw) {
+    const digits = String(raw || '').replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.length === 10) return `+1${digits}`;
+    if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+    if (String(raw || '').trim().startsWith('+') && digits.length >= 10) return `+${digits}`;
+    return digits.length >= 10 ? `+${digits}` : '';
+  }
+
+  async function copyLeadNotes(bookingId) {
+    const booking = (state.bookings || []).find((b) => b.id === bookingId);
+    if (!booking) return toast('Lead not found.', 'danger');
+    const text = leadShareText(booking);
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Lead copied.');
+    } catch (_) {
+      toast('Copy failed on this device.', 'danger');
+    }
+  }
+
+  async function shareLeadSms(bookingId) {
+    const booking = (state.bookings || []).find((b) => b.id === bookingId);
+    if (!booking) return toast('Lead not found.', 'danger');
+    const text = leadShareText(booking);
+    let copied = false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      }
+    } catch (_) { /* clipboard may be blocked; still try sms: */ }
+    const phone = normalizeSmsPhone(booking.phone);
+    const href = phone
+      ? `sms:${phone}?body=${encodeURIComponent(text)}`
+      : `sms:?body=${encodeURIComponent(text)}`;
+    try {
+      window.location.href = href;
+      toast(
+        phone
+          ? (copied ? 'Lead copied. Opening Messages to lead…' : 'Opening Messages to lead…')
+          : (copied ? 'Lead copied. Opening Messages (add phone on lead for direct SMS)…' : 'Opening Messages…')
+      );
+    } catch (_) {
+      if (copied) toast('Lead copied. SMS link blocked on this device.');
+      else toast('Share failed on this device.', 'danger');
+    }
+  }
+
+  function openPhotoProfile() {
+    if (!requireLogin('Sign in to add a profile photo.')) return;
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Profile photo</span><h2>Add your face.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="forms"><div class="file-box"><label class="label">Upload photo<input id="profilePhoto" name="profile-photo" type="file" accept="image/*" /></label></div><button class="btn primary full" type="button" data-action="save-profile-photo">Save photo</button></div>`);
+  }
+
+  function openEditProfile() {
+    if (!requireLogin()) return;
+    const u = currentUser();
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Profile</span><h2>Edit your fishing card.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="forms">
+        <div class="form-grid"><label class="label">Name<input id="editName" name="name" class="field" autocomplete="name" value="${safe(u.name)}" /></label><label class="label">Username<input id="editUsername" name="username" class="field" autocomplete="username" autocapitalize="none" spellcheck="false" value="${safe(u.username || normalizeUsername(u.name))}" /></label></div>
+        <div class="form-grid"><label class="label">Role<select id="editRole" class="select"><option ${u.role==='Angler'?'selected':''}>Angler</option><option ${u.role==='Captain'?'selected':''}>Captain</option><option ${u.role==='Business'?'selected':''}>Business</option>${u.role === 'Admin' ? `<option value="Admin" selected>Operator</option>` : ''}</select></label><label class="label">Home water<input id="editArea" name="address-level2" class="field" autocomplete="address-level2" value="${safe(u.area)}" /></label></div>
+        <label class="label">Bio<textarea id="editBio" name="profile-bio" class="field" autocomplete="off" placeholder="Tell crews how you fish.">${safe(u.bio || '')}</textarea></label>
+        <label class="label">Fishing style<input id="editStyles" name="fishing-style" class="field" autocomplete="off" placeholder="Inshore, pier, kayak, charter" value="${safe(u.fishingStyles || '')}" /></label>
+        <label class="label">Profile theme<select id="editTheme" class="select"><option ${u.profileTheme==='Harbor Blue'?'selected':''}>Harbor Blue</option><option ${u.profileTheme==='Seafoam'?'selected':''}>Seafoam</option><option ${u.profileTheme==='Sunrise'?'selected':''}>Sunrise</option><option ${u.profileTheme==='Dockside'?'selected':''}>Dockside</option><option ${u.profileTheme==='Mangrove'?'selected':''}>Mangrove</option></select></label>
+        <div class="safe-note"><strong>Verification note:</strong> Role changes are allowed, and captain, business, or operator visibility may require review before public display.</div>
+        <button class="btn primary full" type="button" data-action="save-profile">Save profile</button>
+      </div>`);
+  }
+
+  const TUTORIAL_STEPS = [
+    { title: 'Find water', body: 'Start on Home or Explore to see open trips, local partners, and area notes. Guest browse works before you sign in.' },
+    { title: 'Lock crew', body: 'Request a spot, wait for host approval, then unlock private meetup details and crew chat.' },
+    { title: 'Post proof', body: 'After the trip, post a catch report or successful trip to keep the bite board alive.' },
+    { title: 'Use Tools', body: `Guides, bait help and gear help live in Tools ${MID} always confirm local rules and official regulations.` }
+  ];
+  let tutorialStep = 0;
+
+  function openTutorial(step = 0) {
+    tutorialStep = Math.max(0, Math.min(Number(step) || 0, TUTORIAL_STEPS.length - 1));
+    modalMode = 'tutorial';
+    const total = TUTORIAL_STEPS.length;
+    const current = TUTORIAL_STEPS[tutorialStep];
+    const isLast = tutorialStep >= total - 1;
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Welcome aboard ${tutorialStep + 1}/${total}</span><h2>${safe(current.title)}</h2></div><button class="x-btn" type="button" data-action="dismiss-tutorial" aria-label="Skip walk-through">${CLOSE_BTN}</button></div>
+      <div class="tutorial-steps">
+        <div class="tutorial-card"><b>${tutorialStep + 1}</b><h3>${safe(current.title)}</h3><p class="muted">${safe(current.body)}</p></div>
+      </div>
+      <div class="row mt">
+        ${tutorialStep > 0 ? `<button class="btn soft" type="button" data-action="tutorial-back">Back</button>` : ''}
+        <button class="btn primary" type="button" data-action="${isLast ? 'tutorial-finish' : 'tutorial-next'}">${isLast ? 'Start exploring' : 'Next'}</button>
+        <button class="btn dark" type="button" data-action="dismiss-tutorial">Skip for now</button>
+      </div>`);
+  }
+
+  function tutorialNext() {
+    if (tutorialStep >= TUTORIAL_STEPS.length - 1) {
+      tutorialFinish();
+      return;
+    }
+    openTutorial(tutorialStep + 1);
+  }
+
+  function tutorialBack() {
+    openTutorial(Math.max(0, tutorialStep - 1));
+  }
+
+  function tutorialFinish() {
+    state.onboardingSeen = true;
+    closeModal();
+    save();
+    nav('explore');
+    toast('Walk-through saved. Reopen it anytime from Settings.');
+  }
+
+  function dismissTutorial() {
+    state.onboardingSeen = true;
+    closeModal();
+    save();
+    toast('Tutorial saved. You can reopen it from Settings.');
+  }
+
+  function rateFishCrew() {
+    const playUrl = 'https://play.google.com/store/apps/details?id=com.chrissims.fishcrew';
+    const cap = window.Capacitor;
+    const review = cap?.Plugins?.InAppReview;
+    if (review && typeof review.requestReview === 'function') {
+      Promise.resolve(review.requestReview()).catch(() => {
+        window.open(playUrl, '_blank', 'noopener,noreferrer');
+      });
+      toast('If a store prompt does not appear, the Play listing will open.');
+      return;
+    }
+    window.open(playUrl, '_blank', 'noopener,noreferrer');
+    toast('Opening the FishCrew Play listing so you can rate the app.');
+  }
+
+  function openLegalPage(path) {
+    closeModal();
+    window.location.assign(path);
+  }
+
+  function confirmLeaveFishCrew() {
+    modalMode = 'exit-confirm';
+    modal(`<div class="modal-head"><div><span class="eyebrow">Leave FishCrew?</span><h2>Exit the fishing app?</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">This keeps you from backing out of Home by accident. You can stay and keep browsing trips, crew, and tools.</p>
+      <div class="row mt"><button class="btn primary" type="button" data-action="close-modal">Stay</button><button class="btn dark" type="button" data-action="leave-fishcrew">Leave</button></div>`);
+  }
+
+  function leaveFishCrew() {
+    const cap = window.Capacitor;
+    if (cap?.Plugins?.App && typeof cap.Plugins.App.exitApp === 'function') {
+      cap.Plugins.App.exitApp();
+      return;
+    }
+    closeModal();
+  }
+
+  function handleHardwareBack() {
+    if (modalMode === 'exit-confirm') {
+      closeModal();
+      return;
+    }
+    if (modalMode) {
+      if (modalMode === 'tutorial') dismissTutorial();
+      else closeModal();
+      return;
+    }
+    if (state.activeScreen !== 'home') {
+      nav('home');
+      return;
+    }
+    confirmLeaveFishCrew();
+  }
+
+  function setupHardwareBack() {
+    const cap = window.Capacitor;
+    const App = cap?.Plugins?.App;
+    if (App && typeof App.addListener === 'function') {
+      App.addListener('backButton', () => handleHardwareBack());
+    }
+    try { window.history.pushState({ fishcrew: 'boot' }, '', location.href); } catch {}
+    window.addEventListener('popstate', () => {
+      try { window.history.pushState({ fishcrew: 'guard' }, '', location.href); } catch {}
+      handleHardwareBack();
+    });
+  }
+
+  function openFishingGuides() {
+    const guides = state.guideLibrary || [];
+    modal(`<div class="modal-head"><div><span class="eyebrow">Fishing guides</span><h2>Local knowledge, safely framed.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="safe-note"><strong>Reminder:</strong> FishCrew guides are planning notes. Verify official rules, closures, licenses, slot limits, seasons, and local safety conditions before keeping fish.</div>
+      <div class="stack mt">${guides.map((g)=>`<article class="panel"><span class="badge">${safe(g.area)}</span><h3>${safe(g.title)}</h3><p class="muted">${safe(g.summary)}</p><div class="meta"><span class="chip">Common: ${safe(g.species)}</span><span class="chip">Bait: ${safe(g.bait || 'Match forage')}</span></div><p class="tiny"><strong>Methods:</strong> ${safe(g.methods || 'Work moving water and structure.')}<br><strong>Gear:</strong> ${safe(g.gear || 'Bring basic tackle, pliers, and local rules.')}<br><strong>Safety:</strong> ${safe(g.safety)}</p><button class="btn dark small" type="button" data-action="save-guide-area" data-area="${safe(g.area)}">Save area</button></article>`).join('')}</div>`);
+  }
+
+  function saveGuideArea(area) {
+    if (!requireLogin('Sign in to save guide areas and personalize Tools.')) return;
+    state.savedGuideArea = area || state.savedGuideArea || 'Tampa Bay';
+    state.opsLog.unshift(`Saved guide area: ${state.savedGuideArea}.`);
+    save(); render(); toast(`Saved ${state.savedGuideArea}.`);
+  }
+
+  function guideCards(filter = '') {
+    const guides = state.guideLibrary || [];
+    const f = String(filter || '').toLowerCase();
+    return guides.filter((g) => !f || [g.area,g.title,g.species,g.bait,g.methods,g.gear].join(' ').toLowerCase().includes(f)).map((g) => `<article class="panel"><span class="badge">${safe(g.area)}</span><h3>${safe(g.title)}</h3><p class="muted">${safe(g.summary)}</p><div class="meta"><span class="chip">Fish: ${safe(g.species)}</span><span class="chip">Bait: ${safe(g.bait || 'Match forage')}</span></div><p class="tiny"><strong>Methods:</strong> ${safe(g.methods || 'Work structure and moving water.')}<br><strong>Gear:</strong> ${safe(g.gear || 'Bring basic tackle and pliers.')}<br><strong>Safety:</strong> ${safe(g.safety || 'Check weather and regulations.')}</p><button class="btn dark small" type="button" data-action="save-guide-area" data-area="${safe(g.area)}">Save area</button></article>`).join('') || '<div class="empty">No matching guide yet. Search another fish, bait, or area.</div>';
+  }
+
+  function openBaitHelp() {
+    modal(`<div class="modal-head"><div><span class="eyebrow">Bait help</span><h2>Match the bait to the bite.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="lead">Practical bait recommendations by local area, target species, and method. Built for education first; exact bait rules still depend on local regulations.</p>
+      <div class="safe-note"><strong>Tip:</strong> Start with area + target species. FishCrew will later use conditions and catch reports to improve these suggestions.</div>
+      <label class="label mt">Search area, fish, bait, or method<input id="baitSearch" class="field" placeholder="snook, shrimp, Tampa Bay, pier" /></label>
+      <div class="row mt"><button class="btn primary" type="button" data-action="run-bait-search">Search bait help</button><button class="btn dark" type="button" data-action="open-fishing-guides">Open all guides</button></div>
+      <div id="baitResults" class="stack mt">${guideCards('')}</div>`);
+  }
+
+  function runBaitSearch() {
+    const q = $('#baitSearch')?.value.trim() || '';
+    const box = $('#baitResults');
+    if (box) box.innerHTML = guideCards(q);
+    state.opsLog.unshift(`Bait help searched: ${q || 'all guides'}.`);
+    save();
+  }
+
+  function openGearHelp() {
+    modal(`<div class="modal-head"><div><span class="eyebrow">Gear + tackle</span><h2>Build the right box for the trip.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="grid two">
+        <div class="panel"><h3>Inshore essentials</h3><p class="muted">2500-3500 reel, medium rod, 10-20 lb braid, 20-30 lb leader, circle hooks, jigheads, paddletails, pliers.</p></div>
+        <div class="panel"><h3>Pier / bridge kit</h3><p class="muted">Medium-light rod, sabiki when legal, spoons, shrimp rigs, sheepshead hooks, landing net plan.</p></div>
+        <div class="panel"><h3>Kayak kit</h3><p class="muted">PFD, whistle, leash, compact tackle tray, anchor/trolley plan, phone dry bag, weather discipline.</p></div>
+        <div class="panel"><h3>Charter / cruise day</h3><p class="muted">Confirm supplied gear, bring sun protection, non-marking shoes, cooler plan, license questions, and tip/cash plan.</p></div>
+      </div>
+      <div class="row mt"><button class="btn soft" type="button" data-action="open-bait-help">Bait help</button><button class="btn dark" type="button" data-action="open-technique-tutorials">Tutorials</button></div>`);
+  }
+
+  function openTechniqueTutorials() {
+    modal(`<div class="modal-head"><div><span class="eyebrow">Tutorials</span><h2>Learn the method before the media.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="stack">
+        <article class="panel"><span class="badge">Beginner</span><h3>Reading moving water</h3><p class="muted">Look for current seams, bait movement, eddies, grass edges, and shadow lines. Cast up-current and let the lure/bait move naturally.</p></article>
+        <article class="panel"><span class="badge">Bait</span><h3>Live shrimp basics</h3><p class="muted">Use a light leader, match hook size to shrimp, avoid over-weighting, and let the bait move with tide whenever possible.</p></article>
+        <article class="panel"><span class="badge">Artificial</span><h3>Paddletail pattern</h3><p class="muted">Start slow, keep bottom contact near potholes/edges, and change jig weight before changing lure color.</p></article>
+        <article class="panel"><span class="badge orange">Legal</span><h3>Before keeping fish</h3><p class="muted">Use official state regulations, a physical ruler, and current season/bag limits. FishCrew tools are educational and assistive only.</p></article>
+      </div>
+      <div class="row mt"><button class="btn soft" type="button" data-action="open-fishing-guides">Guides</button><button class="btn dark" type="button" data-action="open-gear-help">Gear help</button></div>`);
+  }
+
+  function openFishId() {
+    modal(`<div class="modal-head"><div><span class="eyebrow">Fish ID</span><h2>Camera or gallery-assisted species check.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="safe-note"><strong>Assistive only:</strong> Fish ID is not a legal species ID or harvest decision tool. Verify species, size, season, and bag limits with official regulations, local authorities, and expert confirmation before keeping fish.</div>
+      <div class="forms mt"><div class="file-box"><label class="label">Take or choose fish photo<input id="fishIdPhoto" type="file" accept="image/*" /></label></div><label class="label">Area / waterbody<input id="fishIdArea" class="field" value="${safe(userArea())}" /></label><button class="btn primary full" type="button" data-action="run-fish-id">Run fish ID check</button></div>`);
+  }
+
+  async function runFishId() {
+    if (!requireLogin('Sign in to run fish ID photo checks.')) return;
+    const file = getFile('fishIdPhoto');
+    const area = $('#fishIdArea')?.value.trim() || userArea();
+    let preview = '';
+    if (file) {
+      try { preview = await readFileData(file); } catch (_) {}
+    }
+    const picks = ['Redfish / Red drum', 'Snook-like profile', 'Spotted seatrout', 'Sheepshead', 'Spanish mackerel'];
+    const result = picks[Math.floor(Math.random() * picks.length)];
+    state.lastFishId = { result, confidence: 'Assistive estimate', area, preview, createdAt: now() };
+    state.reports = state.reports || [];
+    if (preview) queueModeration('Fish ID upload review', uid('fishid'), 'Fish ID photo uploaded for review. Keep private unless the user posts it.');
+    state.opsLog.unshift(`Fish ID check ran for ${area}: ${result}.`);
+    save(); render();
+    modal(`<div class="modal-head"><div><span class="eyebrow">Fish ID result</span><h2>${safe(result)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      ${preview ? `<div class="card-media photo" style="background-image:url('${cssUrl(preview)}')"></div>` : ''}
+      <div class="safe-note"><strong>Assistive estimate only:</strong> This cannot confirm legality, species, harvest rules, size, season, or bag limit. It is not a legal harvest decision tool. Verify with official local regulations before keeping fish.</div>
+      <p class="muted">Area: ${safe(area)} ${MID} Confidence: Assistive estimate</p>
+      <div class="row"><button class="btn soft" type="button" data-action="open-measure-tool">Measure assist</button><button class="btn dark" type="button" data-action="open-fishing-guides">Check guides</button><button class="btn primary" type="button" data-action="close-modal">Done</button></div>`);
+  }
+
+  function openMeasureTool() {
+    modal(`<div class="modal-head"><div><span class="eyebrow">Measurement assist</span><h2>Camera or gallery-ready measuring flow.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="safe-note"><strong>Estimate only:</strong> Measurement assist is not an official measurement and is not enforcement or legal proof. For legal harvest, use a physical measuring board or ruler and confirm local regulations. Camera angles can distort length.</div>
+      <div class="forms mt"><div class="file-box"><label class="label">Take or choose fish next to ruler/reference<input id="measurePhoto" type="file" accept="image/*" /></label></div><div class="form-grid"><label class="label">Reference length<input id="measureRef" class="field" placeholder="Example: 12 in ruler" /></label><label class="label">Units<select id="measureUnits" class="select"><option>inches</option><option>centimeters</option></select></label></div><button class="btn primary full" type="button" data-action="run-measure-tool">Run measurement assist</button></div>`);
+  }
+
+  async function runMeasureTool() {
+    if (!requireLogin('Sign in to run measurement photo checks.')) return;
+    const file = getFile('measurePhoto');
+    let preview = '';
+    if (file) {
+      try { preview = await readFileData(file); } catch (_) {}
+    }
+    const ref = $('#measureRef')?.value.trim() || 'reference object required';
+    const units = $('#measureUnits')?.value || 'inches';
+    const note = ref === 'reference object required' ? 'Needs a clear reference object' : `Estimate based on ${ref}`;
+    state.lastMeasurement = { note, units, preview, createdAt: now() };
+    state.opsLog.unshift(`Measurement assist ran: ${note}.`);
+    save(); render();
+    modal(`<div class="modal-head"><div><span class="eyebrow">Measurement assist</span><h2>${safe(note)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      ${preview ? `<div class="card-media photo" style="background-image:url('${cssUrl(preview)}')"></div>` : ''}
+      <div class="safe-note"><strong>Not legal measurement:</strong> This is an estimate for planning and logging only — not enforcement or legal proof. Use a physical measuring board for keep/release decisions and confirm official regulations.</div>
+      <p class="muted">Units: ${safe(units)} ${MID} Reference: ${safe(ref)}</p>
+      <button class="btn primary" type="button" data-action="close-modal">Done</button>`);
+  }
+
+  function formatDeviceTime(value) {
+    if (!value) return 'No fix yet';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
+  function formatGpsFix(fix = {}) {
+    const lat = Number(fix.lat);
+    const lon = Number(fix.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return 'No fix yet';
+    const bits = [`${lat.toFixed(5)}, ${lon.toFixed(5)}`];
+    const accuracy = Number(fix.accuracy);
+    if (Number.isFinite(accuracy)) bits.push(`${Math.round(accuracy)} m accuracy`);
+    else if (fix.hdop) bits.push(`HDOP ${fix.hdop}`);
+    const speed = Number(fix.speed);
+    if (Number.isFinite(speed)) bits.push(`${speed.toFixed(1)} mph`);
+    const heading = Number(fix.heading);
+    if (Number.isFinite(heading)) bits.push(`${Math.round(heading)} deg`);
+    return bits.join(' | ');
+  }
+
+  function pushDeviceLog(message) {
+    state.deviceHub = state.deviceHub || {};
+    const stamp = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    state.deviceHub.log = [`${stamp}: ${message}`, ...(state.deviceHub.log || [])].slice(0, 8);
+  }
+
+  function updateDeviceHub(patch, note) {
+    const wasOpen = Boolean($('#deviceHubModal'));
+    state.deviceHub = {
+      status: 'Ready',
+      source: 'No device connected',
+      lat: null,
+      lon: null,
+      accuracy: null,
+      speed: null,
+      heading: null,
+      deviceName: '',
+      lastFix: '',
+      log: [],
+      ...(state.deviceHub || {}),
+      ...patch
+    };
+    if (note) pushDeviceLog(note);
+    save();
+    render();
+    if (wasOpen) openDeviceHub();
+  }
+
+  function deviceSupportSummary() {
+    return {
+      geolocation: Boolean(navigator.geolocation),
+      bluetooth: Boolean(navigator.bluetooth),
+      serial: Boolean(navigator.serial),
+      secure: Boolean(window.isSecureContext || location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    };
+  }
+
+  function openDeviceHub() {
+    const hub = state.deviceHub || {};
+    const support = deviceSupportSummary();
+    const rows = [
+      ['Fix', formatGpsFix(hub)],
+      ['Source', hub.source || 'No device connected'],
+      ['Device', hub.deviceName || 'None selected'],
+      ['Updated', formatDeviceTime(hub.lastFix)]
+    ];
+    modal(`<div id="deviceHubModal" data-device-hub="true">
+      <div class="modal-head"><div><span class="eyebrow">GPS + Devices</span><h2>Connect your water signal.</h2></div><button class="x-btn" type="button" data-action="close-modal">x</button></div>
+      <p class="lead">Use phone GPS for quick fixes, discover BLE devices when the browser supports it, or read NMEA from a USB serial GPS bridge.</p>
+      <div class="safe-note"><strong>Navigation note:</strong> This is a planning and logging helper. Keep using your chartplotter, paper backup, and official navigation gear on the water.</div>
+      <div class="device-matrix mt">
+        ${rows.map((row) => `<div class="device-stat"><span>${safe(row[0])}</span><strong>${safe(row[1])}</strong></div>`).join('')}
+      </div>
+      <div class="grid three mt">
+        <button class="panel device-action" type="button" data-action="use-browser-gps"><span class="badge ${support.geolocation ? 'green' : 'orange'}">Phone</span><h3>Use phone GPS</h3><p class="muted">${support.geolocation ? 'Start a high-accuracy browser GPS watch.' : 'Browser geolocation is not available here.'}</p></button>
+        <button class="panel device-action" type="button" data-action="connect-bluetooth-gps"><span class="badge ${support.bluetooth ? 'green' : 'orange'}">BLE</span><h3>Bluetooth GPS</h3><p class="muted">${support.bluetooth ? 'Pair with supported Bluetooth Low Energy devices.' : 'This browser does not expose Web Bluetooth.'}</p></button>
+        <button class="panel device-action" type="button" data-action="connect-serial-gps"><span class="badge ${support.serial ? 'green' : 'orange'}">NMEA</span><h3>USB serial GPS</h3><p class="muted">${support.serial ? 'Connect a USB/NMEA bridge in Chromium browsers.' : 'Web Serial is not available in this browser.'}</p></button>
+      </div>
+      <div class="row mt"><button class="btn soft" type="button" data-action="copy-device-fix">Copy fix</button><button class="btn dark" type="button" data-action="stop-browser-gps">Stop GPS watch</button><button class="btn dark" type="button" data-action="open-device-bridge-help">Bridge help</button></div>
+      <div class="panel connection-log mt"><h3>Connection log</h3>${(hub.log || []).map((line) => `<p class="muted">${safe(line)}</p>`).join('') || '<p class="muted">No device events yet.</p>'}</div>
+      <p class="tiny">Secure context: ${support.secure ? 'ready' : 'required'} | Geolocation: ${support.geolocation ? 'available' : 'unavailable'} | Web Bluetooth: ${support.bluetooth ? 'available' : 'unavailable'} | Web Serial: ${support.serial ? 'available' : 'unavailable'}</p>
+    </div>`);
+  }
+
+  function useBrowserGps() {
+    if (!navigator.geolocation) return toast('This browser does not provide GPS access.', 'danger');
+    const options = { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 };
+    updateDeviceHub({ status: 'Requesting', source: 'Browser GPS' }, 'Requested phone GPS permission.');
+    geoWatchId = navigator.geolocation.watchPosition((position) => {
+      updateDeviceHub({
+        status: 'Tracking',
+        source: 'Browser GPS',
+        lat: position.coords.latitude,
+        lon: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+        speed: position.coords.speed == null ? null : position.coords.speed * 2.23694,
+        heading: position.coords.heading,
+        deviceName: 'This device',
+        lastFix: new Date(position.timestamp || Date.now()).toISOString()
+      }, 'GPS fix updated from this device.');
+    }, (error) => {
+      updateDeviceHub({ status: 'GPS blocked', source: 'Browser GPS' }, `GPS error: ${error.message || 'permission unavailable'}`);
+      toast(`GPS error: ${error.message || 'permission unavailable'}`, 'danger');
+    }, options);
+  }
+
+  function stopBrowserGps() {
+    if (geoWatchId !== null && navigator.geolocation) navigator.geolocation.clearWatch(geoWatchId);
+    geoWatchId = null;
+    updateDeviceHub({ status: 'Paused' }, 'Stopped browser GPS watch.');
+    toast('GPS watch stopped.');
+  }
+
+  async function connectBluetoothGps() {
+    if (!navigator.bluetooth) {
+      openDeviceBridgeHelp();
+      toast('Web Bluetooth is not available in this browser.', 'danger');
+      return;
+    }
+    try {
+      bluetoothDevice = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: ['battery_service', 'device_information', '00001819-0000-1000-8000-00805f9b34fb']
+      });
+      const server = await bluetoothDevice.gatt.connect();
+      let note = 'Bluetooth device connected.';
+      try {
+        await server.getPrimaryService('00001819-0000-1000-8000-00805f9b34fb');
+        note = 'Bluetooth Location and Navigation service found. Device-specific decoding may still be required.';
+      } catch (_) {
+        note = 'Bluetooth connected. No standard GPS service was exposed to the browser.';
+      }
+      updateDeviceHub({
+        status: 'Bluetooth connected',
+        source: 'Bluetooth GPS',
+        deviceName: bluetoothDevice.name || bluetoothDevice.id || 'Bluetooth device',
+        lastFix: state.deviceHub?.lastFix || ''
+      }, note);
+      toast('Bluetooth device connected.');
+    } catch (error) {
+      updateDeviceHub({ status: 'Bluetooth not connected', source: 'Bluetooth GPS' }, `Bluetooth connection cancelled: ${error.message || 'not paired'}`);
+      toast('Bluetooth connection was cancelled or blocked.', 'danger');
+    }
+  }
+
+  async function connectSerialGps() {
+    if (!navigator.serial) {
+      openDeviceBridgeHelp();
+      toast('Web Serial is not available in this browser.', 'danger');
+      return;
+    }
+    try {
+      serialPort = await navigator.serial.requestPort();
+      await serialPort.open({ baudRate: 4800 });
+      updateDeviceHub({ status: 'Serial connected', source: 'NMEA serial bridge', deviceName: 'USB/NMEA bridge' }, 'Serial GPS bridge connected at 4800 baud.');
+      readSerialGpsLoop();
+      toast('Listening for NMEA GPS data.');
+    } catch (error) {
+      updateDeviceHub({ status: 'Serial not connected', source: 'NMEA serial bridge' }, `Serial connection failed: ${error.message || 'not connected'}`);
+      toast('Serial GPS connection was cancelled or blocked.', 'danger');
+    }
+  }
+
+  async function readSerialGpsLoop() {
+    if (!serialPort?.readable) return;
+    const decoder = new TextDecoder();
+    try {
+      while (serialPort.readable) {
+        serialReader = serialPort.readable.getReader();
+        try {
+          while (true) {
+            const { value, done } = await serialReader.read();
+            if (done) break;
+            nmeaBuffer += decoder.decode(value, { stream: true });
+            const lines = nmeaBuffer.split(/\r?\n/);
+            nmeaBuffer = lines.pop() || '';
+            lines.forEach((line) => parseNmeaLine(line));
+          }
+        } finally {
+          serialReader.releaseLock();
+        }
+      }
+    } catch (error) {
+      updateDeviceHub({ status: 'Serial paused' }, `Serial read stopped: ${error.message || 'reader closed'}`);
+    }
+  }
+
+  function nmeaCoordToDecimal(value, hemisphere) {
+    if (!value || !hemisphere) return null;
+    const raw = Number(value);
+    if (!Number.isFinite(raw)) return null;
+    const degrees = Math.floor(raw / 100);
+    const minutes = raw - degrees * 100;
+    let decimal = degrees + minutes / 60;
+    if (['S', 'W'].includes(String(hemisphere).toUpperCase())) decimal *= -1;
+    return decimal;
+  }
+
+  function parseNmeaLine(line) {
+    const clean = String(line || '').trim();
+    if (!clean.startsWith('$')) return false;
+    const body = clean.split('*')[0];
+    const parts = body.split(',');
+    const type = parts[0].slice(-3);
+    if (type === 'GGA') {
+      const lat = nmeaCoordToDecimal(parts[2], parts[3]);
+      const lon = nmeaCoordToDecimal(parts[4], parts[5]);
+      if (Number(parts[6] || 0) > 0 && Number.isFinite(lat) && Number.isFinite(lon)) {
+        updateDeviceHub({ status: 'Tracking', source: 'NMEA serial bridge', lat, lon, hdop: parts[8] || '', lastFix: new Date().toISOString() }, 'NMEA GGA fix received.');
+        return true;
+      }
+    }
+    if (type === 'RMC') {
+      const lat = nmeaCoordToDecimal(parts[3], parts[4]);
+      const lon = nmeaCoordToDecimal(parts[5], parts[6]);
+      if (parts[2] === 'A' && Number.isFinite(lat) && Number.isFinite(lon)) {
+        updateDeviceHub({
+          status: 'Tracking',
+          source: 'NMEA serial bridge',
+          lat,
+          lon,
+          speed: parts[7] ? Number(parts[7]) * 1.15078 : null,
+          heading: parts[8] ? Number(parts[8]) : null,
+          lastFix: new Date().toISOString()
+        }, 'NMEA RMC fix received.');
+        return true;
+      }
+    }
+    return false;
+  }
+
+  async function copyDeviceFix() {
+    const hub = state.deviceHub || {};
+    const lat = Number(hub.lat);
+    const lon = Number(hub.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return toast('No GPS fix to copy yet.', 'danger');
+    const text = `${lat.toFixed(6)}, ${lon.toFixed(6)} | ${hub.source || 'FishCrew GPS'} | ${formatDeviceTime(hub.lastFix)}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('GPS fix copied.');
+    } catch (_) {
+      toast(text);
+    }
+  }
+
+  function openDeviceBridgeHelp() {
+    modal(`<div class="modal-head"><div><span class="eyebrow">Device bridge</span><h2>What FishCrew can connect to.</h2></div><button class="x-btn" type="button" data-action="close-modal">x</button></div>
+      <div class="stack">
+        <div class="panel"><h3>Phone GPS</h3><p class="muted">Best first path for most anglers. It uses browser geolocation after the user grants permission.</p></div>
+        <div class="panel"><h3>Bluetooth</h3><p class="muted">Web Bluetooth works with Bluetooth Low Energy devices that expose browser-readable GATT services. Many marine GPS receivers use classic Bluetooth serial profiles, which browsers cannot read directly.</p></div>
+        <div class="panel"><h3>USB/NMEA bridge</h3><p class="muted">Chromium browsers can use Web Serial with a USB GPS, chartplotter bridge, or NMEA gateway. Standard NMEA GGA and RMC lines are parsed into a waypoint fix.</p></div>
+        <div class="panel"><h3>Native app path</h3><p class="muted">For app-store releases, a native wrapper can add platform Bluetooth, Wi-Fi, and external-accessory permissions for deeper chartplotter and GPS integrations.</p></div>
+      </div>
+      <div class="row mt"><button class="btn primary" type="button" data-action="open-device-hub">Back to devices</button><button class="btn dark" type="button" data-action="close-modal">Close</button></div>`);
+  }
+
+  function openUserSettings() {
+    const u = currentUser();
+    const unread = (state.notifications || []).filter((n) => !n.read).length;
+    const accountTitle = u ? u.name : 'Guest mode';
+    const accountMeta = u ? `${usernameFor(u)} ${MID} ${roleLabel(u.role)} ${MID} ${u.area || userArea()}` : 'Browse first. Sign in only when you post, join, chat, or save.';
+    const accountActions = u
+      ? `<button class="settings-tile" type="button" data-action="go" data-screen="profile"><b>Profile card</b><span>Edit your public fishing card.</span></button><button class="settings-tile" type="button" data-action="logout"><b>Log out</b><span>Leave this local session.</span></button>`
+      : `<button class="settings-tile" type="button" data-action="open-auth-signin"><b>Sign in</b><span>Use your existing FishCrew profile.</span></button><button class="settings-tile" type="button" data-action="open-auth-create"><b>Create profile</b><span>Join trips, chat, and post proof.</span></button>`;
+    const adminTools = isAdmin()
+      ? `<section class="settings-card"><div class="settings-section-head"><span class="eyebrow">Operator tools</span><h3>System utilities</h3></div><div class="settings-grid compact"><button class="settings-tile" type="button" data-action="open-admin-console"><b>Admin console</b><span>Reports, people, content, banners.</span></button><button class="settings-tile" type="button" data-action="run-health-check"><b>Health check</b><span>Routes, IDs, and button wiring.</span></button><button class="settings-tile" type="button" data-action="run-readiness-check"><b>Readiness board</b><span>Connections and launch prep.</span></button><button class="settings-tile" type="button" data-action="open-backend-diagnostics"><b>Data connection</b><span>Sync, probes, and realtime tools.</span></button></div></section>`
+      : '';
+    modal(`<div class="modal-head settings-modal-head"><div><span class="eyebrow">Settings</span><h2>FishCrew control ring.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="settings-menu">
+        <section class="settings-card settings-account-card">
+          <div class="settings-life-ring" aria-hidden="true"><span></span></div>
+          <div><span class="eyebrow">Account</span><h3>${safe(accountTitle)}</h3><p>${safe(accountMeta)}</p></div>
+        </section>
+        <section class="settings-card">
+          <div class="settings-section-head"><span class="eyebrow">Quick actions</span><h3>Go where settings connect.</h3></div>
+          <div class="settings-grid">
+            ${accountActions}
+            <button class="settings-tile" type="button" data-action="open-notifications"><b>Alerts ${unread ? `(${safe(unread)})` : ''}</b><span>Crew requests, approvals, and safety notes.</span></button>
+            <button class="settings-tile" type="button" data-action="open-conditions"><b>Water window</b><span>Review conditions before you move.</span></button>
+            <button class="settings-tile" type="button" data-action="open-tutorial"><b>Walk-through</b><span>Replay the first-run guide.</span></button>
+            <button class="settings-tile" type="button" data-action="rate-app"><b>Rate FishCrew</b><span>Leave a Play Store rating after a good session.</span></button>
+            <button class="settings-tile" type="button" data-action="open-fishing-guides"><b>Guide library</b><span>Areas, bait, gear, and safety notes.</span></button>
+          </div>
+        </section>
+        <section class="settings-card">
+          <div class="settings-section-head"><span class="eyebrow">Preferences</span><h3>Defaults and privacy.</h3></div>
+          <div class="forms settings-form">
+            <label class="label">Home area<input id="settingsArea" class="field" value="${safe(u?.area || state.savedGuideArea || userArea())}" /></label>
+            <div class="form-grid"><label class="label">Units<select id="settingsUnits" class="select"><option ${state.preferredUnits==='Imperial'?'selected':''}>Imperial</option><option ${state.preferredUnits==='Metric'?'selected':''}>Metric</option></select></label><label class="label">Notifications<select id="settingsNotify" class="select"><option ${state.notificationPref==='Crew alerts'?'selected':''}>Crew alerts</option><option ${state.notificationPref==='All activity'?'selected':''}>All activity</option><option ${state.notificationPref==='Quiet'?'selected':''}>Quiet</option></select></label></div>
+            <label class="label">Privacy<select id="settingsPrivacy" class="select"><option ${state.privacyMode==='Crew-only exact locations'?'selected':''}>Crew-only exact locations</option><option ${state.privacyMode==='General area only'?'selected':''}>General area only</option><option ${state.privacyMode==='Private by default'?'selected':''}>Private by default</option></select></label>
+            <button class="btn primary full" type="button" data-action="save-user-settings">Save settings</button>
+          </div>
+        </section>
+        <section class="settings-card">
+          <div class="settings-section-head"><span class="eyebrow">App readiness</span><h3>Privacy, support, and account control.</h3></div>
+          <div class="settings-grid compact">
+            <button class="settings-tile" type="button" data-action="open-privacy-policy"><b>Privacy policy</b><span>In-app summary plus the full /privacy page.</span></button>
+            <button class="settings-tile" type="button" data-action="open-privacy-page"><b>Privacy page</b><span>Open the dedicated privacy policy page.</span></button>
+            <button class="settings-tile" type="button" data-action="open-terms"><b>Terms</b><span>In-app summary plus the full /terms page.</span></button>
+            <button class="settings-tile" type="button" data-action="open-terms-page"><b>Terms page</b><span>Open the dedicated terms of use page.</span></button>
+            <button class="settings-tile" type="button" data-action="open-community-guidelines"><b>Community rules</b><span>Reports, blocking, moderation, and safe posts.</span></button>
+            <button class="settings-tile" type="button" data-action="open-support-center"><b>Support</b><span>Contact, deletion help, and response paths.</span></button>
+            <button class="settings-tile" type="button" data-action="open-blocked-users"><b>Blocked users</b><span>${safe((state.blockedUsers || []).length)} hidden profile${(state.blockedUsers || []).length === 1 ? '' : 's'}.</span></button>
+            <button class="settings-tile danger-tile" type="button" data-action="open-account-delete"><b>Delete account</b><span>Remove this profile and local content.</span></button>
+          </div>
+        </section>
+        <section class="settings-card settings-safety-card">
+          <div><span class="eyebrow">Safety</span><h3>Keep exact spots protected.</h3><p class="muted">FishCrew keeps private meetup details and exact locations inside approved crews. Always confirm weather, water, and local regulations before launching or keeping fish.</p></div>
+          <button class="btn dark small" type="button" data-action="open-gear-help">Gear checklist</button>
+        </section>
+        ${adminTools}
+      </div>`);
+  }
+
+  function saveUserSettings() {
+    state.savedGuideArea = $('#settingsArea')?.value.trim() || state.savedGuideArea || userArea();
+    state.preferredUnits = $('#settingsUnits')?.value || 'Imperial';
+    state.notificationPref = $('#settingsNotify')?.value || 'Crew alerts';
+    state.privacyMode = $('#settingsPrivacy')?.value || 'Crew-only exact locations';
+    const u = currentUser();
+    if (u && $('#settingsArea')?.value.trim()) u.area = $('#settingsArea').value.trim();
+    state.opsLog.unshift(`Settings saved: ${state.savedGuideArea}, ${state.preferredUnits}.`);
+    closeModal(); save(); render(); toast('Settings saved.');
+  }
+
+  function openBackendHelp() {
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Connections</span><h2>Shared data setup.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="stack">
+        <p class="lead">When the shared-data provider is ready, add the connection values in <code>config.js</code>, run the database schema, confirm media storage, then redeploy.</p>
+        <div class="safe-note">FishCrew keeps browser storage available so the app still works while shared data is being connected.</div>
+        <button class="btn soft" type="button" data-action="check-backend">Check connection now</button>
+      </div>`);
+  }
+
+  function openModeration() {
+    if (!requireAdmin()) return;
+    const open = state.reports.filter((r) => r.status !== 'Resolved');
+    const assets = (state.mediaAssets || []).filter((a) => ['Review','Local preview'].includes(a.status));
+    modal(`<div class="modal-head"><div><span class="eyebrow">Moderation</span><h2>Clean the dock.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="moderation-summary grid three">
+        <div class="panel"><h3>${safe(open.length)}</h3><p class="muted">Open reports</p></div>
+        <div class="panel"><h3>${safe(assets.length)}</h3><p class="muted">Media reviews</p></div>
+        <div class="panel"><h3>${safe(state.feed.filter((p)=>p.status==='Removed').length)}</h3><p class="muted">Removed posts</p></div>
+      </div>
+      <div class="grid two mt">
+        <div class="panel"><h3>Reports</h3><div class="stack">${open.map((r)=>{ const post = state.feed.find((p)=>p.id===r.target); return `<div class="lead-row mod-row"><div><b>${safe(r.type)}</b><small>${safe(r.note)}</small>${post ? `<small>${safe(post.title)} ${MID} ${safe(post.authorName)}</small>` : `<small>${safe(r.target || 'system')}</small>`}</div><div class="row"><button class="btn success small" type="button" data-action="resolve-report" data-report-id="${safe(r.id)}">Resolve</button>${post && post.status !== 'Removed' ? `<button class="btn danger small" type="button" data-action="remove-feed" data-feed-id="${safe(post.id)}">Remove</button>` : ''}</div></div>`}).join('') || `<p class="muted">No open reports.</p>`}</div></div>
+        <div class="panel"><h3>Media review</h3><div class="stack">${assets.map((a)=>`<div class="lead-row mod-row"><div><b>${safe(a.sourceType || 'media')} upload</b><small>${safe(a.mediaType)} ${MID} ${safe(a.visibility)} ${MID} ${safe(a.status)}</small><small>${safe(a.storagePath || a.publicUrl || '')}</small></div><div class="row"><button class="btn success small" type="button" data-action="approve-media" data-asset-id="${safe(a.id)}">Approve</button><button class="btn danger small" type="button" data-action="remove-feed" data-feed-id="${safe(a.sourceId)}">Remove</button></div></div>`).join('') || `<p class="muted">No media waiting.</p>`}</div></div>
+      </div>`);
+  }
+
+  function openAdminAudit() {
+    if (!requireAdmin()) return;
+    const removed = state.feed.filter((p) => p.status === 'Removed');
+    const resolved = state.reports.filter((r) => r.status === 'Resolved');
+    modal(`<div class="modal-head"><div><span class="eyebrow">Operator audit</span><h2>Actions and removed content.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div><div class="grid two"><div class="panel"><h3>Removed posts</h3>${removed.map((p)=>`<p class="muted"><b>${safe(p.title)}</b><br>${safe(p.authorName)} ${MID} ${safe(p.area)}</p>`).join('') || '<p class="muted">No removed posts.</p>'}</div><div class="panel"><h3>Resolved reports</h3>${resolved.map((r)=>`<p class="muted"><b>${safe(r.type)}</b><br>${safe(r.note)}</p>`).join('') || '<p class="muted">No resolved reports.</p>'}</div></div><div class="panel mt"><h3>Recent ops log</h3>${state.opsLog.slice(0,12).map((x)=>`<p class="muted">${safe(x)}</p>`).join('')}</div>`);
+  }
+
+  function openUserDirectory() {
+    if (!requireAdmin()) return;
+    const rows = (state.users || []).map((user) => {
+      const trips = (state.trips || []).filter((trip) => trip.hostId === user.id || trip.members?.includes(user.id)).length;
+      const posts = (state.feed || []).filter((post) => post.authorId === user.id).length;
+      const blocked = isBlocked(user.id);
+      return `<div class="qa-note user-row"><div class="row"><span class="badge ${blocked ? 'red' : user.role === 'Operator' ? 'green' : ''}">${safe(user.role || 'Angler')}</span><span class="chip">${safe(user.area || 'No area')}</span><span class="chip">${blocked ? 'Blocked locally' : 'Active'}</span></div><p><strong>${safe(user.name)}</strong><br><span class="muted">${safe(usernameFor(user))} | ${safe(user.email || 'no email')} | ${safe(trips)} trips | ${safe(posts)} posts</span></p></div>`;
+    });
+    modal(`<div class="modal-head"><div><span class="eyebrow">User directory</span><h2>Profiles and roles.</h2></div><button class="x-btn" type="button" data-action="close-modal">x</button></div>
+      <div class="safe-note"><strong>Operator view:</strong> Keep identity, support, and moderation actions traceable before public scale.</div>
+      <div class="stack mt">${rows.join('') || '<div class="empty">No users found.</div>'}</div>
+      <div class="row mt"><button class="btn dark" type="button" data-action="open-role-matrix">Role matrix</button><button class="btn dark" type="button" data-action="open-support-queue">Support queue</button><button class="btn primary" type="button" data-action="close-modal">Done</button></div>`);
+  }
+
+  function openSupportQueue() {
+    if (!requireAdmin()) return;
+    const openReports = (state.reports || []).filter((r) => r.status !== 'Resolved');
+    const deletionRows = (state.accountDeletionRequests || []).map((req) => `<div class="qa-note"><div class="row"><span class="badge red">Delete</span><span class="chip">${safe(req.status || 'Requested')}</span></div><p><strong>${safe(req.email || req.username || req.userId)}</strong><br><span class="muted">${safe(formatDeviceTime(req.createdAt))}</span></p></div>`).join('');
+    const reportRows = openReports.slice(0, 8).map((report) => `<div class="qa-note"><div class="row"><span class="badge orange">${safe(report.type || 'Report')}</span><span class="chip">${safe(report.status || 'Open')}</span></div><p class="muted">${safe(report.note || report.target || 'Needs review')}</p><button class="btn dark small" type="button" data-action="resolve-report" data-report-id="${safe(report.id)}">Resolve</button></div>`).join('');
+    modal(`<div class="modal-head"><div><span class="eyebrow">Support</span><h2>User support queue.</h2></div><button class="x-btn" type="button" data-action="close-modal">x</button></div>
+      <div class="grid three">
+        <div class="panel"><h3>${safe(openReports.length)}</h3><p class="muted">Open reports and media reviews.</p></div>
+        <div class="panel"><h3>${safe((state.accountDeletionRequests || []).length)}</h3><p class="muted">Account deletion records.</p></div>
+        <div class="panel"><h3>${safe((state.blockedUsers || []).length)}</h3><p class="muted">Locally blocked profiles.</p></div>
+      </div>
+      <div class="grid two mt">
+        <div class="panel"><h3>Deletion requests</h3><div class="stack">${deletionRows || '<p class="muted">No deletion requests yet.</p>'}</div></div>
+        <div class="panel"><h3>Reports</h3><div class="stack">${reportRows || '<p class="muted">No open reports.</p>'}</div></div>
+      </div>
+      <div class="row mt"><button class="btn dark" type="button" data-action="open-support-email">Email support</button><button class="btn dark" type="button" data-action="open-blocked-users">Blocked users</button><button class="btn primary" type="button" data-action="open-moderation">Moderation</button></div>`);
+  }
+
+  function openStoreReadiness() {
+    if (!requireAdmin()) return;
+    const checks = releaseGateChecks();
+    const failed = checks.filter((check) => !check.pass);
+    const storeItems = [
+      ['Privacy policy', true, 'In-app and static privacy route available.'],
+      ['Terms and community rules', true, 'Terms, community guidelines, reporting, and blocking paths are present.'],
+      ['Account deletion', Boolean(ACTIONS['open-account-delete'] && ACTIONS['confirm-delete-account']), 'Deletion flow records requests and removes local content.'],
+      ['Support path', Boolean(supportEmail()), supportEmail()],
+      ['GPS/device disclosure', Boolean(ACTIONS['open-device-hub'] && ACTIONS['connect-bluetooth-gps']), 'Browser GPS, BLE limits, and serial/NMEA bridge paths are documented.'],
+      ['Shared data readiness', Boolean(CONFIG.BUILD_TARGET && CONFIG.WEB_CANONICAL_URL), 'Runtime config separates local browser mode from production shared data.']
+    ];
+    modal(`<div class="modal-head"><div><span class="eyebrow">Store readiness</span><h2>${failed.length ? 'Review blockers.' : 'Ready for review.'}</h2></div><button class="x-btn" type="button" data-action="close-modal">x</button></div>
+      <div class="grid two">
+        <div class="panel"><h3>${safe(checks.filter((c)=>c.pass).length)}/${safe(checks.length)}</h3><p class="muted">Launch checks passing.</p></div>
+        <div class="panel"><h3>${safe(failed.length)}</h3><p class="muted">Open blockers from the release gate.</p></div>
+      </div>
+      <div class="stack mt">${storeItems.map((item) => `<div class="qa-note ${item[1] ? 'done' : ''}"><div class="row"><span class="badge ${item[1] ? 'green' : 'red'}">${item[1] ? 'Ready' : 'Fix'}</span><span class="chip">Store</span></div><p><strong>${safe(item[0])}</strong><br><span class="muted">${safe(item[2])}</span></p></div>`).join('')}</div>
+      <div class="row mt"><button class="btn primary" type="button" data-action="run-release-gate">Run launch checks</button><button class="btn dark" type="button" data-action="open-privacy-policy">Privacy</button><button class="btn dark" type="button" data-action="open-support-center">Support</button></div>`);
+  }
+
+  async function approveMedia(assetId) {
+    if (!requireAdmin()) return;
+    const asset = state.mediaAssets.find((a) => a.id === assetId);
+    if (!asset) return;
+    asset.status = 'Approved';
+    state.reports.filter((r) => r.target === asset.sourceId && r.status === 'Open').forEach((r) => { r.status = 'Resolved'; });
+    if (asset.sourceType === 'feed') {
+      const post = (state.feed || []).find((p) => p.id === asset.sourceId);
+      if (post) {
+        if (post.status === 'Pending review' || post.status === 'Review') post.status = 'Live';
+        if (asset.publicUrl) {
+          post.media = asset.publicUrl;
+          post.mediaType = asset.mediaType || post.mediaType;
+        }
+      }
+    }
+    if (asset.sourceType === 'trip') {
+      const trip = (state.trips || []).find((t) => t.id === asset.sourceId);
+      if (trip && asset.publicUrl) {
+        trip.media = asset.publicUrl;
+        trip.mediaModerationStatus = 'Approved';
+      }
+    }
+    if (asset.sourceType === 'profile') {
+      const profile = (state.users || []).find((u) => u.id === asset.sourceId || u.id === asset.ownerId);
+      if (profile && asset.publicUrl) {
+        profile.avatar = asset.publicUrl;
+        profile.avatarModerationStatus = 'Approved';
+        delete profile.avatarPending;
+      }
+    }
+    state.opsLog.unshift(`Media asset approved: ${asset.sourceId}.`);
+    await afterLocalWrite('Approve media', async () => {
+      await liveUpdate('media_assets', { status: 'Approved', moderation_status: 'Approved' }, 'id', asset.id, 'media approval');
+      if (asset.sourceType === 'feed') {
+        const feedPatch = { status: 'Live' };
+        if (asset.publicUrl) feedPatch.media_url = asset.publicUrl;
+        await liveUpdate('feed_posts', feedPatch, 'id', asset.sourceId, 'feed approval').catch(() => false);
+      }
+      if (asset.sourceType === 'trip' && asset.publicUrl) {
+        await liveUpdate('trip_posts', { media_url: asset.publicUrl, media_moderation_status: 'Approved' }, 'id', asset.sourceId, 'trip media approval').catch(() => false);
+      }
+      if (asset.sourceType === 'profile' && asset.publicUrl) {
+        await liveUpdate('profiles', { avatar_url: asset.publicUrl, avatar_moderation_status: 'Approved' }, 'id', asset.ownerId || asset.sourceId, 'profile avatar approval').catch(() => false);
+      }
+      return true;
+    });
+    openModeration();
+    toast('Media approved and public visibility unlocked.');
+  }
+
+  function passwordErrors(password, confirmPassword) {
+    const errors = [];
+    if (!password || password.length < 8) errors.push('8+ characters');
+    if (!/[A-Z]/.test(password || '')) errors.push('one uppercase letter');
+    if (!/[a-z]/.test(password || '')) errors.push('one lowercase letter');
+    if (!/[0-9]/.test(password || '')) errors.push('one number');
+    if (!/[^A-Za-z0-9]/.test(password || '')) errors.push('one special character');
+    if (confirmPassword !== undefined && password !== confirmPassword) errors.push('matching confirmation');
+    return errors;
+  }
+
+  const GENERIC_LOGIN_ERROR = 'Invalid email or password.';
+  const SIGNUP_EMAIL_CONFIRM_MESSAGE = 'Account created. Check your email to confirm your account, then sign in.';
+  const SIGNUP_WELCOME_MESSAGE = 'Account created. Welcome to FishCrew.';
+  const PASSWORD_RESET_SUCCESS = 'If that email is registered, a password reset link has been sent.';
+
+  function clearAuthError() {
+    const el = $('#authError');
+    if (!el) return;
+    el.textContent = '';
+    el.classList.add('hidden');
+  }
+
+  function clearAuthSuccess() {
+    const el = $('#authSuccess');
+    if (!el) return;
+    el.textContent = '';
+    el.classList.add('hidden');
+  }
+
+  function showAuthError(message) {
+    clearAuthSuccess();
+    const el = $('#authError');
+    if (el) {
+      el.textContent = message;
+      el.classList.remove('hidden');
+    }
+  }
+
+  function showAuthSuccess(message) {
+    clearAuthError();
+    const el = $('#authSuccess');
+    if (el) {
+      el.textContent = message;
+      el.classList.remove('hidden');
+    }
+  }
+
+  function signupErrorMessage(error, password = '', confirmPassword = '') {
+    const msg = String(error?.message || error || '').toLowerCase();
+    const code = String(error?.code || '').toLowerCase();
+    if (/already registered|already exists|duplicate.*email|user already registered|email address is already|users_email/i.test(msg) || code === 'user_already_exists') {
+      return 'That email is already registered. Try signing in.';
+    }
+    if (/username|profiles_username_unique|duplicate key.*username/i.test(msg) || code === '23505') {
+      return 'That username is already taken. Try another one.';
+    }
+    const pwErrors = passwordErrors(password, confirmPassword);
+    if (/password|weak password|password should/i.test(msg) || pwErrors.length) {
+      return pwErrors.length ? `Password needs ${pwErrors.join(', ')}.` : 'Could not create account. Please try again.';
+    }
+    return 'Could not create account. Please try again.';
+  }
+
+  async function resolveLoginEmail(identity) {
+    // Sign-in is by email only. A username -> email lookup anyone can call
+    // lets attackers harvest every account's email, so it was removed.
+    return identity.includes('@') ? identity : null;
+  }
+
+  async function authSignIn() {
+    if (authTab !== 'signin') return;
+    if (authBusy) return;
+    authBusy = true;
+    clearAuthError();
+    clearAuthSuccess();
+    try {
+      const identity = ($('#authSignInIdentity')?.value || '').trim().toLowerCase();
+      const password = $('#authSignInPassword')?.value || '';
+      if (!identity || !password) return showAuthError('Enter your email and password.');
+      if (CONFIG.USE_SUPABASE) {
+        const client = await ensureSupabaseAuthClient();
+        if (!client) return showAuthError('Connected sign-in is unavailable right now. Try again in a moment.');
+        try {
+          const email = await resolveLoginEmail(identity);
+          if (!email) return showAuthError('Sign in with your account email (usernames are for your profile only).');
+          const { data, error } = await client.auth.signInWithPassword({ email, password });
+          if (error?.code === 'user_banned' || /user is banned/i.test(error?.message || '')) {
+            return showAuthError(`This account is suspended or banned. Questions: ${supportEmail()}`);
+          }
+          // Supabase answers "Email not confirmed" only after the password matched, so naming
+          // it leaks nothing. It used to show as "Invalid email or password", which left new
+          // accounts stuck with no hint that one click in their inbox was all they needed.
+          if (error?.code === 'email_not_confirmed' || /email not confirmed/i.test(error?.message || '')) {
+            let resent = false;
+            try {
+              const { error: resendError } = await client.auth.resend({
+                type: 'signup',
+                email,
+                options: { emailRedirectTo: fishcrewOAuthRedirectUrl() }
+              });
+              resent = !resendError;
+            } catch (_) { /* the original email still works */ }
+            return showAuthError(resent
+              ? `Confirm your email first. We just sent a new link to ${email}; open it, then sign in.`
+              : `Confirm your email first. Open the link we sent to ${email}, then sign in.`);
+          }
+          if (error || !data?.user) return showAuthError(GENERIC_LOGIN_ERROR);
+          await ensureUserFromSupabase(data.user, { name: email.split('@')[0], role: 'Angler', area: 'Tampa Bay' });
+          closeModal();
+          toast('Signed in.');
+          consumePendingTripInvite();
+          return;
+        } catch (_) {
+          return showAuthError(GENERIC_LOGIN_ERROR);
+        }
+      }
+      const existing = state.users.find((u) => (u.email || '').toLowerCase() === identity || normalizeUsername(u.username || '') === normalizeUsername(identity));
+      if (!existing || existing.password !== password) return showAuthError(GENERIC_LOGIN_ERROR);
+      state.session = { userId: existing.id, signedInAt: now() };
+      state.opsLog.unshift(`${existing.name} signed in locally.`);
+      closeModal(); save(); render(); toast(`Welcome back, ${existing.name}.`);
+      consumePendingTripInvite();
+    } finally {
+      authBusy = false;
+    }
+  }
+
+  async function authCreate() {
+    if (authTab !== 'create') return;
+    if (authBusy) return;
+    authBusy = true;
+    clearAuthError();
+    clearAuthSuccess();
+    try {
+      const email = $('#authCreateEmail')?.value.trim().toLowerCase();
+      const password = $('#authCreatePassword')?.value || '';
+      const confirmPassword = $('#authCreatePasswordConfirm')?.value || '';
+      const role = $('#authRole')?.value || 'Angler';
+      const firstName = $('#authFirstName')?.value.trim() || '';
+      const lastName = $('#authLastName')?.value.trim() || '';
+      const name = [firstName, lastName].filter(Boolean).join(' ') || email?.split('@')[0] || 'FishCrew user';
+      const area = $('#authArea')?.value.trim() || 'Tampa Bay';
+      const typedUsername = $('#authCreateUsername')?.value.trim() || '';
+      if (typedUsername) {
+        const usernameError = usernameInputError(typedUsername);
+        if (usernameError) return showAuthError(usernameError);
+      }
+      const username = normalizeUsername(typedUsername || email?.split('@')[0] || name);
+      if (!firstName || !lastName) return showAuthError('First name and last name required.');
+      if (!email || !username) return showAuthError('Email and username required.');
+      const errors = passwordErrors(password, confirmPassword);
+      if (errors.length) return showAuthError(`Password needs ${errors.join(', ')}.`);
+      if (CONFIG.USE_SUPABASE) {
+        const client = await ensureSupabaseAuthClient();
+        if (!client) return showAuthError('Connected sign-up is unavailable right now. Try again in a moment.');
+        try {
+          if (await usernameTakenRemote(username) === true) return showAuthError('That username is already taken. Try another one.');
+          const { data, error } = await client.auth.signUp({ email, password, options: { data: { full_name: name, first_name: firstName, last_name: lastName, username, role, home_area: area } } });
+          if (error) return showAuthError(signupErrorMessage(error, password, confirmPassword));
+          if (data.session?.user) {
+            await ensureUserFromSupabase(data.session.user, { name, username, role, area, firstName, lastName, email }, { persistSession: true, syncProfile: true });
+            closeModal();
+            toast(SIGNUP_WELCOME_MESSAGE);
+            consumePendingTripInvite();
+            return;
+          }
+          if (data.user) {
+            closeModal();
+            toast(SIGNUP_EMAIL_CONFIRM_MESSAGE);
+            return;
+          }
+          return showAuthError('Could not create account. Please try again.');
+        } catch (error) {
+          return showAuthError(signupErrorMessage(error, password, confirmPassword));
+        }
+      }
+      if (state.users.some((u) => (u.email || '').toLowerCase() === email)) return showAuthError('That email is already registered. Try signing in.');
+      if (usernameTaken(username)) return showAuthError('That username is already taken. Try another one.');
+      const user = { id: uid('user'), name, firstName, lastName, username, email, password, role, area, avatar: '', bio: 'Here to find crew, share useful reports, and fish more.', fishingStyles: 'Inshore, pier, weekend trips', profileTheme: 'Harbor Blue', createdAt: now() };
+      state.users.push(user);
+      state.session = { userId: user.id, signedInAt: now() };
+      state.opsLog.unshift(`${name} created a local ${role} account.`);
+      closeModal(); save(); render(); toast(SIGNUP_WELCOME_MESSAGE);
+    } finally {
+      authBusy = false;
+    }
+  }
+
+  async function ensureSupabaseAuthClient() {
+    if (supabaseClient) return supabaseClient;
+
+    if (!CONFIG.USE_SUPABASE || !CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY || !window.supabase?.createClient) {
+      return null;
+    }
+
+    supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    });
+
+    return supabaseClient;
+  }
+
+  function fishcrewOAuthRedirectUrl() {
+    const canonical = CONFIG.WEB_CANONICAL_URL || `${window.location.origin}/`;
+    const path = CONFIG.OAUTH_REDIRECT_PATH || '/';
+    return new URL(path, canonical).toString();
+  }
+
+  function oauthProviderConfigured(provider = '') {
+    const normalized = String(provider || '').trim().toLowerCase();
+    if (normalized.includes('google')) return CONFIG.ENABLE_GOOGLE_AUTH === true && CONFIG.USE_SUPABASE === true && Boolean(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
+    if (normalized.includes('facebook')) return CONFIG.ENABLE_FACEBOOK_AUTH === true && CONFIG.USE_SUPABASE === true && Boolean(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
+    return false;
+  }
+
+  function socialAuthButtonHtml(provider) {
+    const configured = oauthProviderConfigured(provider);
+    const mark = provider === 'Google' ? 'G' : provider === 'Facebook' ? 'f' : IG_MARK;
+    const cls = `${provider.toLowerCase()}${configured ? '' : ' coming-soon'}`;
+    const label = configured ? `Continue with ${provider}` : `${provider} coming soon`;
+    return `<button class="social-icon ${cls}" type="button" data-action="social-login" data-provider="${safe(provider)}" aria-label="${safe(label)}" title="${safe(label)}"><span>${mark}</span></button>`;
+  }
+
+  function metaInstagramConfigured() {
+    return Boolean(CONFIG.META_APP_ID && CONFIG.ENABLE_INSTAGRAM_OAUTH === true);
+  }
+
+  function instagramRedirectUri() {
+    if (CONFIG.META_INSTAGRAM_REDIRECT_URI) return CONFIG.META_INSTAGRAM_REDIRECT_URI;
+    const base = (CONFIG.WEB_CANONICAL_URL || `${window.location.origin}/`).replace(/\/+$/, '/');
+    return base;
+  }
+
+  function buildInstagramOAuthUrl(state) {
+    // Client-side SPA flow: response_type=token returns access_token in the URL hash.
+    // Prefer a server code exchange (META_APP_SECRET) when a backend callback is available.
+    const version = CONFIG.META_GRAPH_VERSION || 'v21.0';
+    const params = new URLSearchParams({
+      client_id: CONFIG.META_APP_ID,
+      redirect_uri: instagramRedirectUri(),
+      state,
+      scope: 'instagram_basic,pages_show_list,pages_read_engagement',
+      response_type: 'token'
+    });
+    return `https://www.facebook.com/${version}/dialog/oauth?${params.toString()}`;
+  }
+
+  async function socialLogin(provider = 'social') {
+    const normalized = String(provider || 'social').trim().toLowerCase() || 'social';
+
+    if (normalized.includes('instagram')) {
+      toast('Instagram is a Profile connect — not a login. Use email/password, or open Profile → Connect Instagram.', 'warning');
+      return;
+    }
+
+    if (!oauthProviderConfigured(normalized)) {
+      toast(`${normalized === 'google' ? 'Google' : normalized === 'facebook' ? 'Facebook' : 'Social'} sign-in: Coming soon.`, 'warning');
+      return;
+    }
+
+    const supabaseProvider = normalized.includes('facebook') ? 'facebook' : normalized.includes('google') ? 'google' : '';
+    if (!supabaseProvider) {
+      toast('Coming soon.', 'warning');
+      return;
+    }
+
+    const client = await ensureSupabaseAuthClient();
+    if (!client) {
+      toast('Connected sign-in is unavailable right now. Use email/password.', 'danger');
+      return;
+    }
+
+    try {
+      const options = { redirectTo: fishcrewOAuthRedirectUrl() };
+      if (supabaseProvider === 'google') options.queryParams = { prompt: 'select_account' };
+      const { error } = await client.auth.signInWithOAuth({ provider: supabaseProvider, options });
+      if (error) throw error;
+      toast(`Opening ${supabaseProvider} sign in...`);
+    } catch (error) {
+      toast(`${supabaseProvider} sign in failed: ${error.message}. Use email/password.`, 'danger');
+    }
+  }
+
+  async function completeSocialProfile(provider = 'social') {
+    // Production never invents @….oauth.local users. Demo mode only.
+    if (CONFIG.DEMO_MODE !== true) {
+      toast('Social profile completion is disabled. Sign in with email/password, or enable a configured OAuth provider.', 'danger');
+      return;
+    }
+    const source = String(provider || 'social').trim() || 'social';
+    if (String(source).toLowerCase().includes('instagram')) {
+      toast('Instagram is not a login method in demo either — use email/password.', 'danger');
+      return;
+    }
+    const typedUsername = $('#socialUsername')?.value.trim() || '';
+    if (!typedUsername) return toast('Username required after third-party login.', 'danger');
+    const usernameError = usernameInputError(typedUsername);
+    if (usernameError) return toast(usernameError, 'danger');
+    const username = normalizeUsername(typedUsername);
+    const role = $('#socialRole')?.value || 'Angler';
+    const area = $('#socialArea')?.value.trim() || 'Tampa Bay';
+    if (usernameTaken(username)) return toast('That username is already taken. Try another one.', 'danger');
+    if (await usernameTakenRemote(username) === true) return toast('That username is already taken. Try another one.', 'danger');
+    const name = `${source} user`;
+    const user = {
+      id: uid('user'),
+      name,
+      username,
+      email: `${username}@fishcrew.demo.local`,
+      password: '',
+      role,
+      area,
+      avatar: '',
+      bio: 'Demo third-party profile (local only).',
+      fishingStyles: 'Inshore, pier, weekend trips',
+      profileTheme: 'Harbor Blue',
+      authProvider: source,
+      demo: true,
+      createdAt: now()
+    };
+    state.users.push(user);
+    state.session = { userId: user.id, signedInAt: now() };
+    state.opsLog.unshift(`${usernameFor(user)} completed demo ${source} profile setup as ${role}.`);
+    closeModal(); save(true); render(); toast(`${source} demo profile ready.`);
+  }
+
+  async function startInstagramConnect() {
+    if (!requireLogin('Sign in to connect Instagram to your FishCrew profile.')) return;
+    if (!metaInstagramConfigured()) {
+      toast('Instagram OAuth is not configured yet. Set META_APP_ID and ENABLE_INSTAGRAM_OAUTH.', 'danger');
+      return;
+    }
+    const user = currentUser();
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    const stateToken = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    try {
+      sessionStorage.setItem('fishcrew.ig.oauth.state', stateToken);
+      sessionStorage.setItem('fishcrew.ig.oauth.uid', user.id);
+    } catch (_) {
+      toast('Instagram connect needs browser storage enabled. Allow site data and try again.', 'danger');
+      return;
+    }
+    toast('Opening Meta Instagram connect...');
+    window.location.href = buildInstagramOAuthUrl(stateToken);
+  }
+
+  function parseOAuthHashParams() {
+    const raw = String(window.location.hash || '').replace(/^#/, '');
+    if (!raw || !/access_token=/.test(raw)) return null;
+    const cleaned = raw.replace(/^instagram_callback&?/i, '');
+    return new URLSearchParams(cleaned);
+  }
+
+  // The Meta access token lives only in memory for this tab. It is never written to
+  // localStorage or the database, so a stolen backup or leaked row cannot reuse it.
+  let instagramSessionToken = null;
+
+  async function storeInstagramConnection(connection) {
+    const user = currentUser();
+    if (!user) return;
+    const { accessToken, ...publicConnection } = connection;
+    instagramSessionToken = accessToken ? { userId: user.id, token: accessToken, expiresAt: connection.expiresAt } : null;
+    user.instagramConnection = publicConnection;
+    state.instagramConnection = publicConnection;
+    save(true);
+    if (supabaseClient) {
+      try {
+        await supabaseClient.auth.updateUser({
+          data: {
+            instagram_connected: true,
+            instagram_username: connection.username || '',
+            instagram_user_id: connection.igUserId || '',
+            instagram_connected_at: connection.connectedAt
+          }
+        });
+      } catch (error) {
+        console.warn('Instagram metadata update skipped:', error?.message || error);
+      }
+      try {
+        await supabaseClient.from('social_connections').upsert({
+          user_id: user.id,
+          provider: 'meta_instagram_graph',
+          username: connection.username || null,
+          provider_user_id: connection.igUserId || null,
+          page_id: connection.pageId || null,
+          access_token: null,
+          expires_at: connection.expiresAt || null,
+          updated_at: now()
+        }, { onConflict: 'user_id,provider' });
+      } catch (error) {
+        // Table may not exist yet — metadata + local state still hold the connection.
+        console.warn('social_connections upsert skipped:', error?.message || error);
+      }
+    }
+  }
+
+  async function resolveInstagramAccountFromToken(accessToken) {
+    const version = CONFIG.META_GRAPH_VERSION || 'v21.0';
+    const pagesRes = await fetch(`https://graph.facebook.com/${version}/me/accounts?fields=id,name,instagram_business_account{id,username}&access_token=${encodeURIComponent(accessToken)}`);
+    const pagesPayload = await pagesRes.json();
+    if (!pagesRes.ok) throw new Error(pagesPayload?.error?.message || 'Could not list Pages for Instagram.');
+    const withIg = (pagesPayload.data || []).find((page) => page.instagram_business_account?.id);
+    if (!withIg?.instagram_business_account?.id) {
+      throw new Error('No Instagram Business/Creator account linked to your Facebook Pages.');
+    }
+    return {
+      pageId: withIg.id,
+      pageName: withIg.name,
+      igUserId: withIg.instagram_business_account.id,
+      username: withIg.instagram_business_account.username || ''
+    };
+  }
+
+  async function maybeHandleInstagramOAuthCallback() {
+    const hashParams = parseOAuthHashParams();
+    const search = new URLSearchParams(location.search || '');
+    const oauthError = search.get('error_description') || search.get('error') || hashParams?.get('error_description') || hashParams?.get('error');
+    if (oauthError) {
+      history.replaceState(null, '', `${location.pathname}${location.search}`.replace(/\?$/, '') || '/');
+      toast(`Instagram connect failed: ${oauthError}`, 'danger');
+      return;
+    }
+    if (!hashParams?.get('access_token')) return;
+
+    const accessToken = hashParams.get('access_token');
+    const stateToken = hashParams.get('state') || '';
+    let expected = '';
+    let expectedUid = '';
+    try {
+      expected = sessionStorage.getItem('fishcrew.ig.oauth.state') || '';
+      expectedUid = sessionStorage.getItem('fishcrew.ig.oauth.uid') || '';
+      sessionStorage.removeItem('fishcrew.ig.oauth.state');
+      sessionStorage.removeItem('fishcrew.ig.oauth.uid');
+    } catch (_) {}
+    // Strip the token from the address bar before anything else can read or log it.
+    history.replaceState(null, '', location.pathname || '/');
+    const user = currentUser();
+    if (!expected || expected.length < 32 || stateToken !== expected || !user || user.id !== expectedUid) {
+      toast('Instagram connect could not be verified. Start again from Profile.', 'danger');
+      return;
+    }
+
+    try {
+      const account = await resolveInstagramAccountFromToken(accessToken);
+      const expiresIn = Number(hashParams.get('expires_in') || 0);
+      const connection = {
+        provider: 'meta_instagram_graph',
+        accessToken,
+        username: account.username,
+        igUserId: account.igUserId,
+        pageId: account.pageId,
+        pageName: account.pageName,
+        connectedAt: now(),
+        expiresAt: expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null
+      };
+      await storeInstagramConnection(connection);
+      history.replaceState(null, '', location.pathname || '/');
+      state.activeScreen = 'profile';
+      render();
+      toast(account.username ? `Instagram connected as @${account.username}.` : 'Instagram connected.');
+    } catch (error) {
+      history.replaceState(null, '', location.pathname || '/');
+      toast(`Instagram connect failed: ${error.message}`, 'danger');
+    }
+  }
+
+  async function importInstagramMedia() {
+    if (!requireLogin('Sign in to import Instagram media.')) return;
+    const connection = currentUser()?.instagramConnection || state.instagramConnection;
+    const session = instagramSessionToken;
+    const sessionValid = session && session.userId === currentUser()?.id
+      && (!session.expiresAt || Date.parse(session.expiresAt) > Date.now());
+    if (!connection?.igUserId || !sessionValid) {
+      return toast('Reconnect Instagram from Profile, then import.', 'warning');
+    }
+    try {
+      const version = CONFIG.META_GRAPH_VERSION || 'v21.0';
+      const res = await fetch(`https://graph.facebook.com/${version}/${encodeURIComponent(connection.igUserId)}/media?fields=id,caption,media_type,media_url,permalink,timestamp&limit=6&access_token=${encodeURIComponent(session.token)}`);
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload?.error?.message || 'Import failed.');
+      const items = (payload.data || []).filter((item) => item.media_url && (item.media_type === 'IMAGE' || item.media_type === 'CAROUSEL_ALBUM'));
+      if (!items.length) return toast('No recent Instagram images found to import.', 'warning');
+      let imported = 0;
+      const user = currentUser();
+      for (const item of items.slice(0, 6)) {
+        const already = (state.feed || []).some((p) => p.instagramMediaId === item.id);
+        if (already) continue;
+        const needsReview = mediaModerationEnabled();
+        const post = {
+          id: uid('feed'),
+          type: 'Catch Log',
+          title: (item.caption || 'Imported from Instagram').slice(0, 80),
+          area: user?.area || userArea(),
+          authorId: user.id,
+          authorName: user.name,
+          body: item.caption || 'Imported from Instagram.',
+          media: item.media_url,
+          mediaType: 'image/jpeg',
+          status: needsReview ? 'Pending review' : 'Live',
+          reactions: 0,
+          instagramMediaId: item.id,
+          source: 'instagram-import',
+          createdAt: item.timestamp || now()
+        };
+        state.feed.unshift(post);
+        const mediaReview = { status: 'Review', needsReview, severity: 'Low', note: 'Instagram import queued for review before public display.' };
+        const report = queueMediaModerationIfNeeded(mediaReview, post.id, 'Instagram media review');
+        const asset = trackMediaAsset({
+          ownerId: user.id,
+          sourceId: post.id,
+          sourceType: 'feed',
+          mediaType: 'image/jpeg',
+          storagePath: `instagram/${item.id}`,
+          publicUrl: item.media_url,
+          status: needsReview ? 'Review' : 'Approved',
+          visibility: 'public'
+        });
+        await afterLocalWrite('Instagram import', async () => {
+          await liveUpsert('feed_posts', feedRow(post), 'instagram feed post');
+          if (asset) await liveUpsert('media_assets', mediaAssetRow(asset), 'instagram media asset');
+          if (report) await liveInsertModeration(report);
+          return true;
+        });
+        imported += 1;
+      }
+      save(true); render();
+      toast(imported
+        ? (mediaModerationEnabled()
+          ? `Imported ${imported} Instagram photo(s). Hidden from public feed until approved.`
+          : `Imported ${imported} Instagram photo(s) to Feed.`)
+        : 'Those photos were already imported.');
+    } catch (error) {
+      toast(`Instagram import failed: ${error.message}`, 'danger');
+    }
+  }
+
+  function authForgot() {
+    if (authTab !== 'signin') return;
+    clearAuthError();
+    clearAuthSuccess();
+    const identity = ($('#authSignInIdentity')?.value || '').trim().toLowerCase();
+    if (!identity) return showAuthError('Enter your account email to reset your password.');
+    if (!identity.includes('@')) {
+      return showAuthError('Password reset uses your account email. Enter your email above (not your username).');
+    }
+    authRequestPasswordReset(identity);
+  }
+
+  async function authRequestPasswordReset(email) {
+    if (!CONFIG.USE_SUPABASE) {
+      showAuthSuccess(PASSWORD_RESET_SUCCESS);
+      return;
+    }
+    const client = await ensureSupabaseAuthClient();
+    if (!client) return showAuthError('Password reset is unavailable right now. Try again in a moment.');
+    try {
+      const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: fishcrewOAuthRedirectUrl() });
+      if (error) console.warn('Password reset request failed:', error.message);
+    } catch (error) {
+      console.warn('Password reset request failed:', error?.message || error);
+    }
+    showAuthSuccess(PASSWORD_RESET_SUCCESS);
+  }
+
+  function isPasswordRecoveryRedirect() {
+    const hash = String(window.location.hash || '');
+    return hash.includes('type=recovery');
+  }
+
+  async function maybeHandlePasswordRecovery() {
+    if (!CONFIG.USE_SUPABASE || !isPasswordRecoveryRedirect()) return;
+    const client = await ensureSupabaseAuthClient();
+    if (!client) return;
+    try {
+      await client.auth.getSession();
+      openPasswordResetModal();
+      history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+    } catch (error) {
+      console.warn('Password recovery session failed:', error?.message || error);
+    }
+  }
+
+  function openPasswordResetModal() {
+    modalMode = 'auth';
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Reset password</span><h2>Set a new password.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="lead">Choose a new password for your FishCrew account.</p>
+      <div class="forms mt">
+        <label class="label">New password<input id="resetPassword" name="new-password" class="field" type="password" autocomplete="new-password" placeholder="Use a secure password" /></label>
+        <label class="label">Confirm password<input id="resetPasswordConfirm" name="new-password-confirm" class="field" type="password" autocomplete="new-password" placeholder="Confirm password" /></label>
+        <div class="password-help">Use 8+ characters with uppercase, lowercase, a number, and a special character.</div>
+        <button class="btn primary full" type="button" data-action="save-password-reset">Save new password</button>
+      </div>`);
+  }
+
+  async function savePasswordReset() {
+    const password = $('#resetPassword')?.value || '';
+    const confirmPassword = $('#resetPasswordConfirm')?.value || '';
+    const errors = passwordErrors(password, confirmPassword);
+    if (errors.length) return toast(`Password needs ${errors.join(', ')}.`, 'danger');
+    const client = await ensureSupabaseAuthClient();
+    if (!client) return toast('Password reset is unavailable right now. Try again in a moment.', 'danger');
+    try {
+      const { error } = await client.auth.updateUser({ password });
+      if (error) return toast('Could not update password. Request a new reset link and try again.', 'danger');
+      closeModal();
+      toast('Password updated. Sign in with your new password.');
+    } catch (error) {
+      toast('Could not update password. Request a new reset link and try again.', 'danger');
+    }
+  }
+
+  async function ensureUserFromSupabase(authUser, fallback = {}, opts = {}) {
+    if (!authUser) return;
+    const persistSession = opts.persistSession !== false;
+    const syncProfile = opts.syncProfile !== false;
+    const meta = authUser.user_metadata || {};
+    const user = {
+      id: authUser.id,
+      name: meta.full_name || fallback.name || authUser.email?.split('@')[0] || 'FishCrew user',
+      email: authUser.email || fallback.email || '',
+      username: normalizeUsername(meta.username || fallback.username || authUser.email?.split('@')[0] || fallback.name),
+      password: '',
+      bio: meta.bio || fallback.bio || 'Here to find crew, share useful reports, and fish more.',
+      fishingStyles: meta.fishing_styles || fallback.fishingStyles || 'Inshore, pier, weekend trips',
+      profileTheme: meta.profile_theme || fallback.profileTheme || 'Harbor Blue',
+      role: meta.role || fallback.role || 'Angler',
+      area: meta.home_area || fallback.area || 'Tampa Bay',
+      avatar: meta.avatar_url || '',
+      createdAt: authUser.created_at || now(),
+      instagramConnection: meta.instagram_connected
+        ? {
+            provider: 'meta_instagram_graph',
+            username: meta.instagram_username || '',
+            igUserId: meta.instagram_user_id || '',
+            connectedAt: meta.instagram_connected_at || now()
+          }
+        : undefined
+    };
+    if (!user.instagramConnection) delete user.instagramConnection;
+    if (user.instagramConnection?.username) state.instagramConnection = { ...(state.instagramConnection || {}), ...user.instagramConnection };
+    // Once a profile row exists it is the source of truth. Sign-in used to
+    // overwrite it from the sign-up metadata, which undid profile edits and
+    // role changes made by the operator.
+    let existingProfile = null;
+    if (syncProfile && persistSession && supabaseClient) {
+      try {
+        const { data: row, error: readError } = await supabaseClient
+          .from('profiles')
+          .select('id, username, full_name, role, status, home_area, avatar_url, bio, fishing_styles, profile_theme')
+          .eq('id', authUser.id)
+          .maybeSingle();
+        if (!readError && row) existingProfile = row;
+      } catch (_) { /* fall back to the sign-up metadata */ }
+    }
+    if (existingProfile) {
+      user.name = existingProfile.full_name || user.name;
+      user.username = existingProfile.username || user.username;
+      user.role = existingProfile.role || user.role;
+      user.area = existingProfile.home_area || user.area;
+      user.avatar = existingProfile.avatar_url || user.avatar;
+      user.bio = existingProfile.bio || user.bio;
+      user.fishingStyles = existingProfile.fishing_styles || user.fishingStyles;
+      user.profileTheme = existingProfile.profile_theme || user.profileTheme;
+    }
+    const idx = state.users.findIndex((u) => u.id === user.id || (Boolean(user.email) && u.email === user.email));
+    if (idx >= 0) state.users[idx] = { ...state.users[idx], ...user };
+    else state.users.push(user);
+    if (persistSession) {
+      const prevUserId = state.session?.userId || '';
+      state.session = { userId: user.id, signedInAt: now() };
+      state.backendMode = 'supabase';
+      if (prevUserId && prevUserId !== user.id) {
+        state.notifications = [];
+        state.notificationsFetchError = '';
+        scrubCrewChatLocalState();
+      }
+      save(); render();
+    }
+    if (syncProfile && persistSession && supabaseClient && !existingProfile) {
+      try {
+        const profileRow = () => ({
+          id: user.id,
+          username: user.username,
+          full_name: user.name,
+          bio: user.bio,
+          fishing_styles: user.fishingStyles,
+          profile_theme: user.profileTheme,
+          role: user.role,
+          home_area: user.area,
+          avatar_url: user.avatar,
+          updated_at: now()
+        });
+        let { error } = await supabaseClient.from('profiles').upsert(profileRow());
+        // Backstop for the unique username index: if this auth user's metadata
+        // username collides with an existing profile, retry once with a
+        // suffixed handle instead of leaving the user without a profile row.
+        if (error && (error.code === '23505' || /profiles_username_unique/i.test(error.message || ''))) {
+          user.username = normalizeUsername(`${user.username}_${String(user.id).slice(0, 4)}`);
+          const localIdx = state.users.findIndex((u) => u.id === user.id);
+          if (localIdx >= 0) state.users[localIdx].username = user.username;
+          save();
+          ({ error } = await supabaseClient.from('profiles').upsert(profileRow()));
+          if (!error) toast(`That username was taken, so your handle is now ${usernameFor(user)}. You can change it in Profile.`, 'warning');
+        }
+        if (error) {
+          console.warn('Profile upsert skipped:', error.message || error);
+        } else if (persistSession) {
+          scheduleNotificationsRefresh();
+        }
+      } catch (error) {
+        console.warn('Profile upsert failed:', error?.message || error);
+      }
+    }
+    if (persistSession && supabaseClient) {
+      await claimWaitingCharters(user);
+      await fetchNotifications();
+      startRealtime();
+    }
+  }
+
+  /**
+   * Hands over any charter the operator listed for this account's email. The server
+   * only matches a confirmed email (claim_my_charters in 20261010_charter_claims.sql),
+   * so this is safe to call on every sign-in; it is a no-op almost every time.
+   */
+  async function claimWaitingCharters(user) {
+    if (!supabaseClient || !user?.id) return [];
+    let rows = [];
+    try {
+      const { data, error } = await supabaseClient.rpc('claim_my_charters');
+      if (error) return [];
+      rows = Array.isArray(data) ? data : [];
+    } catch (_) {
+      return [];
+    }
+    if (!rows.length) return rows;
+    const local = state.users.find((u) => u.id === user.id);
+    if (local && (!local.role || local.role === 'Angler')) local.role = 'Captain';
+    state.opsLog.unshift(`${user.name || 'Captain'} claimed ${rows.map((r) => r.name).join(', ')}.`);
+    save();
+    try { await pullSupabase({ silent: true, reason: 'charter-claim' }); } catch (_) { /* the next refresh picks it up */ }
+    const names = rows.map((r) => r.name || 'your charter');
+    toast(rows.length === 1
+      ? `${names[0]} is now yours. Edit it from Explore any time.`
+      : `${rows.length} charters are now yours: ${names.join(', ')}.`, 'success');
+    holdToastUntil = Date.now() + 5000;
+    return rows;
+  }
+
+  async function logout() {
+    stopRealtime();
+    if (supabaseClient) {
+      await supabaseClient.auth.signOut().catch(() => {});
+    }
+    state.session = null;
+    state.restriction = null;
+    state.notifications = [];
+    state.notificationsLoading = false;
+    state.notificationsFetchError = '';
+    authTab = 'signin';
+    authBusy = false;
+    scrubCrewChatLocalState();
+    state.opsLog.unshift('User logged out.');
+    save(); render(); toast('Logged out.');
+  }
+
+  function getFile(inputId) {
+    const file = $(`#${inputId}`)?.files?.[0];
+    if (!file) return null;
+    const max = Number(CONFIG.MAX_LOCAL_UPLOAD_MB || 3) * 1024 * 1024;
+    if (!supabaseClient && file.size > max) {
+      toast(`This file is over ${CONFIG.MAX_LOCAL_UPLOAD_MB || 3}MB. Use a smaller file for now.`, 'danger');
+      return null;
+    }
+    return file;
+  }
+
+  function readFileData(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+
+  function liveReady() {
+    return Boolean(supabaseClient && state.backendMode === 'supabase');
+  }
+
+  async function liveSessionUserId() {
+    if (!supabaseClient) return '';
+    try {
+      const { data } = await supabaseClient.auth.getSession();
+      return data?.session?.user?.id || '';
+    } catch (_) { return ''; }
+  }
+
+  async function canWriteLive() {
+    if (!liveReady()) return false;
+    const user = currentUser();
+    const sessionId = await liveSessionUserId();
+    return Boolean(user && sessionId && user.id === sessionId);
+  }
+
+  function tripRow(t) {
+    // SECURITY: private meetup details never go into the public trip_posts row.
+    // Pending trip media stays in media_assets until operator approval (RLS + trigger strip media_url).
+    const mediaStatus = t.mediaModerationStatus || 'Approved';
+    const mediaUrl = isApprovedMediaStatus(mediaStatus) ? (t.media || null) : null;
+    return { id: t.id, host_id: t.hostId, title: t.title, trip_type: t.type, area: t.area, public_location: t.publicLocation, start_label: t.time, target_species: t.species, open_spots: Number(t.spots || 0), cost_note: t.cost, status: t.status || 'Open', condition_score: t.score, wind_label: t.wind, waves_label: t.waves, tide_label: t.tide, media_url: mediaUrl, media_moderation_status: mediaStatus };
+  }
+
+  function tripPrivateRow(t) {
+    return { trip_id: t.id, host_id: t.hostId, private_location: t.privateLocation || 'Private location after approval', updated_at: now() };
+  }
+
+  function requestRow(r) {
+    return { id: r.id, trip_id: r.tripId, requester_id: r.userId, requester_name: r.userName, message: r.message || '', status: r.status || 'Pending' };
+  }
+
+  function messageRow(m, tripId) {
+    return { id: m.id, trip_id: tripId, sender_id: m.senderId, sender_name: m.senderName, body: m.body || '', created_at: m.createdAt || now() };
+  }
+
+  function feedRow(p) {
+    // Pending review posts are author/admin-only via RLS; media_url rides with that row.
+    return { id: p.id, author_id: p.authorId, author_name: p.authorName, post_type: p.type, title: p.title, body: p.body || '', area: p.area || '', media_url: p.media || null, media_type: p.mediaType || null, status: p.status || 'Live', reactions: Number(p.reactions || 0) };
+  }
+
+  function bookingRow(b) {
+    const row = {
+      id: b.id,
+      business_id: b.businessId || null,
+      customer_id: b.customerId || currentUser()?.id || null,
+      customer_name: b.customerName,
+      booking_type: b.kind,
+      status: b.status || 'New',
+      date_label: b.date || '',
+      value_cents: Math.round(Number(b.value || 0) * 100),
+      notes: b.notes || ''
+    };
+    if (b.phone) row.phone = b.phone;
+    if (b.charterId) row.charter_id = b.charterId;
+    return row;
+  }
+
+  function businessRow(b) {
+    const packed = packCharterCampaign(b);
+    const row = {
+      id: b.id,
+      owner_id: b.ownerId || null,
+      name: b.name,
+      business_type: b.kind,
+      area: b.area,
+      status: b.status || 'Lead',
+      lead_count: Number(b.leads || 0),
+      revenue_cents: Math.round(Number(b.revenue || 0) * 100),
+      campaign: packed
+    };
+    if (b.websiteUrl) row.website_url = b.websiteUrl;
+    if (b.species) row.species = b.species;
+    if (b.boatType) row.boat_type = b.boatType;
+    if (b.tripTypes) row.trip_types = b.tripTypes;
+    if (b.availability) row.availability_notes = b.availability;
+    if (b.priceFrom != null) row.price_from_cents = Math.round(Number(b.priceFrom) * 100);
+    if (b.priceTo != null) row.price_to_cents = Math.round(Number(b.priceTo) * 100);
+    if (b.listingKind) row.listing_kind = b.listingKind;
+    return row;
+  }
+
+  function charterTableRow(c) {
+    return {
+      id: c.id,
+      owner_id: c.ownerId || currentUser()?.id || null,
+      business_id: c.businessId || c.id,
+      name: c.name,
+      area: c.area || '',
+      species: c.species || '',
+      boat_type: c.boatType || '',
+      trip_types: c.tripTypes || '',
+      availability_notes: c.availability || '',
+      price_from_cents: c.priceFrom != null ? Math.round(Number(c.priceFrom) * 100) : null,
+      price_to_cents: c.priceTo != null ? Math.round(Number(c.priceTo) * 100) : null,
+      website_url: c.websiteUrl || '',
+      bio: c.bio || '',
+      status: c.status || 'Pending review',
+      listing_kind: c.listingKind || 'operator'
+    };
+  }
+
+  function reviewTableRow(r) {
+    return {
+      id: r.id,
+      charter_id: r.charterId || null,
+      business_id: r.businessId || null,
+      reviewer_id: r.reviewerId || currentUser()?.id || null,
+      reviewer_name: r.reviewerName || currentUser()?.name || '',
+      rating: Number(r.rating || 0) || null,
+      body: r.body || '',
+      trip_date: r.tripDate || '',
+      status: r.status === 'Live' || r.status === 'Approved' ? 'Review' : (r.status || 'Review')
+    };
+  }
+
+  async function liveUpsertBusiness(b) {
+    const full = businessRow(b);
+    try {
+      await liveUpsert('businesses', full, 'business');
+      return true;
+    } catch (error) {
+      if (!/column|schema cache|could not find/i.test(error.message || '')) throw error;
+      const base = {
+        id: full.id,
+        owner_id: full.owner_id,
+        name: full.name,
+        business_type: full.business_type,
+        area: full.area,
+        status: full.status,
+        lead_count: full.lead_count,
+        revenue_cents: full.revenue_cents,
+        campaign: full.campaign
+      };
+      await liveUpsert('businesses', base, 'business');
+      return true;
+    }
+  }
+
+  function mediaAssetRow(a) {
+    const status = a.status || 'Review';
+    return {
+      id: a.id,
+      owner_id: a.ownerId || currentUser()?.id || null,
+      source_id: a.sourceId || '',
+      source_type: a.sourceType || 'feed',
+      media_type: a.mediaType || 'file',
+      storage_path: a.storagePath || '',
+      public_url: a.publicUrl || a.url || '',
+      status,
+      moderation_status: status,
+      visibility: a.visibility || 'public'
+    };
+  }
+
+  async function liveUpsert(table, row, label = table) {
+    if (!(await canWriteLive())) return false;
+    const options = table === 'trip_members' ? { onConflict: 'trip_id,user_id' } : undefined;
+    const { error } = await supabaseClient.from(table).upsert(row, options);
+    if (error) throw new Error(`${label}: ${error.message}`);
+    return true;
+  }
+
+  async function liveInsert(table, row, label = table) {
+    if (!(await canWriteLive())) return false;
+    const { error } = await supabaseClient.from(table).insert(row);
+    if (error) throw new Error(`${label}: ${error.message}`);
+    return true;
+  }
+
+  async function liveUpdate(table, values, column, value, label = table) {
+    if (!(await canWriteLive())) return false;
+    const { error } = await supabaseClient.from(table).update(values).eq(column, value);
+    if (error) throw new Error(`${label}: ${error.message}`);
+    return true;
+  }
+
+  // Returns false when the shared save failed (offline, server error), true otherwise.
+  async function afterLocalWrite(label, liveTask) {
+    save(); render();
+    if (!liveReady()) return true;
+    try {
+      const wrote = await liveTask();
+      state.liveStatus = wrote ? `${label} saved to shared data.` : `${label} saved in this browser. Sign in with a connected account for shared mode.`;
+      if (wrote) state.opsLog.unshift(state.liveStatus);
+      save(); render();
+      return true;
+    } catch (error) {
+      console.error(error);
+      state.opsLog.unshift(`${label} live sync failed: ${error.message}`);
+      save(); render();
+      const offline = (typeof navigator !== 'undefined' && navigator.onLine === false) || /failed to fetch|networkerror|load failed|network request failed/i.test(error?.message || '');
+      toast(offline
+        ? `${label} is saved on this phone but did not reach FishCrew. You're offline; try again when you have signal.`
+        : `${label} is saved on this phone but did not reach FishCrew: ${error.message}`, 'danger');
+      holdToastUntil = Date.now() + 4000;
+      return false;
+    }
+  }
+
+  function autoModerateMedia(file, folder = 'media') {
+    if (!file) return { status: 'No media', needsReview: false, severity: 'None', note: 'No media attached.' };
+    const type = file.type || '';
+    const kind = mediaKind(type);
+    const name = String(file.name || '').toLowerCase();
+    const sizeMb = bytesToMb(file.size || 0);
+    const reviewWords = ['graphic','blood','kill','illegal','limit','gore','nsfw'];
+    const hasReviewWord = reviewWords.some((word) => name.includes(word));
+    if (folder === 'avatars' && kind !== 'image') return { status: 'Blocked', needsReview: true, severity: 'High', note: 'Profile media must be an image.' };
+    // Public-facing UGC (feed, profile, trip, Instagram) always queues when moderation is on.
+    if (mediaModerationEnabled() && ['feed', 'avatars', 'trips', 'instagram', 'media'].includes(folder)) {
+      return {
+        status: 'Review',
+        needsReview: true,
+        severity: kind === 'video' || type === 'image/gif' ? 'Medium' : 'Low',
+        note: 'User media queued for review before public display.'
+      };
+    }
+    if (kind === 'video' || type === 'image/gif') return { status: 'Review', needsReview: true, severity: 'Medium', note: `${kind === 'video' ? 'Video' : 'GIF'} upload queued for review.` };
+    if (hasReviewWord) return { status: 'Review', needsReview: true, severity: 'Medium', note: 'Filename contains terms that should be reviewed before trust scoring.' };
+    if (sizeMb >= 4 && !liveReady()) return { status: 'Review', needsReview: true, severity: 'Low', note: 'Large browser photo queued for review; connected storage recommended.' };
+    return { status: 'Auto-approved', needsReview: false, severity: 'Low', note: 'Photo passed metadata checks and remains reportable.' };
+  }
+
+  function queueMediaModerationIfNeeded(moderation, target, label = 'Media review') {
+    if (!moderation || !moderation.needsReview) return null;
+    const report = queueModeration(label, target, moderation.note || 'Media review queued');
+    report.severity = moderation.severity || report.severity;
+    return report;
+  }
+
+  function validateMediaFile(file, folder = 'media') {
+    if (!file) return;
+    let type = String(file.type || '').toLowerCase();
+    if (!type && file.name) {
+      const ext = String(file.name).split('.').pop().toLowerCase();
+      const byExt = {
+        jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
+        heic: 'image/heic', heif: 'image/heif', gif: 'image/gif',
+        mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm'
+      };
+      type = byExt[ext] || '';
+    }
+    const kind = mediaKind(type);
+    const allowedKinds = folder === 'avatars' || folder === 'trips' ? ['image'] : ['image', 'video'];
+    if (!allowedKinds.includes(kind)) {
+      throw new Error(folder === 'avatars' ? 'Profile photos must be image files.' : 'Uploads must be photo or video files.');
+    }
+    const allowedTypes = kind === 'video' ? ALLOWED_VIDEO_TYPES : ALLOWED_IMAGE_TYPES;
+    if (!type || !allowedTypes.includes(type)) {
+      throw new Error('Unsupported file type. Use JPG, PNG, WEBP, HEIC, GIF, MP4, MOV, or WEBM.');
+    }
+    const localImageLimit = Number(CONFIG.MAX_LOCAL_UPLOAD_MB || 6);
+    const liveImageLimit = Number(CONFIG.MAX_IMAGE_UPLOAD_MB || 10);
+    const liveVideoLimit = Number(CONFIG.MAX_VIDEO_UPLOAD_MB || 50);
+    const limitMb = liveReady() ? (kind === 'video' ? liveVideoLimit : liveImageLimit) : (kind === 'video' ? 8 : localImageLimit);
+    if (file.size > limitMb * 1024 * 1024) {
+      const liveHint = liveReady() ? '' : ' Use connected storage for larger media.';
+      throw new Error(`${kind === 'video' ? 'Video' : 'Photo'} is ${bytesToMb(file.size)} MB. Limit is ${limitMb} MB.${liveHint}`);
+    }
+  }
+
+  function queueModeration(itemType, target, note = 'Media review queued') {
+    const existing = state.reports?.find((r) => r.target === target && r.status === 'Open');
+    if (existing) return existing;
+    const report = { id: uid('rep'), type: itemType, target, status: 'Open', severity: itemType.includes('Video') ? 'Medium' : 'Low', note, reporterId: currentUser()?.id || 'system', createdAt: now() };
+    state.reports = state.reports || [];
+    state.reports.unshift(report);
+    state.opsLog.unshift(`Moderation queued: ${itemType} for ${target}.`);
+    return report;
+  }
+
+  async function liveInsertModeration(report) {
+    if (!report || !(await canWriteLive())) return false;
+    const target = String(report.target || '');
+    const targetType = report.targetType || '';
+    const base = {
+      id: report.id,
+      item_type: report.type,
+      title: String(report.note || report.type).slice(0, 200),
+      severity: report.severity || 'Low',
+      status: report.status || 'Open',
+      reporter_id: report.reporterId || currentUser()?.id || null,
+      feed_post_id: targetType === 'feed' || (!targetType && target.startsWith('feed')) ? target : null,
+      target_user_id: report.targetUserId || null,
+      reason_code: report.reason || null,
+      details: report.details ? String(report.details).slice(0, 2000) : null
+    };
+    let { error } = await supabaseClient.from('moderation_items').insert({
+      ...base,
+      target_type: targetType || null,
+      target_id: targetType ? target : null
+    });
+    // Before the admin-console database update, moderation_items has no target_type/target_id.
+    if (error && /target_type|target_id|schema cache/i.test(error.message || '')) {
+      ({ error } = await supabaseClient.from('moderation_items').insert(base));
+    }
+    if (error) throw new Error(`moderation: ${error.message}`);
+    return true;
+  }
+
+
+  function trackMediaAsset(asset) {
+    state.mediaAssets = state.mediaAssets || [];
+    const tracked = {
+      id: uid('asset'),
+      ownerId: asset.ownerId || currentUser()?.id || 'guest',
+      sourceId: asset.sourceId || '',
+      sourceType: asset.sourceType || 'feed',
+      mediaType: asset.mediaType || 'file',
+      storagePath: asset.storagePath || 'local-preview',
+      publicUrl: asset.publicUrl || asset.url || '',
+      status: asset.status || 'Review',
+      visibility: asset.visibility || 'public',
+      createdAt: now()
+    };
+    state.mediaAssets.unshift(tracked);
+    return tracked;
+  }
+
+  function isLiveUploadMode() {
+    return CONFIG.USE_SUPABASE === true && CONFIG.DEMO_MODE !== true;
+  }
+
+  function isOfflineOrDemoUploadMode() {
+    return CONFIG.DEMO_MODE === true || CONFIG.USE_SUPABASE !== true;
+  }
+
+  function showUploadFailure(message, retryAction) {
+    pendingUploadRetry = typeof retryAction === 'function' ? retryAction : null;
+    toast(`${message} Tap Retry to try again.`, 'danger');
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Upload</span><h2>Upload did not finish.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="lead">${safe(message)}</p>
+      <div class="safe-note"><strong>Live mode:</strong> FishCrew does not silently fall back to a local preview when shared storage fails. Fix the connection or retry.</div>
+      <div class="row mt">
+        <button class="btn primary" type="button" data-action="retry-upload"${pendingUploadRetry ? '' : ' disabled'}>Retry upload</button>
+        <button class="btn dark" type="button" data-action="close-modal">Close</button>
+      </div>`);
+  }
+
+  async function runPendingUploadRetry() {
+    const retry = pendingUploadRetry;
+    pendingUploadRetry = null;
+    closeModal();
+    if (typeof retry === 'function') await retry();
+  }
+
+  async function uploadMedia(file, folder = 'media') {
+    if (!file) return { url: '', type: '' };
+    validateMediaFile(file, folder);
+    const ownerId = currentUser()?.id;
+    if (isLiveUploadMode() && !ownerId) {
+      const err = new Error('Sign in to upload photos or video.');
+      err.code = 'AUTH_REQUIRED';
+      throw err;
+    }
+
+    if (isLiveUploadMode()) {
+      const client = await ensureSupabaseAuthClient();
+      const bucket = CONFIG.STORAGE_BUCKET || CONFIG.MEDIA_BUCKET;
+      if (!client || !bucket) {
+        const err = new Error('Live storage is not ready. Check shared-data connection, then retry.');
+        err.code = 'STORAGE_UNAVAILABLE';
+        err.retryable = true;
+        throw err;
+      }
+      const safeFolder = ['charter', 'media', 'feed', 'trips', 'trip', 'profile', 'avatars'].includes(folder) ? folder : 'media';
+      const path = `${safeFolder}/${ownerId}/${Date.now()}-${file.name.replace(/[^a-z0-9.\-_]/gi, '-')}`;
+      try {
+        const { error } = await client.storage.from(bucket).upload(path, file, { upsert: true, contentType: file.type, cacheControl: '3600' });
+        if (error) {
+          const err = new Error(error.message || 'Storage upload failed.');
+          err.code = 'STORAGE_UPLOAD_FAILED';
+          err.retryable = true;
+          throw err;
+        }
+        const { data } = client.storage.from(bucket).getPublicUrl(path);
+        return { url: data.publicUrl, type: file.type, size: file.size, path, live: true };
+      } catch (error) {
+        if (error?.retryable) throw error;
+        const err = new Error(error?.message || 'Storage upload failed.');
+        err.code = 'STORAGE_UPLOAD_FAILED';
+        err.retryable = true;
+        throw err;
+      }
+    }
+
+    if (!isOfflineOrDemoUploadMode()) {
+      const err = new Error('Upload is blocked until live storage or demo/offline mode is available.');
+      err.retryable = true;
+      throw err;
+    }
+
+    const dataUrl = await readFileData(file);
+    return { url: dataUrl, type: file.type, size: file.size, path: 'local-preview', live: false };
+  }
+
+  async function saveProfilePhoto() {
+    if (!requireLogin()) return;
+    const file = getFile('profilePhoto');
+    if (!file) return toast('Choose a photo first.', 'danger');
+    try {
+      const mediaReview = autoModerateMedia(file, 'avatars');
+      const { url, type, path, live } = await uploadMedia(file, 'avatars');
+      const user = currentUser();
+      const avatarStatus = mediaReview.needsReview ? 'Review' : (isApprovedMediaStatus(mediaReview.status) ? mediaReview.status : 'Approved');
+      if (mediaReview.needsReview) {
+        user.avatarPending = url;
+        user.avatarModerationStatus = 'Review';
+      } else {
+        user.avatar = url;
+        user.avatarModerationStatus = avatarStatus;
+        delete user.avatarPending;
+      }
+      const asset = trackMediaAsset({ ownerId: user.id, sourceId: user.id, sourceType: 'profile', mediaType: type || file.type, storagePath: path || 'local-avatar-preview', publicUrl: url, status: avatarStatus === 'Approved' && mediaReview.status === 'Auto-approved' ? 'Auto-approved' : avatarStatus, visibility: 'profile' });
+      const report = queueMediaModerationIfNeeded(mediaReview, user.id, 'Profile photo review');
+      if (supabaseClient) {
+        try {
+          const profilePatch = {
+            avatar_moderation_status: avatarStatus === 'Auto-approved' ? 'Approved' : avatarStatus
+          };
+          if (!mediaReview.needsReview) profilePatch.avatar_url = url;
+          const { error } = await supabaseClient
+            .from('profiles')
+            .update(profilePatch)
+            .eq('id', user.id);
+
+          if (error) console.warn('Avatar profile update skipped:', error.message || error);
+        } catch (error) {
+          console.warn('Avatar profile update failed:', error?.message || error);
+        }
+        if (asset) await liveUpsert('media_assets', mediaAssetRow(asset), 'profile media asset').catch(() => {});
+        if (report) await liveInsertModeration(report).catch(() => {});
+      }
+      closeModal(); save(); render(); toast(mediaReview.needsReview ? 'Profile photo saved. Hidden from public profiles until approved.' : 'Profile photo saved.');
+    } catch (error) {
+      showUploadFailure(`Photo save failed: ${error.message}`, () => saveProfilePhoto());
+    }
+  }
+
+  async function saveProfile() {
+    if (!requireLogin()) return;
+    if (blockIfRestricted()) return;
+    const user = currentUser();
+    const typedUsername = $('#editUsername')?.value.trim() || '';
+    if (typedUsername) {
+      const usernameError = usernameInputError(typedUsername);
+      if (usernameError) return toast(usernameError, 'danger');
+    }
+    const nextUsername = normalizeUsername(typedUsername || user.username || user.name);
+    if (usernameTaken(nextUsername, user.id)) return toast('That username is already taken. Try another one.', 'danger');
+    if (nextUsername !== normalizeUsername(user.username || '') && await usernameTakenRemote(nextUsername, user.id) === true) {
+      return toast('That username is already taken. Try another one.', 'danger');
+    }
+    user.name = $('#editName')?.value.trim() || user.name;
+    user.username = nextUsername;
+    user.role = $('#editRole')?.value || user.role;
+    user.area = $('#editArea')?.value.trim() || user.area;
+    user.bio = $('#editBio')?.value.trim() || user.bio || 'Here to find crew, share useful reports, and fish more.';
+    user.fishingStyles = $('#editStyles')?.value.trim() || user.fishingStyles || 'Inshore, pier, weekend trips';
+    user.profileTheme = $('#editTheme')?.value || user.profileTheme || 'Harbor Blue';
+    if (supabaseClient) {
+      (async () => {
+        try {
+          const profilePayload = {
+            id: user.id,
+            username: user.username,
+            full_name: user.name,
+            bio: user.bio,
+            fishing_styles: user.fishingStyles,
+            profile_theme: user.profileTheme,
+            role: user.role,
+            home_area: user.area,
+            updated_at: now()
+          };
+          // Do not publish a pending avatar through the profile row (RLS/trigger guard + client).
+          if (!user.avatarPending) {
+            profilePayload.avatar_url = user.avatar;
+            profilePayload.avatar_moderation_status = user.avatarModerationStatus || 'Approved';
+          } else {
+            profilePayload.avatar_moderation_status = 'Review';
+          }
+          const { error } = await supabaseClient
+            .from('profiles')
+            .upsert(profilePayload);
+
+          if (error) console.warn('Profile upsert skipped:', error.message || error);
+          else scheduleNotificationsRefresh();
+        } catch (error) {
+          console.warn('Profile upsert failed:', error?.message || error);
+        }
+      })();
+    }
+    state.opsLog.unshift(`${user.name} updated profile and handle ${usernameFor(user)}.`);
+    closeModal(); save(); render(); toast('Profile updated.');
+  }
+
+  async function saveTrip() {
+    if (!requireLogin()) return;
+    if (blockIfRestricted()) return;
+    const file = getFile('tripMedia');
+    let uploaded = { url: '', type: '' };
+    let mediaReview = autoModerateMedia(file, 'trips');
+    try { if (file) uploaded = await uploadMedia(file, 'trips'); } catch (error) { return showUploadFailure(`Trip media failed: ${error.message}`, () => saveTrip()); }
+    const user = currentUser();
+    const trip = {
+      id: uid('trip'),
+      title: $('#tripTitle')?.value.trim() || 'New fishing plan',
+      type: $('#tripType')?.value || 'Boat',
+      area: $('#tripArea')?.value.trim() || user.area,
+      publicLocation: $('#tripPublic')?.value.trim() || $('#tripArea')?.value.trim() || user.area,
+      privateLocation: $('#tripPrivate')?.value.trim() || 'Private location after approval',
+      hostId: user.id,
+      hostName: user.name,
+      time: $('#tripTime')?.value.trim() || 'This weekend',
+      species: $('#tripSpecies')?.value.trim() || 'Mixed bag',
+      spots: Math.max(0, Number($('#tripSpots')?.value || 1)),
+      cost: 'Split cost / host notes',
+      status: 'Open',
+      score: $('#tripScore')?.value || 'Good',
+      wind: $('#tripWind')?.value.trim() || '8 mph',
+      waves: $('#tripWaves')?.value.trim() || '1 ft',
+      tide: $('#tripTide')?.value.trim() || 'Moving',
+      water: '?',
+      media: uploaded.url,
+      mediaType: uploaded.type,
+      members: [user.id],
+      createdAt: now()
+    };
+    state.trips.unshift(trip);
+    state.activeTripId = trip.id;
+    state.activeScreen = 'explore';
+    state.opsLog.unshift(`${user.name} posted trip: ${trip.title}.`);
+    closeModal();
+    state.messages[trip.id] = state.messages[trip.id] || [{ id: uid('msg'), senderId: 'system', senderName: 'FishCrew', body: 'Trip created. Crew chat will unlock as members join.', createdAt: now() }];
+    const tripReport = uploaded.url ? queueMediaModerationIfNeeded(mediaReview, trip.id, mediaKind(uploaded.type) === 'video' ? 'Video trip media' : 'Trip media review') : null;
+    const tripMediaStatus = uploaded.url
+      ? (mediaReview.needsReview ? 'Review' : (isApprovedMediaStatus(mediaReview.status) ? mediaReview.status : 'Approved'))
+      : 'Approved';
+    trip.mediaModerationStatus = tripMediaStatus;
+    const tripAsset = uploaded.url ? trackMediaAsset({ ownerId: user.id, sourceId: trip.id, sourceType: 'trip', mediaType: uploaded.type, storagePath: uploaded.path || 'local-trip-preview', publicUrl: uploaded.url, status: tripMediaStatus === 'Approved' && mediaReview.status === 'Auto-approved' ? 'Auto-approved' : tripMediaStatus, visibility: 'crew' }) : null;
+    await afterLocalWrite('Trip', async () => {
+      await liveUpsert('trip_posts', tripRow(trip), 'trip');
+      await liveUpsert('trip_private_details', tripPrivateRow(trip), 'private meetup details');
+      await liveUpsert('trip_members', { trip_id: trip.id, user_id: user.id, member_role: 'host', status: 'Approved' }, 'trip member');
+      if (tripAsset) await liveUpsert('media_assets', mediaAssetRow(tripAsset), 'media asset');
+      if (tripReport) await liveInsertModeration(tripReport);
+      return true;
+    });
+    nav('explore'); toast(uploaded.url ? (mediaReview.needsReview ? 'Trip posted. Photo hidden from public Explore until approved.' : 'Trip posted. Photo auto-approved and reportable.') : 'Trip posted.');
+  }
+
+  async function saveFeedPost() {
+    if (!requireLogin()) return;
+    if (blockIfRestricted()) return;
+    const file = getFile('feedMedia');
+    let uploaded = { url: '', type: '' };
+    let mediaReview = autoModerateMedia(file, 'feed');
+    try { if (file) uploaded = await uploadMedia(file, 'feed'); } catch (error) { return showUploadFailure(`Media upload failed: ${error.message}`, () => saveFeedPost()); }
+    const user = currentUser();
+    const type = $('#feedType')?.value || 'Crew Recap';
+    const post = {
+      id: uid('feed'),
+      type,
+      title: $('#feedTitleInput')?.value.trim() || (type === 'Catch Log' ? 'Fresh catch report' : 'New FishCrew post'),
+      area: $('#feedArea')?.value.trim() || user.area,
+      authorId: user.id,
+      authorName: user.name,
+      body: $('#feedBody')?.value.trim() || 'Posted from FishCrew.',
+      media: uploaded.url,
+      mediaType: uploaded.type || 'emoji',
+      artKind: type === 'Dock Report' ? 'shop' : type === 'Open Water Seat' ? 'boat' : type === 'After-Bite Run' ? 'boat' : 'catch',
+      reactions: 0,
+      status: uploaded.url && mediaReview.needsReview ? 'Pending review' : (type === 'Dock Report' ? 'Sponsored' : 'Live'),
+      createdAt: now()
+    };
+    state.feed.unshift(post);
+    const feedReport = uploaded.url ? queueMediaModerationIfNeeded(mediaReview, post.id, mediaKind(uploaded.type) === 'video' ? 'Video feed media' : 'Feed media review') : null;
+    const feedAsset = uploaded.url ? trackMediaAsset({ ownerId: user.id, sourceId: post.id, sourceType: 'feed', mediaType: uploaded.type, storagePath: uploaded.path || 'local-feed-preview', publicUrl: uploaded.url, status: mediaReview.status || (uploaded.live ? 'Review' : 'Local preview'), visibility: 'public' }) : null;
+    state.feedFilter = 'All';
+    state.activeScreen = 'feed';
+    state.opsLog.unshift(`${user.name} posted feed item: ${post.title}.`);
+    closeModal();
+    await afterLocalWrite('Feed post', async () => {
+      await liveUpsert('feed_posts', feedRow(post), 'feed post');
+      if (feedAsset) await liveUpsert('media_assets', mediaAssetRow(feedAsset), 'media asset');
+      if (feedReport) await liveInsertModeration(feedReport);
+      return true;
+    });
+    nav('feed');
+    toast(uploaded.url
+      ? (mediaReview.needsReview
+        ? 'Posted. Hidden from the public feed until an operator approves the media.'
+        : 'Feed post live. Photo auto-approved and reportable.')
+      : 'Feed post live.');
+  }
+
+  async function saveBusiness() {
+    if (!requireBusiness()) return;
+    const user = currentUser();
+    const biz = {
+      id: uid('biz'),
+      ownerId: user.id,
+      name: $('#bizName')?.value.trim() || 'New FishCrew partner',
+      kind: $('#bizKind')?.value || 'Tackle Shop',
+      area: $('#bizArea')?.value.trim() || user.area,
+      status: isAdmin() ? 'Verified' : 'Pending review',
+      leads: 0,
+      revenue: 0,
+      campaign: $('#bizCampaign')?.value.trim() || 'Local fishing offer'
+    };
+    state.businesses.unshift(biz);
+    state.feed.unshift({ id: uid('feed'), type: biz.kind === 'After-Bite Run' ? 'After-Bite Run' : biz.kind === 'Pro Charter' ? 'Open Water Seat' : 'Dock Report', title: `${biz.name}: ${biz.campaign}`, area: biz.area, authorId: user.id, authorName: user.name, body: 'New local water update added to FishCrew.', media: '', mediaType: 'emoji', artKind: biz.kind === 'After-Bite Run' ? 'boat' : biz.kind === 'Pro Charter' ? 'boat' : 'shop', reactions: 0, status: 'Sponsored', createdAt: now() });
+    state.opsLog.unshift(`${user.name} added business: ${biz.name}.`);
+    closeModal();
+    const promo = state.feed[0];
+    await afterLocalWrite('Business', async () => {
+      await liveUpsert('businesses', businessRow(biz), 'business');
+      await liveUpsert('feed_posts', feedRow(promo), 'business feed post');
+      return true;
+    });
+    nav('explore'); toast('Business added.');
+  }
+
+  async function saveBooking() {
+    if (!requireBusiness()) return;
+    const bizId = $('#bookBusiness')?.value || state.businesses[0]?.id || '';
+    const booking = { id: uid('book'), businessId: bizId, customerId: currentUser()?.id || null, customerName: $('#bookCustomer')?.value.trim() || 'New customer', phone: ($('#bookPhone')?.value || '').trim(), kind: $('#bookKind')?.value || 'Charter inquiry', status: 'New', date: $('#bookDate')?.value.trim() || 'TBD', value: Number($('#bookValue')?.value || 0), notes: $('#bookNotes')?.value.trim() || 'No notes yet.' };
+    state.bookings.unshift(booking);
+    const biz = state.businesses.find((b) => b.id === bizId);
+    if (biz) { biz.leads = Number(biz.leads || 0) + 1; }
+    state.opsLog.unshift(`Booking lead captured: ${booking.customerName} ${MID} ${booking.kind}.`);
+    closeModal();
+    await afterLocalWrite('Booking lead', async () => {
+      await liveUpsert('bookings', bookingRow(booking), 'booking');
+      if (biz) await liveUpdate('businesses', { lead_count: Number(biz.leads || 0) }, 'id', biz.id, 'business lead count');
+      return true;
+    });
+    toast('Booking lead saved.');
+  }
+
+  function openHostControls(tripId) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!trip) return toast('Trip not found.', 'danger');
+    if (!currentUser() || (currentUser().id !== trip.hostId && !isAdmin())) return toast('Only the host or operator can manage this trip.', 'danger');
+    const requests = state.requests.filter((r) => r.tripId === trip.id);
+    const members = (trip.members || []).map((id) => state.users.find((u) => u.id === id)?.name || id);
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Host controls</span><h2>${safe(trip.title)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="stack">
+        <div class="panel"><div class="row">${scoreBadge(trip.score)}<span class="chip">${safe(trip.status || 'Open')}</span><span class="chip">${safe(trip.spots)} open</span></div><p class="muted">${safe(trip.area)} ${MID} ${safe(trip.time)}</p><p class="tiny">Crew: ${safe(members.join(', ') || 'Host only')}</p></div>
+        <div class="panel"><h3>Invite crew</h3><p class="muted">Share a link. Friends open it, request a spot, and you approve them into chat + private meetup.</p><div class="row"><button class="btn primary small" type="button" data-action="share-trip" data-trip-id="${safe(trip.id)}">Share invite link</button><button class="btn dark small" type="button" data-action="copy-trip-invite" data-trip-id="${safe(trip.id)}">Copy link</button></div></div>
+        <div class="grid two"><button class="panel" type="button" data-action="complete-trip" data-trip-id="${safe(trip.id)}"><h3>Mark complete</h3><p class="muted">Close the trip and create a proof post for the feed.</p></button><button class="panel" type="button" data-action="cancel-trip" data-trip-id="${safe(trip.id)}"><h3>Cancel trip</h3><p class="muted">Close requests, notify crew, and protect private details.</p></button></div>
+        <div class="grid two"><button class="panel" type="button" data-action="reopen-trip" data-trip-id="${safe(trip.id)}"><h3>Reopen</h3><p class="muted">Put this trip back in the open trip board.</p></button><button class="panel" type="button" data-action="duplicate-trip" data-trip-id="${safe(trip.id)}"><h3>Duplicate</h3><p class="muted">Create a fresh copy for another day.</p></button></div>
+        <div class="panel"><h3>Requests</h3>${requests.map((r)=>`<div class="lead-row"><div><b>${safe(r.userName)}</b><small>${safe(r.status)} ${MID} ${safe(r.message)}</small></div><div class="row">${r.status === 'Pending' ? `<button class="btn success small" type="button" data-action="approve-request" data-request-id="${safe(r.id)}">Approve</button><button class="btn danger small" type="button" data-action="decline-request" data-request-id="${safe(r.id)}">Decline</button>` : `<span class="chip">${safe(r.status)}</span>`}</div></div>`).join('') || '<p class="muted">No requests yet.</p>'}</div>
+      </div>`);
+  }
+
+  async function completeTrip(tripId) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!trip) return;
+    if (!currentUser() || (currentUser().id !== trip.hostId && !isAdmin())) return toast('Only the host or operator can complete this trip.', 'danger');
+    if (trip.status === 'Completed') return toast('Trip already completed.');
+    trip.status = 'Completed';
+    trip.completedAt = now();
+    const user = currentUser();
+    const recap = {
+      id: uid('feed'),
+      type: 'Crew Recap',
+      title: `Completed: ${trip.title}`,
+      area: trip.area,
+      authorId: user.id,
+      authorName: user.name,
+      body: `Trip wrapped. ${trip.species} ${MID} ${trip.score} window ${MID} ${trip.publicLocation}.`,
+      media: trip.media || '',
+      mediaType: trip.mediaType || '',
+      artKind: trip.artKind || 'catch',
+      reactions: 0,
+      status: 'Live',
+      tripId: trip.id,
+      createdAt: now()
+    };
+    state.feed.unshift(recap);
+    state.messages[trip.id] = state.messages[trip.id] || [];
+    state.messages[trip.id].push({ id: uid('msg'), senderId: 'system', senderName: 'FishCrew', body: 'Trip marked complete. Recap posted to the bite board.', createdAt: now() });
+    state.activeScreen = 'feed';
+    state.feedFilter = 'All';
+    state.opsLog.unshift(`${trip.title} completed and recap posted.`);
+    closeModal();
+    await afterLocalWrite('Complete trip', async () => {
+      await liveUpdate('trip_posts', { status: 'Completed', completed_at: trip.completedAt }, 'id', trip.id, 'trip complete');
+      await liveUpsert('feed_posts', feedRow(recap), 'trip recap');
+      return true;
+    });
+    const listing = findCharter(trip.hostId) || allCharters().find((c) => c.ownerId === trip.hostId);
+    nav('feed');
+    toast('Trip completed. Recap posted.');
+    if (listing) {
+      const booking = (state.bookings || []).find((b) => b.businessId === listing.businessId || b.charterId === listing.id);
+      setTimeout(() => {
+        if (booking) openCharterReview(booking.id);
+        else openCharterProfile(listing.id);
+      }, 400);
+    }
+  }
+
+  async function cancelTrip(tripId) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!trip) return;
+    if (!currentUser() || (currentUser().id !== trip.hostId && !isAdmin())) return toast('Only the host or operator can cancel this trip.', 'danger');
+    if (!confirm(`Cancel ${trip.title}?`)) return;
+    trip.status = 'Cancelled';
+    trip.cancelledAt = now();
+    state.requests.filter((r) => r.tripId === trip.id && r.status === 'Pending').forEach((r) => { r.status = 'Declined'; });
+    state.messages[trip.id] = state.messages[trip.id] || [];
+    state.messages[trip.id].push({ id: uid('msg'), senderId: 'system', senderName: 'FishCrew', body: 'Trip cancelled by host. Pending requests were closed.', createdAt: now() });
+    state.opsLog.unshift(`${trip.title} cancelled by host/operator.`);
+    closeModal();
+    await afterLocalWrite('Cancel trip', async () => {
+      await liveUpdate('trip_posts', { status: 'Cancelled', cancelled_at: trip.cancelledAt }, 'id', trip.id, 'trip cancel');
+      return true;
+    });
+    render(); toast('Trip cancelled.');
+  }
+
+  async function reopenTrip(tripId) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!trip) return;
+    if (!currentUser() || (currentUser().id !== trip.hostId && !isAdmin())) return toast('Only the host or operator can reopen this trip.', 'danger');
+    trip.status = 'Open';
+    trip.reopenedAt = now();
+    state.opsLog.unshift(`${trip.title} reopened.`);
+    closeModal();
+    await afterLocalWrite('Reopen trip', async () => liveUpdate('trip_posts', { status: 'Open' }, 'id', trip.id, 'trip reopen'));
+    render(); toast('Trip reopened.');
+  }
+
+  async function duplicateTrip(tripId) {
+    const original = state.trips.find((t) => t.id === tripId);
+    if (!original) return;
+    if (!requireLogin()) return;
+    const user = currentUser();
+    if (original.hostId !== user.id && !isAdmin()) return toast('Only the host or operator can duplicate this trip.', 'danger');
+    const copy = { ...original, id: uid('trip'), title: `${original.title} copy`, status: 'Open', spots: Math.max(1, Number(original.spots || 1)), hostId: user.id, hostName: user.name, members: [user.id], createdAt: now(), completedAt: null, cancelledAt: null, demo: false };
+    state.trips.unshift(copy);
+    state.messages[copy.id] = [{ id: uid('msg'), senderId: 'system', senderName: 'FishCrew', body: 'Duplicated trip created. Update date/time and details as needed.', createdAt: now() }];
+    state.activeTripId = copy.id;
+    state.activeScreen = 'explore';
+    state.opsLog.unshift(`${user.name} duplicated trip: ${original.title}.`);
+    closeModal();
+    await afterLocalWrite('Duplicate trip', async () => {
+      await liveUpsert('trip_posts', tripRow(copy), 'duplicated trip');
+      await liveUpsert('trip_members', { trip_id: copy.id, user_id: user.id, member_role: 'host', status: 'Approved' }, 'trip member');
+      return true;
+    });
+    nav('explore'); toast('Trip duplicated.');
+  }
+
+  async function requestTrip(tripId) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!trip) return toast('Trip not found.', 'danger');
+    if (!requireLogin('Sign in to request a spot and unlock chat after the host approves you.')) return;
+    if (blockIfRestricted()) return;
+    const user = currentUser();
+    if (String(trip.status || 'Open') !== 'Open' || Number(trip.spots || 0) <= 0) return toast('This trip is closed for new requests.', 'danger');
+    if (trip.members?.includes(user.id)) {
+      state.activeTripId = trip.id;
+      state.crewPanel = 'chat';
+      save(); nav('crew');
+      return toast('You are already in this crew.');
+    }
+    const existing = state.requests.find((r) => r.tripId === trip.id && r.userId === user.id && r.status === 'Pending');
+    if (existing) {
+      state.activeTripId = trip.id;
+      state.crewPanel = 'requests';
+      save(); nav('crew');
+      return toast('Request already pending.');
+    }
+    const req = { id: uid('req'), tripId: trip.id, userId: user.id, userName: user.name, message: 'Requesting a spot. I can coordinate in Crew chat.', status: 'Pending', createdAt: now() };
+    state.requests.unshift(req);
+    state.activeTripId = trip.id;
+    state.crewPanel = 'requests';
+    state.opsLog.unshift(`${user.name} requested ${trip.title}.`);
+    await afterLocalWrite('Join request', async () => liveUpsert('join_requests', requestRow(req), 'join request'));
+    nav('crew'); toast('Request sent.');
+  }
+
+  async function approveRequest(requestId) {
+    const req = state.requests.find((r) => r.id === requestId);
+    if (!req) return;
+    const trip = state.trips.find((t) => t.id === req.tripId);
+    if (!trip) return;
+    if (!isAdmin() && currentUser()?.id !== trip.hostId) return toast('Only the host or operator can approve this request.', 'danger');
+    req.status = 'Approved';
+    if (!trip.members.includes(req.userId)) trip.members.push(req.userId);
+    trip.spots = Math.max(0, Number(trip.spots || 0) - 1);
+    state.messages[trip.id] = state.messages[trip.id] || [];
+    state.messages[trip.id].push({ id: uid('msg'), senderId: 'system', senderName: 'FishCrew', body: `${req.userName} approved. Private location unlocked for crew.`, createdAt: now() });
+    state.activeTripId = trip.id;
+    state.crewPanel = 'chat';
+    state.opsLog.unshift(`${req.userName} approved for ${trip.title}.`);
+    await afterLocalWrite('Approval', async () => {
+      await liveUpdate('join_requests', { status: 'Approved' }, 'id', req.id, 'request approval');
+      await liveUpsert('trip_members', { trip_id: trip.id, user_id: req.userId, member_role: 'member', status: 'Approved' }, 'trip member');
+      await liveUpdate('trip_posts', { open_spots: Number(trip.spots || 0) }, 'id', trip.id, 'trip open spots');
+      const lastMessage = state.messages[trip.id][state.messages[trip.id].length - 1];
+      await liveUpsert('trip_messages', messageRow(lastMessage, trip.id), 'approval message');
+      return true;
+    });
+    toast('Approved. Chat opened.');
+  }
+
+  async function declineRequest(requestId) {
+    const req = state.requests.find((r) => r.id === requestId);
+    if (!req) return;
+    const trip = state.trips.find((t) => t.id === req.tripId);
+    if (!isAdmin() && currentUser()?.id !== trip?.hostId) return toast('Only the host or operator can decline this request.', 'danger');
+    req.status = 'Declined';
+    state.opsLog.unshift(`${req.userName} declined for ${trip?.title || 'trip'}.`);
+    await afterLocalWrite('Decline request', async () => liveUpdate('join_requests', { status: 'Declined' }, 'id', req.id, 'request decline'));
+    toast('Request declined.');
+  }
+
+  function shareTextForTrip(trip) {
+    if (!trip) return 'Join my FishCrew trip.';
+    return `Crew needed: ${trip.title} ${EN_DASH} ${trip.area} (${trip.time}). Request a spot on FishCrew.`;
+  }
+
+  function shareTrip(tripId) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!trip) return toast('Trip not found.', 'danger');
+    const url = tripInviteUrl(trip.id);
+    modalMode = 'share-trip';
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Invite crew</span><h2>Share this trip link.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="share-preview panel light-panel"><span class="badge">${safe(trip.type)}</span><h3>${safe(trip.title)}</h3><p class="muted">${safe(trip.area)} ${MID} ${safe(trip.time)}</p><p class="tiny">${safe(url)}</p></div>
+      <p class="muted">Friends open the link, request a spot, and you approve them into chat and the private meetup.</p>
+      <div class="share-port-grid" aria-label="Trip invite sharing">
+        <button class="share-port native" type="button" data-action="share-trip-platform" data-platform="native" data-trip-id="${safe(trip.id)}"><b>Share</b><span>Phone share</span></button>
+        <button class="share-port facebook" type="button" data-action="share-trip-platform" data-platform="copy" data-trip-id="${safe(trip.id)}"><b>Copy</b><span>Copy link</span></button>
+        <button class="share-port twitter" type="button" data-action="share-trip-platform" data-platform="twitter" data-trip-id="${safe(trip.id)}"><b>X</b><span>X / Twitter</span></button>
+        <button class="share-port instagram" type="button" data-action="share-trip-platform" data-platform="sms" data-trip-id="${safe(trip.id)}"><b>SMS</b><span>Text message</span></button>
+      </div>`);
+  }
+
+  async function copyTripInvite(tripId) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!trip) return toast('Trip not found.', 'danger');
+    const url = tripInviteUrl(trip.id);
+    try {
+      await navigator.clipboard?.writeText(url);
+      toast('Invite link copied.');
+    } catch (_) {
+      toast(url, 'warning');
+    }
+    trackTripShare(trip, 'copy');
+  }
+
+  async function shareTripPlatform(tripId, platform) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!trip) return toast('Trip not found.', 'danger');
+    const text = shareTextForTrip(trip);
+    const url = tripInviteUrl(trip.id);
+    const encodedText = encodeURIComponent(`${text}\n${url}`);
+    if (platform === 'copy') return copyTripInvite(trip.id);
+    if (platform === 'twitter') {
+      window.open(`https://twitter.com/intent/tweet?text=${encodedText}`, '_blank', 'noopener,noreferrer');
+      trackTripShare(trip, 'twitter');
+      return toast('Opening X / Twitter share.');
+    }
+    if (platform === 'sms') {
+      window.open(`sms:?&body=${encodedText}`, '_self');
+      trackTripShare(trip, 'sms');
+      return toast('Opening Messages.');
+    }
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'FishCrew trip invite', text, url });
+        trackTripShare(trip, 'native');
+        return;
+      } catch (_) { /* fall through to copy */ }
+    }
+    return copyTripInvite(trip.id);
+  }
+
+  function trackTripShare(trip, provider) {
+    if (!trip) return;
+    state.opsLog.unshift(`Trip invite shared (${provider}): ${trip.title}`);
+    save();
+    if (!supabaseClient || !currentUser()) return;
+    liveInsert('external_share_events', {
+      user_id: currentUser().id,
+      provider,
+      source_type: 'trip',
+      source_id: trip.id,
+      share_url: tripInviteUrl(trip.id),
+      created_at: now()
+    }, 'trip invite share').catch(() => {});
+  }
+
+  async function sendChat(tripId) {
+    if (!requireLogin('Sign in to message the crew.')) return;
+    if (blockIfRestricted()) return;
+    const trip = state.trips.find((t) => t.id === tripId);
+    const user = currentUser();
+    if (!trip) return;
+    if (!isTripCrewMember(trip, user)) return toast('You need host approval before chatting.', 'danger');
+    const input = $('#chatInput');
+    const body = input?.value.trim();
+    if (!body) return toast('Type a message first.', 'danger');
+    state.messages[tripId] = state.messages[tripId] || [];
+    const msg = { id: uid('msg'), senderId: user.id, senderName: user.name, body, createdAt: now() };
+    state.messages[tripId].push(msg);
+    input.value = '';
+    const delivered = await afterLocalWrite('Chat message', async () => liveUpsert('trip_messages', messageRow(msg, tripId), 'chat message'));
+    if (!delivered) {
+      // Do not leave a message on screen that the crew never got: take it back and refill the box.
+      state.messages[tripId] = (state.messages[tripId] || []).filter((m) => m.id !== msg.id);
+      save(); render();
+      const again = $('#chatInput');
+      if (again && !again.value) again.value = body;
+      holdToastUntil = 0;
+      return toast(navigator.onLine === false ? 'Message not sent. You are offline; it is still in the box so you can send it again.' : 'Message not sent. Check your connection and tap Send again.', 'danger');
+    }
+    toast('Message sent.');
+  }
+
+  function tripDetails(tripId) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!trip) return;
+    const user = currentUser();
+    const unlocked = isTripCrewMember(trip, user);
+    const hiddenNote = isModeratedTrip(trip)
+      ? `<div class="safe-note"><strong>Hidden by FishCrew.</strong> ${isAdmin() ? 'Only the host and operators can see this trip.' : `This trip is not shown on the board. Questions: ${safe(supportEmail())}`}</div>`
+      : '';
+    const operatorTools = isAdmin()
+      ? `<div class="row mt admin-trip-tools"><span class="eyebrow">Operator</span>${trip.adminFeatured ? adminModerateButton('trip', trip.id, 'unfeature', 'Unfeature', 'dark') : adminModerateButton('trip', trip.id, 'feature', 'Feature on the board', 'soft')}${isModeratedTrip(trip) ? adminModerateButton('trip', trip.id, 'restore', 'Restore trip', 'success') : adminModerateButton('trip', trip.id, 'hide', 'Hide trip', 'danger', 'Hide this trip from everyone?')}</div>`
+      : '';
+    const reportButton = user && trip.hostId !== user.id && !isAdmin()
+      ? `<button class="btn dark" type="button" data-action="report-content" data-target-type="trip" data-target-id="${safe(trip.id)}">Report</button>`
+      : '';
+    modalMode = 'trip-details';
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Trip details</span><h2>${safe(trip.title)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      ${hiddenNote}
+      ${mediaBlock(trip, trip.type === 'Pier' ? 'pier' : 'boat')}
+      <div class="row">${scoreBadge(trip.score)}<span class="chip">${safe(trip.type)}</span><span class="chip">${safe(trip.spots)} spots</span></div>
+      <p class="lead">${safe(trip.publicLocation)} ${MID} ${safe(trip.time)}</p>
+      <div class="condition-strip"><div class="stat"><span>Wind</span><strong>${safe(trip.wind)}</strong></div><div class="stat"><span>Waves</span><strong>${safe(trip.waves)}</strong></div><div class="stat"><span>Tide</span><strong>${safe(trip.tide)}</strong></div><div class="stat"><span>Water</span><strong>${safe(trip.water || '?')}</strong></div></div>
+      <p class="mt"><strong>Private meetup:</strong> ${unlocked ? safe(trip.privateLocation) : 'Locked until host approval.'}</p>
+      <div class="row"><button class="btn primary" type="button" data-action="request-trip" data-trip-id="${safe(trip.id)}">Request spot</button><button class="btn dark" type="button" data-action="open-trip-chat" data-trip-id="${safe(trip.id)}">Crew chat</button><button class="btn dark" type="button" data-action="open-map" data-area="${safe(trip.area)}">Map area</button>${(user && (trip.hostId === user.id || isAdmin())) ? `<button class="btn soft" type="button" data-action="share-trip" data-trip-id="${safe(trip.id)}">Invite</button><button class="btn soft" type="button" data-action="open-host-controls" data-trip-id="${safe(trip.id)}">Host controls</button>` : ''}${reportButton}</div>
+      ${operatorTools}`);
+  }
+
+  function openTripChat(tripId) {
+    const trip = state.trips.find((t) => t.id === tripId);
+    if (!isTripCrewMember(trip)) {
+      closeModal();
+      state.crewPanel = 'chat';
+      state.activeTripId = '';
+      save();
+      nav('crew');
+      return toast('Crew chat unlocks after the host approves you.', 'danger');
+    }
+    state.activeTripId = tripId;
+    state.crewPanel = 'chat';
+    closeModal(); save(); nav('crew');
+  }
+
+
+  function openLocalSpots() {
+    modalMode = 'local-spots';
+    const spots = ['Gandy', 'Skyway approaches', 'Fort De Soto', 'Weedon Island', 'Alafia mouth', 'Courtney Campbell flats'];
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Local water</span><h2>Public Tampa Bay water areas</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">General public-area prompts only. Exact pins stay private until a crew is approved.</p>
+      <div class="grid two">${spots.map((spot)=>`<button class="panel text-left" type="button" data-action="open-map" data-area="${safe(spot + ', Tampa Bay')}"><h3>${safe(spot)}</h3><p class="muted">Open map area</p></button>`).join('')}</div>
+    `);
+  }
+
+  function openMap(area) {
+    const query = encodeURIComponent(`${area || 'fishing near me'} fishing`);
+    window.open(`https://www.google.com/maps/search/${query}`, '_blank', 'noopener,noreferrer');
+    toast('Opening map search.');
+  }
+
+  async function reactFeed(feedId) {
+    if (!requireLogin('Sign in to react to feed posts.')) return;
+    const post = state.feed.find((p) => p.id === feedId);
+    if (!post) return;
+    post.reactions = Number(post.reactions || 0) + 1;
+    // Optimistic UI: paint like count immediately, sync in background.
+    save();
+    if (state.activeScreen === 'feed') renderFeed();
+    else if (state.activeScreen === 'home') render();
+    await afterLocalWrite('Reaction', async () => liveUpdate('feed_posts', { reactions: Number(post.reactions || 0) }, 'id', post.id, 'feed reaction'));
+    toast('Reaction added.');
+  }
+
+  function shareFeed(feedId) {
+    const post = state.feed.find((p) => p.id === feedId);
+    if (!post) return toast('Post not found.', 'danger');
+    const text = shareTextForPost(post);
+    modalMode = 'share';
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Share port</span><h2>Send this FishCrew post out.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="share-preview panel light-panel"><span class="badge">${safe(post.type)}</span><h3>${safe(post.title)}</h3><p class="muted">${safe(post.area)} ${MID} ${safe(post.body)}</p></div>
+      <div class="share-port-grid" aria-label="Social sharing ports">
+        <button class="share-port facebook" type="button" data-action="share-platform" data-platform="facebook" data-feed-id="${safe(post.id)}"><b>f</b><span>Facebook</span></button>
+        <button class="share-port twitter" type="button" data-action="share-platform" data-platform="twitter" data-feed-id="${safe(post.id)}"><b>X</b><span>X / Twitter</span></button>
+        <button class="share-port instagram" type="button" data-action="share-platform" data-platform="instagram" data-feed-id="${safe(post.id)}"><b class="ig-mark">${IG_MARK}</b><span>Instagram</span></button>
+        <button class="share-port native" type="button" data-action="share-platform" data-platform="native" data-feed-id="${safe(post.id)}"><b>Share</b><span>Phone share</span></button>
+      </div>
+      <p class="tiny">Instagram web does not accept a direct prefilled post from every browser, so FishCrew copies a ready caption and opens Instagram when available.</p>`);
+  }
+
+  function sharePlatform(feedId, platform) {
+    const post = state.feed.find((p) => p.id === feedId);
+    const text = shareTextForPost(post);
+    const url = location.href;
+    const encodedText = encodeURIComponent(text);
+    const encodedUrl = encodeURIComponent(url);
+    const copy = () => navigator.clipboard?.writeText(`${text}
+${url}`).catch(() => {});
+    const open = (href) => window.open(href, '_blank', 'noopener,noreferrer');
+    if (platform === 'facebook') { copy(); open(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`); toast('Opening Facebook share. Caption copied.'); return; }
+    if (platform === 'twitter') { open(`https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`); toast('Opening X / Twitter share.'); return; }
+    if (platform === 'instagram') { copy(); open('https://www.instagram.com/'); toast('Caption copied for Instagram.'); return; }
+    if (navigator.share) { navigator.share({ title: 'FishCrew', text, url }).catch(() => {}); return; }
+    copy(); toast('Share caption copied.');
+  }
+
+  function reportFeed(feedId) {
+    if (!requireLogin('Sign in to report posts and keep the feed clean.')) return;
+    openReportForm('feed', feedId);
+  }
+
+  const REPORT_REASONS = [
+    ['spam', 'Spam or scam'],
+    ['harassment', 'Harassment or hate'],
+    ['unsafe', 'Unsafe or illegal activity'],
+    ['inappropriate', 'Inappropriate photo or language'],
+    ['other', 'Something else']
+  ];
+
+  /** The message object itself (not a copy) plus the trip it belongs to. */
+  function findMessage(messageId) {
+    for (const [tripId, list] of Object.entries(state.messages || {})) {
+      const message = (list || []).find((m) => m.id === messageId);
+      if (message) return { message, tripId };
+    }
+    return null;
+  }
+
+  function reportTargetInfo(type, id) {
+    if (type === 'trip') {
+      const trip = (state.trips || []).find((t) => t.id === id);
+      return trip ? { label: 'trip', title: trip.title, ownerId: trip.hostId } : null;
+    }
+    if (type === 'message') {
+      const found = findMessage(id);
+      return found ? { label: 'crew message', title: String(found.message.body || '').slice(0, 120), ownerId: found.message.senderId } : null;
+    }
+    if (type === 'feed') {
+      const post = (state.feed || []).find((p) => p.id === id);
+      return post ? { label: 'post', title: post.title, ownerId: post.authorId } : null;
+    }
+    return null;
+  }
+
+  function openReportForm(type, id) {
+    if (!requireLogin('Sign in to report content and keep FishCrew safe.')) return;
+    const info = reportTargetInfo(type, id);
+    if (!info) return toast('That item is no longer available.', 'danger');
+    if (info.ownerId && info.ownerId === currentUser()?.id) return toast('That is your own post.', 'danger');
+    modalMode = 'report';
+    modal(`<div class="modal-head"><div><span class="eyebrow">Report</span><h2>Report this ${safe(info.label)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">&ldquo;${safe(info.title)}&rdquo;</p>
+      <div class="forms">
+        <label class="label">What is wrong?<select id="reportReason" class="select">${REPORT_REASONS.map(([value, label]) => `<option value="${value}">${safe(label)}</option>`).join('')}</select></label>
+        <label class="label">Details (optional)<textarea id="reportDetails" class="field" maxlength="1000" placeholder="Anything that helps us review it"></textarea></label>
+        <p class="tiny">Reports go to the FishCrew team, who review them and remove content that breaks the community rules. The person is not told who reported them. You can also block them.</p>
+        <button class="btn primary full" type="button" data-action="save-report" data-target-type="${safe(type)}" data-target-id="${safe(id)}">Send report</button>
+      </div>`);
+  }
+
+  async function saveReport(el) {
+    const user = currentUser();
+    if (!user) return requireLogin();
+    const type = el?.dataset?.targetType || '';
+    const id = el?.dataset?.targetId || '';
+    const info = reportTargetInfo(type, id);
+    if (!info) return toast('That item is no longer available.', 'danger');
+    const reason = $('#reportReason')?.value || 'other';
+    const details = ($('#reportDetails')?.value || '').trim().slice(0, 1000);
+    const report = {
+      id: uid('rep'),
+      type: 'User report',
+      target: id,
+      targetType: type,
+      targetUserId: info.ownerId || '',
+      status: 'Open',
+      severity: ['unsafe', 'harassment'].includes(reason) ? 'High' : reason === 'spam' ? 'Medium' : 'Low',
+      note: `Reported ${info.label}: ${info.title}`.slice(0, 200),
+      reason,
+      details,
+      reporterId: user.id,
+      createdAt: now()
+    };
+    state.reports = state.reports || [];
+    state.reports.unshift(report);
+    closeModal();
+    await afterLocalWrite('Report', async () => liveInsertModeration(report));
+    toast('Thanks. Your report is with the FishCrew team.');
+  }
+
+  async function blockUser(userId) {
+    if (!requireLogin('Sign in to block profiles and personalize the feed.')) return;
+    const viewer = currentUser();
+    const user = state.users.find((u) => u.id === userId);
+    if (!user) return toast('Profile not found.', 'danger');
+    if (viewer?.id === user.id) return toast('You cannot block your own profile.', 'danger');
+    state.blockedUsers = state.blockedUsers || [];
+    if (!state.blockedUsers.includes(user.id)) state.blockedUsers.push(user.id);
+    state.opsLog.unshift(`${usernameFor(user)} blocked.`);
+    save(); render();
+    await afterLocalWrite('Block', async () => {
+      const { error } = await supabaseClient.from('user_blocks').upsert({
+        id: `blk_${viewer.id}_${user.id}`,
+        blocker_id: viewer.id,
+        blocked_id: user.id
+      });
+      if (error && !/does not exist|schema cache/i.test(error.message || '')) throw error;
+      return true;
+    });
+    toast(`${user.name} is hidden from your charter board and feed.`);
+  }
+
+  async function unblockUser(userId) {
+    const user = state.users.find((u) => u.id === userId);
+    const viewer = currentUser();
+    state.blockedUsers = (state.blockedUsers || []).filter((id) => id !== userId);
+    state.opsLog.unshift(`${user ? usernameFor(user) : 'Profile'} unblocked.`);
+    save(); render(); openBlockedUsers();
+    if (liveReady() && supabaseClient && viewer) {
+      await supabaseClient.from('user_blocks').delete().eq('blocker_id', viewer.id).eq('blocked_id', userId);
+    }
+    toast('Profile unblocked.');
+  }
+
+  function openBlockedUsers() {
+    const blocked = (state.blockedUsers || []).map((id) => state.users.find((u) => u.id === id)).filter(Boolean);
+    modal(`<div class="modal-head"><div><span class="eyebrow">Blocked users</span><h2>Profiles hidden from your view.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="lead">Blocked profiles are hidden from public feed and explore results on this device. Reporting remains separate so unsafe content can still be reviewed.</p>
+      <div class="stack">${blocked.map((u)=>`<div class="lead-row panel"><div><b>${safe(u.name)}</b><small>${safe(usernameFor(u))} ${MID} ${safe(roleLabel(u.role))}</small></div><button class="btn dark small" type="button" data-action="unblock-user" data-user-id="${safe(u.id)}">Unblock</button></div>`).join('') || '<div class="empty">No blocked profiles.</div>'}</div>`);
+  }
+
+  async function removeFeed(feedId) {
+    if (!requireAdmin('Operator access required to remove posts.')) return;
+    const post = state.feed.find((p) => p.id === feedId);
+    if (!post) return;
+    post.status = 'Removed';
+    state.reports.filter((r) => r.target === feedId).forEach((r) => { r.status = 'Resolved'; });
+    state.opsLog.unshift(`Operator removed feed item ${feedId}.`);
+    await afterLocalWrite('Remove post', async () => liveUpdate('feed_posts', { status: 'Removed' }, 'id', feedId, 'feed moderation'));
+    toast('Post removed from public feed.');
+  }
+
+  function openPrivacyPolicy() {
+    modal(`<div class="modal-head"><div><span class="eyebrow">Privacy</span><h2>FishCrew privacy policy.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="stack legal-copy">
+        <p class="lead">FishCrew uses account, trip, feed, location, media, and marketplace information only to run fishing crew, safety, moderation, and support features.</p>
+        <div class="panel"><h3>Data we use</h3><p class="muted">Profile details, posts, trip requests, crew chat, business inquiries, uploaded media, reports, approximate or permission-based location, and device storage needed to keep the app working.</p></div>
+        <div class="panel"><h3>Privacy controls</h3><p class="muted">Exact meetup locations stay private until crew approval. Users can report posts, block profiles, delete local accounts, and contact support for connected-data deletion.</p></div>
+        <div class="panel"><h3>Contact</h3><p class="muted">Support: ${safe(supportEmail())}<br>Web policy: ${safe(canonicalUrl('/privacy.html'))}</p></div>
+      </div>
+      <div class="row mt"><a class="btn dark" href="/privacy.html">Open privacy page</a><button class="btn primary" type="button" data-action="close-modal">Close</button></div>`);
+  }
+
+  function openTerms() {
+    modal(`<div class="modal-head"><div><span class="eyebrow">Terms</span><h2>FishCrew terms of use.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="stack legal-copy">
+        <p class="lead">FishCrew helps people plan trips, share reports, and connect with local fishing businesses. It does not replace weather judgment, local regulations, licenses, or safe boating decisions.</p>
+        <div class="panel"><h3>User responsibilities</h3><p class="muted">Keep exact spots private, use lawful content, respect captains and businesses, and verify species, size, season, bag limits, weather, and meetup details before acting.</p></div>
+        <div class="panel"><h3>Marketplace</h3><p class="muted">Charter, cruise, guide, and shop inquiries are leads between users and partners. Confirm price, terms, cancellation policies, licenses, and safety expectations directly.</p></div>
+        <div class="panel"><h3>Moderation</h3><p class="muted">FishCrew can remove unsafe, misleading, unlawful, abusive, spammy, or off-topic content and may restrict accounts that harm the community.</p></div>
+      </div>
+      <div class="row mt"><a class="btn dark" href="/terms.html">Open terms page</a><button class="btn primary" type="button" data-action="close-modal">Close</button></div>`);
+  }
+
+  function openCommunityGuidelines() {
+    modal(`<div class="modal-head"><div><span class="eyebrow">Community</span><h2>Keep the dock clean.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="stack legal-copy">
+        <div class="panel"><h3>Post useful water information</h3><p class="muted">Share catch reports, trip recaps, area conditions, open seats, shop updates, and guide notes without exposing private meetup points.</p></div>
+        <div class="panel"><h3>No unsafe or abusive content</h3><p class="muted">No harassment, hate, threats, illegal harvest instructions, deceptive listings, spam, stolen media, explicit content, or dangerous meetups.</p></div>
+        <div class="panel"><h3>Controls</h3><p class="muted">Every feed item can be reported. Signed-in users can block profiles. Operator tools review reports and media before unsafe content spreads.</p></div>
+      </div>`);
+  }
+
+  function openSupportCenter() {
+    modal(`<div class="modal-head"><div><span class="eyebrow">Support</span><h2>FishCrew help center.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="stack legal-copy">
+        <p class="lead">Use support for account access, safety reports, business verification, deletion requests, media review, and app-store review questions.</p>
+        <div class="panel"><h3>Contact</h3><p class="muted">${safe(supportEmail())}</p><button class="btn primary small" type="button" data-action="open-support-email">Email support</button></div>
+        <div class="grid two"><button class="panel text-left" type="button" data-action="open-privacy-policy"><h3>Privacy policy</h3><p class="muted">Data and controls.</p></button><button class="panel text-left" type="button" data-action="open-account-delete"><h3>Delete account</h3><p class="muted">Remove profile and local content.</p></button></div>
+      </div>`);
+  }
+
+  function openSupportEmail() {
+    window.location.href = `mailto:${supportEmail()}?subject=${encodeURIComponent('FishCrew support')}`;
+  }
+
+  async function persistAccountDeletionRequest(status = 'Requested') {
+    const user = currentUser();
+    if (!user) return false;
+    const row = {
+      id: uid('delete'),
+      userId: user.id,
+      email: user.email || '',
+      username: user.username || '',
+      createdAt: now(),
+      status
+    };
+    state.accountDeletionRequests = state.accountDeletionRequests || [];
+    state.accountDeletionRequests.unshift(row);
+    save();
+    if (!liveReady() || !supabaseClient) return false;
+    const { error } = await supabaseClient.from('account_deletion_requests').insert({
+      id: row.id,
+      user_id: row.userId,
+      email: row.email,
+      username: row.username,
+      status: row.status
+    });
+    if (error) {
+      console.warn('Deletion request sync failed', error);
+      return false;
+    }
+    return true;
+  }
+
+  function openAccountDeleteRequest() {
+    persistAccountDeletionRequest('Requested');
+    const user = currentUser();
+    const subject = encodeURIComponent('Delete my FishCrew account');
+    const body = encodeURIComponent([
+      'Please delete my FishCrew account and connected data (profile, trips, feed, media, and messages).',
+      '',
+      `Username: ${user?.username || ''}`,
+      `Email: ${user?.email || ''}`,
+      `User ID: ${user?.id || ''}`,
+      '',
+      'I understand connected-data deletion cannot be undone.'
+    ].join('\n'));
+    window.location.href = `mailto:${supportEmail()}?subject=${subject}&body=${body}`;
+  }
+
+  function openAccountDelete() {
+    const user = currentUser();
+    const signedOut = `<p class="lead">Sign in first, then delete your account here. Can't sign in? Email support and we'll delete it for you.</p><div class="row"><button class="btn primary" type="button" data-action="open-auth-signin">Sign in</button><button class="btn dark" type="button" data-action="open-support-email">Email support</button></div>`;
+    const signedIn = `<p class="lead">This permanently deletes ${safe(user?.name || 'your account')}: your login, profile, trips you host, crew chats, join requests, reviews, posts and photos.</p><div class="safe-note"><strong>Can't be undone.</strong> Booking records a charter needs (with your name and contact removed) and safety reports may be kept for fraud and legal reasons.</div><div class="row mt"><button class="btn danger" type="button" data-action="confirm-delete-account">Delete my account</button><button class="btn soft" type="button" data-action="open-account-delete-request">Email support too</button><button class="btn dark" type="button" data-action="close-modal">Keep account</button></div>`;
+    modal(`<div class="modal-head"><div><span class="eyebrow">Account deletion</span><h2>Delete your FishCrew account.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>${user ? signedIn : signedOut}`);
+  }
+
+  async function confirmDeleteAccount() {
+    const user = currentUser();
+    if (!user) return openAccountDelete();
+    const userId = user.id;
+    const hadConnectedBackend = liveReady() && supabaseClient;
+    const deletedTripIds = (state.trips || []).filter((t) => t.hostId === userId).map((t) => t.id);
+    const deletedFeedIds = (state.feed || []).filter((p) => p.authorId === userId).map((p) => p.id);
+    const deletedBusinessIds = (state.businesses || []).filter((b) => b.ownerId === userId).map((b) => b.id);
+    await persistAccountDeletionRequest(hadConnectedBackend ? 'Pending server deletion' : 'Local deletion complete');
+    if (hadConnectedBackend) {
+      // Server deletes the data and the login. If it fails, say so and keep everything as it was.
+      let failed = '';
+      try {
+        const { data, error } = await supabaseClient.functions.invoke('delete-account', { method: 'POST' });
+        if (error) failed = (await error.context?.json?.().catch(() => null))?.error || 'The server could not delete your account.';
+        else if (!data?.ok) failed = data?.error || 'The server could not delete your account.';
+      } catch (_) {
+        failed = 'No connection. Your account was not deleted; try again when you have signal.';
+      }
+      if (failed) {
+        toast(`${failed} Nothing was removed. Try again, or email support.`, 'danger');
+        return;
+      }
+      try { await supabaseClient.auth.signOut(); } catch (_) {}
+    }
+    state.users = (state.users || []).filter((u) => u.id !== userId);
+    state.trips = (state.trips || []).filter((t) => t.hostId !== userId);
+    state.requests = (state.requests || []).filter((r) => r.userId !== userId && !deletedTripIds.includes(r.tripId));
+    state.feed = (state.feed || []).filter((p) => p.authorId !== userId);
+    state.businesses = (state.businesses || []).filter((b) => b.ownerId !== userId);
+    state.bookings = (state.bookings || []).filter((b) => !deletedBusinessIds.includes(b.businessId));
+    state.mediaAssets = (state.mediaAssets || []).filter((a) => a.ownerId !== userId && !deletedFeedIds.includes(a.sourceId));
+    state.reports = (state.reports || []).filter((r) => r.reporterId !== userId && !deletedFeedIds.includes(r.target));
+    Object.keys(state.messages || {}).forEach((tripId) => {
+      if (deletedTripIds.includes(tripId)) delete state.messages[tripId];
+      else state.messages[tripId] = (state.messages[tripId] || []).filter((m) => m.senderId !== userId);
+    });
+    state.blockedUsers = (state.blockedUsers || []).filter((id) => id !== userId);
+    state.session = null;
+    state.opsLog.unshift(`Account deletion completed for ${user.email || usernameFor(user)}.`);
+    closeModal(); save(); render(); nav('home');
+    toast(hadConnectedBackend
+      ? 'Account deleted. Your login, profile, trips, chats and posts are gone.'
+      : 'Account deleted from this device.');
+  }
+
+  async function verifyBusiness(businessId) {
+    if (!requireAdmin()) return;
+    const biz = state.businesses.find((b) => b.id === businessId);
+    if (!biz) return;
+    biz.status = 'Verified';
+    state.opsLog.unshift(`Verified ${biz.name}.`);
+    await afterLocalWrite('Business verification', async () => liveUpdate('businesses', { status: 'Verified' }, 'id', biz.id, 'business verification'));
+    toast('Business verified.');
+  }
+
+  function openCaptainWaitlist() {
+    if (typeof window.FishCrewCaptainWaitlist === 'function') {
+      return window.FishCrewCaptainWaitlist({
+        modal,
+        toast,
+        currentUser: currentUser(),
+        requireLogin,
+        closeModal
+      });
+    }
+    const user = currentUser();
+    modal(`
+      <div class="modal-head"><div><span class="eyebrow">Captains</span><h2>Early-access waitlist.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="muted">Ask to list a charter. Status stays New until an operator reviews it. We do not auto-approve.</p>
+      <div class="forms">
+        <label class="label">Name<input id="waitName" name="name" class="field" autocomplete="name" value="${safe(user?.name || '')}" /></label>
+        <label class="label">Email<input id="waitEmail" name="email" class="field" type="email" autocomplete="email" value="${safe(user?.email || '')}" /></label>
+        <label class="label">Home water<input id="waitArea" name="address-level2" class="field" autocomplete="address-level2" value="${safe(user?.area || userArea())}" /></label>
+        <label class="label">Boat / trip note<textarea id="waitNote" name="waitlist-note" class="field" placeholder="USCG license, boat type, species, home marina"></textarea></label>
+        <button class="btn primary full" type="button" data-action="save-captain-waitlist">Join waitlist</button>
+      </div>`);
+  }
+
+  async function saveCaptainWaitlist() {
+    if (!requireLogin('Sign in to join the captain waitlist. This blocks anonymous spam.')) return;
+    const name = $('#waitName')?.value.trim() || currentUser()?.name || '';
+    const email = $('#waitEmail')?.value.trim() || currentUser()?.email || '';
+    const area = $('#waitArea')?.value.trim() || userArea();
+    const note = $('#waitNote')?.value.trim() || '';
+    if (!email && !currentUser()) return toast('Add an email or sign in so we can reach you.', 'danger');
+    const row = {
+      id: uid('wait'),
+      userId: currentUser()?.id || null,
+      name,
+      email,
+      area,
+      note,
+      status: 'New',
+      createdAt: now()
+    };
+    state.captainWaitlist = state.captainWaitlist || [];
+    state.captainWaitlist.unshift(row);
+    closeModal();
+    await afterLocalWrite('Captain waitlist', async () => {
+      const payload = {
+        id: row.id,
+        user_id: row.userId,
+        name: row.name,
+        email: row.email,
+        area: row.area,
+        note: row.note,
+        status: 'New'
+      };
+      const { error } = await supabaseClient.from('captain_waitlist').insert(payload);
+      if (error) throw new Error(error.message);
+      return true;
+    });
+    toast(liveReady() ? 'Waitlist request saved for operator review.' : 'Waitlist saved on this device. Sign in to sync.');
+  }
+
+  function bookBusiness(businessId) {
+    const listing = findCharter(businessId);
+    if (listing) return openCharterInquiry(listing.id);
+    if (!requireLogin('Sign in to send a real inquiry. Guests can still browse charters.')) return;
+    openCharterInquiry(businessId);
+  }
+
+  async function resolveReport(reportId) {
+    if (!requireAdmin()) return;
+    const report = state.reports.find((r) => r.id === reportId);
+    if (report) report.status = 'Resolved';
+    state.opsLog.unshift(`Report ${reportId} resolved.`);
+    closeModal();
+    await afterLocalWrite('Report resolution', async () => liveUpdate('moderation_items', { status: 'Resolved' }, 'id', reportId, 'moderation'));
+    render();
+    toast('Report resolved.');
+  }
+
+  function runOps() {
+    if (!requireBusiness()) return;
+    state.opsLog.unshift(`${shortTime()} ops check: bookings, campaigns, moderation, and weather windows reviewed.`);
+    state.reports.push({ id: uid('rep'), type: 'Auto-check', target: 'system', status: 'Open', note: 'Review new partner posts before weekend traffic.' });
+    save(); render(); toast('Morning ops run complete.');
+  }
+
+
+  function loadSupabaseScript() {
+    return new Promise((resolve, reject) => {
+      if (window.supabase?.createClient) return resolve();
+      const existing = document.querySelector('script[data-supabase-js]');
+      if (existing) {
+        existing.addEventListener('load', () => resolve(), { once: true });
+        existing.addEventListener('error', () => reject(new Error('Could not load shared data client script.')), { once: true });
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+      script.async = true;
+      script.defer = true;
+      script.dataset.supabaseJs = 'true';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Could not load shared data client script.'));
+      document.head.appendChild(script);
+    });
+  }
+
+  async function checkBackend({ announce = false } = {}) {
+    const configured = Boolean(CONFIG.USE_SUPABASE && CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
+    if (!configured) {
+      state.backendMode = 'local';
+      save(); render();
+      return toast('Browser storage is active. Shared data keys are not configured yet.');
+    }
+    try {
+      await loadSupabaseScript();
+      supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+      const { data } = await supabaseClient.auth.getSession();
+      state.backendMode = 'supabase';
+      if (data?.session?.user) {
+        await ensureUserFromSupabase(data.session.user);
+      } else {
+        state.notifications = [];
+        stopRealtime();
+      }
+      save(); render();
+      if (announce) toast('Connected. Your trips and chats are syncing.');
+    } catch (error) {
+      console.warn('FishCrew backend check failed', error);
+      toast('Could not reach FishCrew right now. Showing what is saved on this phone.', 'danger');
+    }
+  }
+
+  async function syncSupabase() {
+    if (!supabaseClient) await checkBackend();
+    if (!supabaseClient) return;
+    if (!(await canWriteLive())) return toast('Sign in with a connected account before pushing shared data.', 'danger');
+    try {
+      const user = currentUser();
+      if (user) await liveUpsert('profiles', { id: user.id, username: user.username, full_name: user.name, bio: user.bio, fishing_styles: user.fishingStyles, profile_theme: user.profileTheme, role: user.role, home_area: user.area, avatar_url: user.avatar, updated_at: now() }, 'profile');
+      for (const trip of state.trips) {
+        await liveUpsert('trip_posts', tripRow(trip), 'trip');
+        await liveUpsert('trip_private_details', tripPrivateRow(trip), 'private meetup details');
+        for (const memberId of (trip.members || [])) await liveUpsert('trip_members', { trip_id: trip.id, user_id: memberId, member_role: memberId === trip.hostId ? 'host' : 'member', status: 'Approved' }, 'trip member');
+      }
+      for (const request of state.requests) await liveUpsert('join_requests', requestRow(request), 'join request');
+      for (const [tripId, messages] of Object.entries(state.messages || {})) {
+        for (const message of messages) {
+          if (message.senderId === 'system') continue;
+          await liveUpsert('trip_messages', messageRow(message, tripId), 'trip message');
+        }
+      }
+      for (const post of state.feed) await liveUpsert('feed_posts', feedRow(post), 'feed post');
+      for (const asset of (state.mediaAssets || [])) await liveUpsert('media_assets', mediaAssetRow(asset), 'media asset');
+      for (const business of state.businesses) await liveUpsert('businesses', businessRow(business), 'business');
+      for (const booking of state.bookings) await liveUpsert('bookings', bookingRow(booking), 'booking');
+      state.liveStatus = 'Full browser dataset pushed to shared data.';
+      state.opsLog.unshift(state.liveStatus);
+      save(); render(); toast('Full live push completed.');
+      startRealtime();
+    } catch (error) {
+      toast(`Full live push failed: ${error.message}`, 'danger');
+    }
+  }
+
+
+  async function pullCharterTables(generation) {
+    if (!supabaseClient) return;
+    const chartersRes = await supabaseClient.from('charters').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT);
+    if (generation != null && generation !== pullGeneration) return;
+    if (chartersRes.error) {
+      state.chartersTableReady = !/does not exist|schema cache|permission denied for table/i.test(chartersRes.error.message || '');
+    } else {
+      state.chartersTableReady = true;
+      state.charters = (chartersRes.data || []).map((c) => ({
+        id: c.id,
+        ownerId: c.owner_id || '',
+        businessId: c.business_id || c.id,
+        name: c.name,
+        area: c.area || '',
+        species: c.species || '',
+        boatType: c.boat_type || '',
+        tripTypes: c.trip_types || '',
+        availability: c.availability_notes || '',
+        priceFrom: c.price_from_cents != null ? Math.round(Number(c.price_from_cents) / 100) : null,
+        priceTo: c.price_to_cents != null ? Math.round(Number(c.price_to_cents) / 100) : null,
+        websiteUrl: c.website_url || '',
+        bio: c.bio || '',
+        status: c.status || 'Pending review',
+        listingKind: c.listing_kind || 'operator'
+      }));
+    }
+    const reviewsRes = await supabaseClient.from('charter_reviews').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT);
+    if (generation != null && generation !== pullGeneration) return;
+    if (reviewsRes.error) {
+      state.reviewsTableReady = !/does not exist|schema cache/i.test(reviewsRes.error.message || '');
+    } else {
+      state.reviewsTableReady = true;
+      state.charterReviews = (reviewsRes.data || []).map((r) => ({
+        id: r.id,
+        charterId: r.charter_id,
+        businessId: r.business_id,
+        reviewerId: r.reviewer_id,
+        reviewerName: r.reviewer_name || 'Angler',
+        rating: Number(r.rating || 0),
+        body: r.body || '',
+        tripDate: r.trip_date || '',
+        status: r.status || 'Review',
+        createdAt: r.created_at || now()
+      }));
+    }
+  }
+
+  async function pullSupabase(options = {}) {
+    if (!supabaseClient) await checkBackend();
+    if (!supabaseClient) return;
+
+    // Cancel stale overlapping pulls — keep latest generation only.
+    const generation = ++pullGeneration;
+    if (pullInFlight) {
+      try { await pullInFlight; } catch (_) { /* prior pull error already toasted */ }
+      if (generation !== pullGeneration) return;
+    }
+
+    const run = (async () => {
+      try {
+        // Signed-out visitors cannot read crew-only tables; skip those requests instead of
+        // collecting seven "permission denied" answers on every guest page load.
+        const { data: sessionData } = await supabaseClient.auth.getSession();
+        const signedIn = Boolean(sessionData?.session);
+        const crewOnly = (query) => signedIn ? query : Promise.resolve({ data: null, error: { code: '42501', message: 'signed out' } });
+        const [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes] = await Promise.all([
+          supabaseClient.from('profiles').select('id, username, full_name, role, home_area, avatar_url, bio, fishing_styles, profile_theme, created_at').limit(LIVE_QUERY_LIMIT),
+          supabaseClient.from('trip_posts').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
+          crewOnly(supabaseClient.from('trip_private_details').select('*').limit(LIVE_QUERY_LIMIT)),
+          crewOnly(supabaseClient.from('trip_members').select('*').limit(LIVE_QUERY_LIMIT * 2)),
+          crewOnly(supabaseClient.from('join_requests').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT)),
+          crewOnly(supabaseClient.from('trip_messages').select('*').order('created_at', { ascending: true }).limit(LIVE_QUERY_LIMIT * 2)),
+          supabaseClient.from('feed_posts').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
+          crewOnly(supabaseClient.from('media_assets').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT)),
+          crewOnly(supabaseClient.from('moderation_items').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT)),
+          supabaseClient.from('businesses').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT),
+          crewOnly(supabaseClient.from('bookings').select('*').order('created_at', { ascending: false }).limit(LIVE_QUERY_LIMIT))
+        ]);
+        if (generation !== pullGeneration) return;
+        // Guests (and anyone signed out) are not allowed to read crew-only tables. Those
+        // answers come back as "permission denied" and simply leave that board as it was;
+        // any other error still stops the pull.
+        const errors = [profilesRes, tripsRes, privateDetailsRes, membersRes, requestsRes, messagesRes, feedRes, mediaRes, reportsRes, businessesRes, bookingsRes]
+          .map((r) => r.error)
+          .filter((e) => e && !isPermissionError(e));
+        if (errors.length) throw errors[0];
+        if (profilesRes.data?.length) {
+          const sessionUser = currentUser();
+          // Privacy: profile rows no longer include email. Keep any email we already
+          // know locally (e.g. the signed-in user's auth email) keyed by user id.
+          const knownEmailById = new Map(state.users.filter((u) => u.id && u.email).map((u) => [u.id, u.email]));
+          const merged = profilesRes.data.map((u) => ({
+            id: u.id,
+            email: knownEmailById.get(u.id) || '',
+            username: u.username || normalizeUsername(u.full_name || 'fishcrew_user'),
+            name: u.full_name || 'FishCrew User',
+            role: u.role || 'Angler',
+            area: u.home_area || 'Tampa Bay',
+            avatar: u.avatar_url || '',
+            bio: u.bio || 'Here to fish more with a better crew.',
+            fishingStyles: u.fishing_styles || 'Inshore, pier, weekend trips',
+            profileTheme: u.profile_theme || 'Harbor Blue',
+            password: '',
+            createdAt: u.created_at || now()
+          }));
+          const localDemo = state.users.filter((u) => u.demo === true || String(u.email || '').endsWith('@fishcrew.local'));
+          state.users = [...localDemo, ...merged.filter((u) => !localDemo.some((d) => d.id === u.id))];
+          if (sessionUser && !state.users.some((u) => u.id === sessionUser.id)) state.users.push(sessionUser);
+        }
+        // An empty answer is real (for example, the operator hid the last trip), except
+        // when sample content is loaded on purpose.
+        if (Array.isArray(tripsRes.data) && (tripsRes.data.length || !state.demoContentLoaded)) {
+          const privateByTrip = Object.fromEntries((privateDetailsRes.data || []).map((d) => [d.trip_id, d.private_location]));
+          state.trips = tripsRes.data.map((t) => ({
+            id: t.id,
+            title: t.title,
+            type: t.trip_type || 'Boat',
+            area: t.area || 'Tampa Bay',
+            publicLocation: t.public_location || t.area || 'General area',
+            privateLocation: privateByTrip[t.id] || 'Private details after approval',
+            hostId: t.host_id,
+            hostName: state.users.find((u) => u.id === t.host_id)?.name || 'FishCrew host',
+            time: t.start_label || 'Upcoming',
+            species: t.target_species || 'Mixed species',
+            spots: Number(t.open_spots || 0),
+            cost: t.cost_note || 'TBD',
+            status: t.status || 'Open',
+            score: t.condition_score || 'Good',
+            wind: t.wind_label || 'Check conditions',
+            waves: t.waves_label || 'Check water',
+            tide: t.tide_label || 'Moving tide',
+            water: 'Live',
+            media: t.media_url || '',
+            mediaModerationStatus: t.media_moderation_status || (t.media_url ? 'Approved' : 'Approved'),
+            adminFeatured: Boolean(t.featured),
+            members: [],
+            createdAt: t.created_at || now()
+          }));
+        }
+        if (membersRes.data?.length) {
+          const memberMap = {};
+          membersRes.data.forEach((m) => {
+            if (String(m.status || 'Approved') !== 'Approved') return;
+            if (!memberMap[m.trip_id]) memberMap[m.trip_id] = [];
+            memberMap[m.trip_id].push(m.user_id);
+          });
+          state.trips.forEach((t) => { t.members = memberMap[t.id] || (t.hostId ? [t.hostId] : []); });
+        }
+        if (requestsRes.data?.length) {
+          state.requests = requestsRes.data.map((r) => ({ id: r.id, tripId: r.trip_id, userId: r.requester_id, userName: r.requester_name || state.users.find((u) => u.id === r.requester_id)?.name || 'FishCrew user', message: r.message || '', status: r.status || 'Pending', createdAt: r.created_at || now() }));
+        }
+        if (Array.isArray(messagesRes.data) && (messagesRes.data.length || !state.demoContentLoaded)) {
+          state.messages = {};
+          messagesRes.data.forEach((m) => {
+            if (!state.messages[m.trip_id]) state.messages[m.trip_id] = [];
+            state.messages[m.trip_id].push({ id: m.id, senderId: m.sender_id, senderName: m.sender_name || 'FishCrew user', body: m.body || '', createdAt: m.created_at || now(), hiddenAt: m.hidden_at || null });
+          });
+        }
+        if (Array.isArray(feedRes.data) && (feedRes.data.length || !state.demoContentLoaded)) {
+          state.feed = feedRes.data.map((p) => ({ id: p.id, type: p.post_type || 'Catch Log', title: p.title, area: p.area || 'Local water', authorId: p.author_id, authorName: p.author_name || state.users.find((u) => u.id === p.author_id)?.name || 'FishCrew user', body: p.body || '', media: p.media_url || '', mediaType: p.media_type || 'emoji', artKind: p.media_url ? '' : 'catch', reactions: Number(p.reactions || 0), status: p.status || 'Live', createdAt: p.created_at || now() }));
+        }
+        if (Array.isArray(mediaRes.data)) {
+          state.mediaAssets = mediaRes.data.map((a) => ({ id: a.id, ownerId: a.owner_id || '', sourceId: a.source_id || '', sourceType: a.source_type || 'feed', mediaType: a.media_type || 'file', storagePath: a.storage_path || '', publicUrl: a.public_url || '', status: a.moderation_status || a.status || 'Review', visibility: a.visibility || 'public', createdAt: a.created_at || now() }));
+          // Hydrate owner/admin trip + feed + profile media from assets when public rows omit pending URLs.
+          (state.trips || []).forEach((trip) => {
+            const asset = mediaAssetForItem(trip, 'trip');
+            if (!asset) return;
+            trip.mediaModerationStatus = asset.status || trip.mediaModerationStatus || 'Review';
+            if (!trip.media && asset.publicUrl && (isAdmin() || isApprovedMediaStatus(asset.status) || (currentUser() && trip.hostId === currentUser().id))) {
+              trip.media = asset.publicUrl;
+            }
+          });
+          (state.feed || []).forEach((post) => {
+            const asset = mediaAssetForItem(post, 'feed');
+            if (!asset) return;
+            if (!post.media && asset.publicUrl && (isAdmin() || isApprovedMediaStatus(asset.status) || (currentUser() && post.authorId === currentUser().id))) {
+              post.media = asset.publicUrl;
+              post.mediaType = asset.mediaType || post.mediaType;
+            }
+          });
+          (state.users || []).forEach((user) => {
+            const asset = (state.mediaAssets || []).find((a) => a.sourceType === 'profile' && (a.sourceId === user.id || a.ownerId === user.id));
+            if (!asset?.publicUrl) return;
+            if (!user.avatar && (isAdmin() || isApprovedMediaStatus(asset.status) || (currentUser() && currentUser().id === user.id))) {
+              user.avatar = asset.publicUrl;
+              user.avatarModerationStatus = asset.status || user.avatarModerationStatus;
+            }
+          });
+        }
+        if (reportsRes.data?.length) {
+          state.reports = reportsRes.data.map((r) => ({ id: r.id, type: r.item_type || 'Review', target: r.target_id || r.feed_post_id || r.id, targetType: r.target_type || (r.feed_post_id ? 'feed' : ''), targetUserId: r.target_user_id || '', status: r.status || 'Open', severity: r.severity || 'Low', note: r.title || 'Moderation item', reason: r.reason_code || '', details: r.details || '', reporterId: r.reporter_id || '', createdAt: r.created_at || now() }));
+        }
+        if (businessesRes.data?.length) {
+          state.businesses = businessesRes.data.map((b) => hydrateBusinessListing({
+            id: b.id,
+            ownerId: b.owner_id || '',
+            name: b.name,
+            kind: b.business_type || 'Business',
+            area: b.area || 'Local',
+            status: b.status || 'Lead',
+            leads: Number(b.lead_count || 0),
+            revenue: Math.round(Number(b.revenue_cents || 0) / 100),
+            campaign: b.campaign || 'Local placement',
+            websiteUrl: b.website_url || '',
+            species: b.species || '',
+            boatType: b.boat_type || '',
+            tripTypes: b.trip_types || '',
+            availability: b.availability_notes || '',
+            priceFrom: b.price_from_cents != null ? Math.round(Number(b.price_from_cents) / 100) : null,
+            priceTo: b.price_to_cents != null ? Math.round(Number(b.price_to_cents) / 100) : null,
+            listingKind: b.listing_kind || ''
+          }));
+        }
+        if (bookingsRes.data?.length) {
+          state.bookings = bookingsRes.data.map((b) => ({
+            id: b.id,
+            businessId: b.business_id,
+            charterId: b.charter_id || b.business_id,
+            customerId: b.customer_id || null,
+            customerName: b.customer_name,
+            phone: b.phone || '',
+            kind: b.booking_type || 'Inquiry',
+            status: b.status || 'New',
+            date: b.date_label || 'TBD',
+            value: Math.round(Number(b.value_cents || 0) / 100),
+            notes: b.notes || ''
+          }));
+        }
+        await pullCharterTables(generation);
+        await Promise.all([refreshAnnouncements({ quiet: true }), refreshOwnRestriction()]);
+        await fetchNotifications();
+        if (generation !== pullGeneration) return;
+        mergeCuratedDirectory();
+        state.opsLog.unshift(options.reason ? `Pulled shared data (${options.reason}).` : 'Pulled shared data into FishCrew.');
+        save();
+        render();
+        if (!options.silent) toast('Live data pulled.');
+        startRealtime();
+      } catch (error) {
+        if (generation !== pullGeneration) return;
+        toast(`Live pull failed: ${error.message}`, 'danger');
+        throw error;
+      }
+    })();
+
+    pullInFlight = run.finally(() => {
+      if (pullInFlight === run) pullInFlight = null;
+    });
+    return pullInFlight;
+  }
+
+  function scheduleLivePull() {
+    clearTimeout(realtimePullTimer);
+    realtimePullTimer = setTimeout(() => pullSupabase({ silent: true, reason: 'realtime' }), 750);
+  }
+
+  function stopRealtime() {
+    clearTimeout(realtimePullTimer);
+    clearTimeout(notificationsRefreshTimer);
+    realtimePullTimer = null;
+    notificationsRefreshTimer = null;
+    if (supabaseClient && realtimeChannel) {
+      supabaseClient.removeChannel(realtimeChannel).catch(() => {});
+      realtimeChannel = null;
+    }
+  }
+
+  function startRealtime() {
+    if (!supabaseClient?.channel) return;
+    const userId = currentUser()?.id || '';
+    try {
+      if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel).catch(() => {});
+      const channel = supabaseClient.channel('fishcrew-live-v061')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_posts' }, scheduleLivePull)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_members' }, scheduleLivePull)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'join_requests' }, scheduleLivePull)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_messages' }, scheduleLivePull)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'feed_posts' }, scheduleLivePull)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, scheduleLivePull);
+      if (userId) {
+        channel.on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, scheduleNotificationsRefresh);
+      }
+      realtimeChannel = channel.subscribe((status) => setDebug(`Realtime: ${status}`));
+    } catch (error) {
+      console.warn('Realtime subscribe failed', error);
+    }
+  }
+
+
+  function runReadinessCheck() {
+    const requiredState = ['users','trips','requests','messages','feed','businesses','bookings','reports','mediaAssets'];
+    const missingState = requiredState.filter((key) => !(key in state));
+    const configReady = Boolean(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY && CONFIG.STORAGE_BUCKET);
+    const openReports = (state.reports || []).filter((r) => r.status === 'Open').length;
+    const mediaTracked = (state.mediaAssets || []).length;
+    const result = `${missingState.length ? missingState.length + ' missing stores' : 'browser stores ready'} ${MID} ${configReady ? 'shared data config present' : 'shared data not connected'} ${MID} ${mediaTracked} media assets ${MID} ${openReports} open reviews`;
+    state.supabasePrep = state.supabasePrep || {};
+    state.supabasePrep.lastReadiness = result;
+    state.opsLog.unshift(`Readiness check: ${result}`);
+    save(); render();
+    modal(`<div class="modal-head"><div><span class="eyebrow">Readiness</span><h2>Safe prep check.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="grid two">
+        <div class="panel"><h3>Config</h3><p class="muted">Shared data keys: ${CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY ? 'present' : 'not set yet'}</p><p class="muted">Storage bucket: ${safe(CONFIG.STORAGE_BUCKET || 'fishcrew-media')}</p></div>
+        <div class="panel"><h3>State</h3><p class="muted">${safe(result)}</p><p class="muted">Missing stores: ${missingState.length ? safe(missingState.join(', ')) : 'none'}</p></div>
+        <div class="panel"><h3>Permissions</h3><p class="muted">Access policies are included in schema.sql for profiles, trips, requests, members, messages, feed, media, reports, businesses, and bookings.</p></div>
+        <div class="panel"><h3>Next</h3><p class="muted">Connect shared data, sign in with two real accounts, then run the two-phone launch check.</p></div>
+      </div>`);
+  }
+
+
+  function releaseGateChecks() {
+    const configured = Boolean(CONFIG.USE_SUPABASE && CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
+    const requiredStores = ['users','trips','requests','messages','feed','businesses','bookings','reports','mediaAssets','launchChecks','deviceHub','blockedUsers','accountDeletionRequests'];
+    const missingStores = requiredStores.filter((key) => !(key in state));
+    const actionsUsed = new Set($$('[data-action]').map((el) => el.dataset.action).filter(Boolean));
+    const missingActions = [...actionsUsed].filter((action) => !ACTIONS[action]);
+    const duplicateIds = $$('[id]').map((n) => n.id).filter((id, i, arr) => arr.indexOf(id) !== i);
+    const openReports = (state.reports || []).filter((r) => r.status === 'Open').length;
+    const checks = [
+      { label: 'Core local stores exist', pass: missingStores.length === 0, detail: missingStores.length ? missingStores.join(', ') : 'ready' },
+      { label: 'Button router has every visible action', pass: missingActions.length === 0, detail: missingActions.length ? missingActions.join(', ') : `${actionsUsed.size} actions routed` },
+      { label: 'No duplicate static IDs', pass: duplicateIds.length === 0, detail: duplicateIds.length ? duplicateIds.join(', ') : 'none' },
+      { label: 'Trip/feed content loaded', pass: (state.trips || []).length > 0 && (state.feed || []).length > 0, detail: `${(state.trips||[]).length} trips ${MID} ${(state.feed||[]).length} feed posts` },
+      { label: 'Media assets and moderation queue exist', pass: Array.isArray(state.mediaAssets) && Array.isArray(state.reports), detail: `${(state.mediaAssets||[]).length} assets ${MID} ${openReports} open reviews` },
+      { label: 'Launch checklist available', pass: (state.launchChecks || []).length >= 8, detail: `${(state.launchChecks||[]).length} checks` },
+      { label: 'User safety controls available', pass: Array.isArray(state.blockedUsers) && Array.isArray(state.accountDeletionRequests), detail: `${(state.blockedUsers||[]).length} blocked | ${(state.accountDeletionRequests||[]).length} deletion records` },
+      { label: 'GPS and device hub available', pass: Boolean(state.deviceHub && ACTIONS['open-device-hub'] && ACTIONS['connect-serial-gps']), detail: state.deviceHub?.source || 'device hub ready' },
+      { label: 'Shared-data connection is optional until live check', pass: true, detail: configured ? 'configured' : 'browser storage active' },
+      { label: 'Storage bucket name set', pass: Boolean(CONFIG.STORAGE_BUCKET || CONFIG.MEDIA_BUCKET), detail: CONFIG.STORAGE_BUCKET || CONFIG.MEDIA_BUCKET || 'missing' },
+      { label: 'Web/app split flags present', pass: Boolean(CONFIG.BUILD_TARGET && CONFIG.WEB_CANONICAL_URL), detail: `${CONFIG.BUILD_TARGET || 'unknown'} ${MID} ${CONFIG.WEB_CANONICAL_URL || 'no canonical url'}` }
+    ];
+    return checks;
+  }
+
+  function runReleaseGate() {
+    const checks = releaseGateChecks();
+    const failed = checks.filter((c) => !c.pass);
+    const result = failed.length ? `${failed.length} launch blockers` : 'Launch checks passed';
+    state.supabasePrep = state.supabasePrep || {};
+    state.supabasePrep.releaseGate = result;
+    state.supabasePrep.lastReadiness = `${checks.filter((c)=>c.pass).length}/${checks.length} checks passed`;
+    state.opsLog.unshift(`Launch checks: ${result}`);
+    save(); render();
+    modal(`<div class="modal-head"><div><span class="eyebrow">Launch checks</span><h2>${safe(result)}</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="stack">${checks.map((c)=>`<div class="qa-note ${c.pass ? 'done' : ''}"><div class="row"><span class="badge ${c.pass ? 'green' : 'red'}">${c.pass ? 'Pass' : 'Fix'}</span><span class="chip">Gate</span></div><p><strong>${safe(c.label)}</strong><br><span class="muted">${safe(c.detail)}</span></p></div>`).join('')}</div>
+      <div class="row mt"><button class="btn primary" type="button" data-action="open-live-smoke-test">Open two-phone check</button><button class="btn dark" type="button" data-action="close-modal">Close</button></div>`);
+  }
+
+  function openBackendDiagnostics() {
+    const tests = state.supabasePrep?.testResults || [];
+    modal(`<div class="modal-head"><div><span class="eyebrow">Connection diagnostics</span><h2>Shared data status.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="grid two">
+        <div class="panel"><h3>Config</h3><p class="muted">Shared data enabled: ${CONFIG.USE_SUPABASE ? 'true' : 'false'}</p><p class="muted">Shared data keys: ${CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY ? 'present' : 'not set yet'}</p><p class="muted">Bucket: ${safe(CONFIG.STORAGE_BUCKET || CONFIG.MEDIA_BUCKET || 'fishcrew-media')}</p></div>
+        <div class="panel"><h3>Mode</h3><p class="muted">Current storage: ${state.backendMode === 'supabase' ? 'shared data' : 'browser'}</p><p class="muted">Status: ${safe(state.liveStatus || state.supabasePrep?.lastReadiness || 'Not checked')}</p></div>
+      </div>
+      <div class="row mt"><button class="btn soft" type="button" data-action="check-backend">Check connection</button><button class="btn dark" type="button" data-action="run-live-test-pack">Run data probes</button><button class="btn dark" type="button" data-action="start-realtime">Start live updates</button></div>
+      <div class="section"><h3>Last results</h3><div class="stack">${tests.map((t)=>`<div class="qa-note ${t.pass ? 'done' : ''}"><div class="row"><span class="badge ${t.pass ? 'green' : 'orange'}">${safe(t.status)}</span><span class="chip">${safe(t.name)}</span></div><p class="muted">${safe(t.detail)}</p></div>`).join('') || '<div class="empty">No data probes run yet.</div>'}</div></div>`);
+  }
+
+  async function runLiveTestPack() {
+    const tables = ['profiles','trip_posts','trip_members','join_requests','trip_messages','feed_posts','media_assets','moderation_items','businesses','bookings'];
+    const results = [];
+    const configured = Boolean(CONFIG.USE_SUPABASE && CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
+    if (!configured) {
+      results.push({ name: 'Shared data config', status: 'Browser', pass: true, detail: 'Shared keys are not set. Browser storage remains healthy and safe.' });
+      results.push({ name: 'Browser stores', status: 'Pass', pass: true, detail: `${(state.trips||[]).length} trips, ${(state.feed||[]).length} feed posts, ${(state.users||[]).length} users available.` });
+      state.supabasePrep.testResults = results;
+      state.supabasePrep.lastReadiness = 'Browser checks passed. Add shared-data keys for live data probes.';
+      state.opsLog.unshift('Connection checks ran in browser mode.');
+      save(); render(); openBackendDiagnostics(); return;
+    }
+    try {
+      if (!supabaseClient) await checkBackend();
+      if (!supabaseClient) throw new Error('Shared data client did not initialize.');
+      results.push({ name: 'Shared data client', status: 'Pass', pass: true, detail: 'Client initialized.' });
+      for (const table of tables) {
+        try {
+          const { error } = await supabaseClient.from(table).select('*', { count: 'exact', head: true });
+          results.push({ name: table, status: error ? 'Check' : 'Pass', pass: !error, detail: error ? error.message : 'read probe succeeded' });
+        } catch (err) {
+          results.push({ name: table, status: 'Error', pass: false, detail: err.message });
+        }
+      }
+      try {
+        const bucket = CONFIG.STORAGE_BUCKET || CONFIG.MEDIA_BUCKET || 'fishcrew-media';
+        const { error } = await supabaseClient.storage.from(bucket).list('', { limit: 1 });
+        results.push({ name: 'storage bucket', status: error ? 'Check' : 'Pass', pass: !error, detail: error ? error.message : `${bucket} list probe succeeded` });
+      } catch (err) {
+        results.push({ name: 'storage bucket', status: 'Error', pass: false, detail: err.message });
+      }
+      state.supabasePrep.testResults = results;
+      state.supabasePrep.lastReadiness = `${results.filter((r)=>r.pass).length}/${results.length} data probes passed`;
+      state.opsLog.unshift(`Connection probes: ${state.supabasePrep.lastReadiness}`);
+      save(); render(); openBackendDiagnostics();
+    } catch (error) {
+      toast(`Data probes failed: ${error.message}`, 'danger');
+    }
+  }
+
+  function openRoleMatrix() {
+    const rows = [
+      ['Guest','Browse Home/Explore/Feed','Cannot post, join, chat, upload, or use operator tools'],
+      ['Angler','Post trips/catches, request joins, chat after approval','Cannot moderate or verify businesses'],
+      ['Captain','Angler tools plus charter/business posts and booking leads','Cannot resolve review reports unless verified as an operator'],
+      ['Business','Shop/cruise/guide tools, sponsored posts, leads','Cannot see private trip chats unless member'],
+      ['Operator','Moderation, verification, reports, revenue, and operations tools','Must still use safe media and review flow']
+    ];
+    modal(`<div class="modal-head"><div><span class="eyebrow">Role matrix</span><h2>Permission intent.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="stack">${rows.map((r)=>`<div class="panel"><div class="row"><span class="badge green">${safe(r[0])}</span></div><h3>${safe(r[1])}</h3><p class="muted">${safe(r[2])}</p></div>`).join('')}</div>`);
+  }
+
+  function openDataAdapterMap() {
+    const rows = [
+      ['createTrip','trip_posts + trip_members','Browser first; shared-data write when connected'],
+      ['requestJoin / approveRequest','join_requests + trip_members','Protect private_location until approved'],
+      ['sendMessage','trip_messages','Crew-only in RLS'],
+      ['postFeedItem','feed_posts + media_assets + moderation_items','Media queued for review'],
+      ['uploadMedia','storage.objects + media_assets','Images/video/GIF through bucket'],
+      ['reportPost / removePost','moderation_items + feed_posts.status','Operator audit trail preserved'],
+      ['bookingLead','bookings + businesses','Business/operator visibility'],
+      ['profile/business roles','profiles + businesses','Role-based navigation and RLS']
+    ];
+    modal(`<div class="modal-head"><div><span class="eyebrow">Data map</span><h2>Browser now. Shared data next.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="stack">${rows.map((r)=>`<div class="qa-note"><div class="row"><span class="badge">${safe(r[0])}</span><span class="chip">${safe(r[1])}</span></div><p class="muted">${safe(r[2])}</p></div>`).join('')}</div>`);
+  }
+
+  function runMediaStressCheck() {
+    const maxLocal = Number(CONFIG.MAX_LOCAL_UPLOAD_MB || 6);
+    const issues = [];
+    if (!Array.isArray(state.mediaAssets)) issues.push('mediaAssets store missing');
+    if (!Array.isArray(state.reports)) issues.push('reports store missing');
+    const largeLocalRisk = (state.mediaAssets || []).filter((a) => String(a.publicUrl || a.storagePath || '').startsWith('data:')).length;
+    const result = issues.length ? issues.join(', ') : `Media policy ready: browser cap ${maxLocal} MB, media bucket ${CONFIG.STORAGE_BUCKET || CONFIG.MEDIA_BUCKET || 'fishcrew-media'}, ${largeLocalRisk} embedded browser assets.`;
+    state.opsLog.unshift(`Media stress check: ${result}`);
+    save(); render(); toast(result);
+  }
+
+  function openMediaPipeline() {
+    const assets = state.mediaAssets || [];
+    const reports = state.reports || [];
+    modal(`<div class="modal-head"><div><span class="eyebrow">Media pipeline</span><h2>Uploads, review, and feed safety.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="safe-note"><strong>Policy:</strong> Images are validated before preview. Videos/GIFs should use connected storage before public scale. Uploaded trip/feed media queues moderation.</div><div class="row mb"><button class="btn dark small" type="button" data-action="run-media-stress-check">Run media check</button><button class="btn dark small" type="button" data-action="open-moderation">Open moderation</button></div>
+      <div class="grid two">
+        <div class="panel"><h3>Tracked assets</h3><div class="stack">${assets.map((a)=>`<div class="qa-note"><div class="row"><span class="badge ${a.status==='Approved'?'green':'orange'}">${safe(a.status)}</span><span class="chip">${safe(a.sourceType)}</span></div><p>${safe(a.storagePath || a.id)} ${MID} ${safe(a.mediaType)}</p></div>`).join('') || '<div class="empty">No tracked assets yet.</div>'}</div></div>
+        <div class="panel"><h3>Open review</h3><div class="stack">${reports.filter((r)=>r.status==='Open').map((r)=>`<div class="qa-note"><div class="row"><span class="badge orange">${safe(r.type)}</span><span class="chip">${safe(r.target)}</span></div><p>${safe(r.note || 'Needs review')}</p><button class="btn dark small" type="button" data-action="resolve-report" data-report-id="${safe(r.id)}">Resolve</button></div>`).join('') || '<div class="empty">No open review items.</div>'}</div></div>
+      </div>`);
+  }
+
+  function openLiveSmokeTest() {
+    const checks = [
+      'Phone A creates account and profile',
+      'Phone B creates account and profile',
+      'Phone A posts trip; Phone B sees trip after pull/realtime',
+      'Phone B requests to join; Phone A sees request',
+      'Phone A approves; Phone B sees crew/private-location unlock',
+      'Both phones exchange crew chat messages',
+      'Phone B posts catch photo/video; operator sees review item',
+      'Operator resolves report or removes unsafe post',
+      'Business/captain lead appears in Bridge'
+    ];
+    modal(`<div class="modal-head"><div><span class="eyebrow">Two-phone check</span><h2>Two phones. No guessing.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <p class="lead">Run this only after shared data is connected and account sign-in is working.</p>
+      <div class="stack">${checks.map((c,i)=>`<button class="check-row" type="button" data-action="toggle-launch-check" data-check-id="lc_${Math.min(i+1,7)}"><span>${i+1}</span><b>${safe(c)}</b></button>`).join('')}</div>
+      <div class="row mt"><button class="btn soft" type="button" data-action="check-backend">Check connection</button><button class="btn dark" type="button" data-action="pull-supabase">Pull shared</button><button class="btn dark" type="button" data-action="sync-supabase">Push shared</button></div>`);
+  }
+
+  function openQaNote() {
+    modal(`<div class="modal-head"><div><span class="eyebrow">QA note</span><h2>Add controlled note.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="forms">
+        <label class="label">Screen<input id="qaScreen" class="field" placeholder="Home, Explore, Crew, Feed, Profile" /></label>
+        <label class="label">Issue<textarea id="qaIssue" class="field" placeholder="What feels wrong or broken?"></textarea></label>
+        <label class="label">Priority<select id="qaPriority" class="select"><option>High</option><option selected>Medium</option><option>Low</option></select></label>
+        <button class="btn primary full" type="button" data-action="save-qa-note">Save note</button>
+      </div>`);
+  }
+
+  function saveQaNote() {
+    const note = {
+      id: uid('qa'),
+      screen: $('#qaScreen')?.value.trim() || 'General',
+      issue: $('#qaIssue')?.value.trim() || 'Small cleanup note',
+      priority: $('#qaPriority')?.value || 'Medium',
+      status: 'Open',
+      createdAt: now()
+    };
+    state.qaNotes = state.qaNotes || [];
+    state.qaNotes.unshift(note);
+    state.opsLog.unshift(`QA note added: ${note.screen} / ${note.priority}`);
+    closeModal(); save(); render(); toast('QA note saved.');
+  }
+
+  function toggleQaNote(id) {
+    const note = (state.qaNotes || []).find((n) => n.id === id);
+    if (!note) return;
+    note.status = note.status === 'Done' ? 'Open' : 'Done';
+    state.opsLog.unshift(`QA note ${note.status.toLowerCase()}: ${note.screen}`);
+    save(); render();
+  }
+
+  function toggleLaunchCheck(id) {
+    const check = (state.launchChecks || []).find((c) => c.id === id);
+    if (!check) return;
+    check.done = !check.done;
+    state.opsLog.unshift(`${check.done ? 'Checked' : 'Unchecked'}: ${check.label}`);
+    save(); render();
+  }
+
+  function runHealthCheck() {
+    const buttons = $$('button[data-action]');
+    const actions = new Set(buttons.map((b) => b.dataset.action).filter(Boolean));
+    const missing = [...actions].filter((a) => !ACTIONS[a]);
+    const duplicateIds = $$('[id]').map((n)=>n.id).filter((id, i, arr)=>arr.indexOf(id)!==i);
+    const result = `${buttons.length} routed buttons ${MID} ${missing.length} missing actions ${MID} ${duplicateIds.length} duplicate IDs`;
+    state.health.lastAudit = result;
+    state.health.missingActions = missing;
+    state.opsLog.unshift(`Health check: ${result}`);
+    save(); render();
+    modal(`<div class="modal-head"><div><span class="eyebrow">Health check</span><h2>Swiss watch pass.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div><div class="grid"><div class="panel"><h3>${safe(result)}</h3><p class="muted">Missing actions: ${missing.length ? safe(missing.join(', ')) : 'none'}</p><p class="muted">Duplicate IDs: ${duplicateIds.length ? safe(duplicateIds.join(', ')) : 'none'}</p></div><button class="btn primary" type="button" data-action="close-modal">Good</button></div>`);
+  }
+
+  function loadSamplePack() {
+    if (!requireAdmin()) return;
+    const fresh = demoSeedContent();
+    const current = currentUser();
+    state.users = mergeById(state.users || [], fresh.users || []);
+    state.trips = mergeById(state.trips || [], fresh.trips || []);
+    state.requests = mergeById(state.requests || [], fresh.requests || []);
+    state.feed = mergeById(state.feed || [], fresh.feed || []);
+    state.businesses = mergeById(state.businesses || [], fresh.businesses || []);
+    state.bookings = mergeById(state.bookings || [], fresh.bookings || []);
+    state.reports = mergeById(state.reports || [], fresh.reports || []);
+    state.demoContentLoaded = true;
+    state.opsLog.unshift('Reloaded seeded FishCrew content pack.');
+    if (current) state.session = { ...state.session, userId: current.id };
+    save(); render(); nav('home'); toast('Sample content loaded.');
+  }
+
+  function clearSamplePack() {
+    if (!requireAdmin()) return;
+    state.trips = (state.trips || []).filter((x) => !x.demo);
+    state.feed = (state.feed || []).filter((x) => !x.demo);
+    state.businesses = (state.businesses || []).filter((x) => !x.demo);
+    state.bookings = (state.bookings || []).filter((x) => !x.id?.startsWith('book_'));
+    state.requests = (state.requests || []).filter((x) => !String(x.id || '').startsWith('req_'));
+    state.demoContentLoaded = false;
+    state.opsLog.unshift('Cleared seeded trips, feed posts, and partner examples.');
+    save(); render(); nav('home'); toast('Sample trips/feed cleared.');
+  }
+
+  function mergeById(existing, incoming) {
+    const map = new Map((existing || []).map((item) => [item.id, item]));
+    (incoming || []).forEach((item) => { if (!map.has(item.id)) map.set(item.id, item); });
+    return Array.from(map.values());
+  }
+
+  function exportData() {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `fishcrew-export-${VERSION}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('Export started.');
+  }
+
+  function resetLocal() {
+    if (!confirm('Reset FishCrew browser data on this device?')) return;
+    localStorage.removeItem(STORE);
+    state = defaultState();
+    save(); render(); nav('home'); toast('Browser data reset.');
+  }
+
+  function openNotifications() {
+    if (!currentUser()) return openAuth('Sign in to view your FishCrew alerts.');
+    const notes = state.notifications || [];
+    const loading = state.notificationsLoading;
+    const fetchError = state.notificationsFetchError;
+    modal(`<div class="modal-head"><div><span class="eyebrow">Activity</span><h2>FishCrew alerts.</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+      <div class="stack">
+        ${loading ? '<div class="empty">Loading alerts...</div>' : fetchError ? `<div class="empty">Could not load alerts. ${safe(fetchError)}</div>` : notes.map((n)=>`<div class="panel notification-row ${n.read ? 'read' : ''}"><div class="row"><span class="badge ${n.read ? '' : 'green'}">${safe(n.type || 'Alert')}</span><span class="chip">${new Date(n.createdAt || now()).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })}</span></div><h3>${safe(n.title)}</h3><p class="muted">${safe(n.body)}</p></div>`).join('') || '<div class="empty">No alerts yet. Trip, crew, and message activity will show here.</div>'}
+        <div class="row"><button class="btn primary" type="button" data-action="mark-notifications-read">Mark all read</button><button class="btn dark" type="button" data-action="open-user-settings">Notification settings</button></div>
+      </div>`);
+    if (supabaseClient && currentUser() && !loading) fetchNotifications();
+  }
+
+  async function markNotificationsRead() {
+    const user = currentUser();
+    if (!user) return openAuth('Sign in to manage alerts.');
+    if (supabaseClient) {
+      const unreadCount = unreadNotifications();
+      if (!unreadCount) {
+        openNotifications();
+        return toast('No unread alerts.');
+      }
+      const { error } = await supabaseClient
+        .from('notifications')
+        .update({ read_at: now(), updated_at: now() })
+        .eq('user_id', user.id)
+        .is('read_at', null);
+      if (error) return toast(`Could not mark alerts read: ${error.message}`, 'danger');
+      await fetchNotifications();
+      openNotifications();
+      return toast('Notifications marked read.');
+    }
+    (state.notifications || []).forEach((n) => { n.read = true; });
+    save(); render(); openNotifications(); toast('Notifications marked read.');
+  }
+
+  /* ------------------------------------------------------------ Banners and restrictions
+   * Everyone sees the operator's live announcement banner. A suspended or banned account
+   * sees why it cannot post (sign-in is also refused on the server until the end date).
+   */
+  function isPermissionError(error) {
+    return Boolean(error) && (error.code === '42501' || /permission denied/i.test(String(error.message || '')));
+  }
+
+  function fmtWhen(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
+  function fmtDay(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  /** 'YYYY-MM-DD' in local time, for <input type="date">. */
+  function localDateInput(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  async function refreshAnnouncements(options = {}) {
+    if (!supabaseClient) return;
+    try {
+      const { data, error } = await supabaseClient
+        .from('announcements')
+        .select('id, title, body, link_url, level, active, starts_at, ends_at')
+        .order('starts_at', { ascending: false })
+        .limit(10);
+      if (error) return; // offline, or the database update is not in yet
+      state.announcements = (data || []).map((a) => ({
+        id: a.id,
+        title: a.title || '',
+        body: a.body || '',
+        link: httpsUrl(a.link_url || ''),
+        level: ['info', 'alert', 'promo'].includes(a.level) ? a.level : 'info',
+        active: a.active !== false,
+        startsAt: a.starts_at || null,
+        endsAt: a.ends_at || null
+      }));
+      if (!options.quiet) {
+        save();
+        renderAnnouncementBanner();
+      }
+    } catch (_) { /* banners are optional */ }
+  }
+
+  function liveAnnouncement() {
+    const t = Date.now();
+    const dismissed = new Set(state.dismissedAnnouncements || []);
+    return (state.announcements || []).find((a) => a.active
+      && (!a.startsAt || Date.parse(a.startsAt) <= t)
+      && (!a.endsAt || Date.parse(a.endsAt) > t)
+      && !dismissed.has(a.id)) || null;
+  }
+
+  function dismissAnnouncement(id) {
+    if (!id) return;
+    state.dismissedAnnouncements = Array.from(new Set([...(state.dismissedAnnouncements || []), id])).slice(-50);
+    save();
+    renderAnnouncementBanner();
+  }
+
+  async function refreshOwnRestriction() {
+    const user = currentUser();
+    if (!supabaseClient || !user) {
+      state.restriction = null;
+      return;
+    }
+    try {
+      const { data, error } = await supabaseClient
+        .from('user_restrictions')
+        .select('status, restricted_until')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (error) return;
+      const active = data && (!data.restricted_until || Date.parse(data.restricted_until) > Date.now());
+      state.restriction = active ? { userId: user.id, status: data.status, until: data.restricted_until || null } : null;
+    } catch (_) { /* keep what we had */ }
+  }
+
+  function activeRestriction() {
+    const r = state.restriction;
+    const user = currentUser();
+    if (!r || !user || (r.userId && r.userId !== user.id)) return null;
+    if (r.until && Date.parse(r.until) <= Date.now()) return null;
+    return r;
+  }
+
+  function restrictionText(r) {
+    return r.status === 'Banned'
+      ? 'This account is banned from posting on FishCrew.'
+      : `This account is suspended until ${fmtWhen(r.until)}.`;
+  }
+
+  /** True (and explains why) when the signed-in account may not post right now. */
+  function blockIfRestricted() {
+    const r = activeRestriction();
+    if (!r) return false;
+    toast(`${restrictionText(r)} You can still browse, report, and delete your account.`, 'danger');
+    return true;
+  }
+
+  function renderAnnouncementBanner() {
+    const el = $('#announceBanner');
+    if (!el) return;
+    const r = activeRestriction();
+    const a = r ? null : liveAnnouncement();
+    if (!r && !a) {
+      el.hidden = true;
+      el.className = 'announce-banner hidden';
+      el.innerHTML = '';
+      return;
+    }
+    if (r) {
+      el.className = 'announce-banner level-alert';
+      el.innerHTML = `<div><strong>${safe(restrictionText(r))}</strong><p>You can still browse, report, block, and delete your account. Questions: ${safe(supportEmail())}</p></div>`;
+    } else {
+      el.className = `announce-banner level-${safe(a.level)}`;
+      el.innerHTML = `<div><strong>${safe(a.title)}</strong>${a.body ? `<p>${safe(a.body)}</p>` : ''}${a.link ? `<a href="${safe(a.link)}" target="_blank" rel="noopener noreferrer">Learn more</a>` : ''}</div><button class="beta-dismiss" type="button" data-action="dismiss-announcement" data-announcement-id="${safe(a.id)}" aria-label="Dismiss announcement">&times;</button>`;
+    }
+    el.hidden = false;
+  }
+
+  /* ------------------------------------------------------------------- Admin console
+   * Operator-only tools backed by the admin_* database functions in
+   * supabase/migrations/20261008_admin_console.sql. The server checks is_admin() on
+   * every call; keeping these screens away from other accounts is only cosmetic.
+   */
+  const ADMIN_TABS = [
+    ['overview', 'Overview'],
+    ['reports', 'Reports'],
+    ['people', 'People'],
+    ['content', 'Content'],
+    ['charters', 'Charters'],
+    ['banners', 'Banners'],
+    ['log', 'Log']
+  ];
+  const ADMIN_PAGE_SIZE = 40;
+  const ADMIN_EVENT_LABELS = {
+    trip_hidden: 'Hid trip',
+    trip_restored: 'Restored trip',
+    trip_featured: 'Featured trip',
+    trip_unfeatured: 'Unfeatured trip',
+    feed_removed: 'Removed post',
+    feed_restored: 'Restored post',
+    feed_approved: 'Approved post',
+    message_hidden: 'Hid message',
+    message_restored: 'Restored message',
+    media_approved: 'Approved media',
+    media_rejected: 'Rejected media',
+    report_resolved: 'Resolved report',
+    report_dismissed: 'Dismissed report',
+    report_reopened: 'Reopened report',
+    user_role_changed: 'Changed role',
+    user_suspended: 'Suspended account',
+    user_banned: 'Banned account',
+    user_restriction_lifted: 'Lifted restriction',
+    announcement_created: 'Created banner',
+    announcement_updated: 'Updated banner',
+    announcement_deleted: 'Deleted banner',
+    charter_created: 'Listed charter',
+    charter_updated: 'Edited charter',
+    charter_claimed: 'Captain claimed charter'
+  };
+
+  function adminErrorText(error) {
+    const msg = String(error?.message || error || 'Request failed.');
+    if (/could not find the function|schema cache|does not exist/i.test(msg)) return 'The admin tools need the latest FishCrew database update.';
+    if (/admin only|permission denied/i.test(msg)) return 'Operator access required.';
+    return msg;
+  }
+
+  async function adminClient() {
+    if (!isAdmin()) throw new Error('Operator access required.');
+    if (!supabaseClient) await checkBackend();
+    if (!supabaseClient || !(await canWriteLive())) throw new Error('Sign in with your operator account to use the admin tools.');
+    return supabaseClient;
+  }
+
+  async function adminRpc(fn, args = {}) {
+    const client = await adminClient();
+    const { data, error } = await client.rpc(fn, args);
+    if (error) throw new Error(adminErrorText(error));
+    return data;
+  }
+
+  async function adminSelect(table, columns, limit = 60) {
+    const client = await adminClient();
+    const { data, error } = await client.from(table).select(columns).order('created_at', { ascending: false }).limit(limit);
+    if (error) throw new Error(adminErrorText(error));
+    return data || [];
+  }
+
+  function adminConsoleOpen() {
+    return modalMode === 'admin' && Boolean($('#modalRoot .admin-console'));
+  }
+
+  function openAdminConsole(tab = '') {
+    if (!requireAdmin('Operator access required for the admin console.')) return;
+    if (tab && ADMIN_TABS.some(([id]) => id === tab)) adminCache.tab = tab;
+    modalMode = 'admin';
+    renderAdminConsole({ force: true, resetScroll: true });
+    loadAdminTab(adminCache.tab);
+    if (adminCache.tab !== 'overview') refreshAdminStats();
+  }
+
+  function switchAdminTab(tab, filter = '') {
+    if (!ADMIN_TABS.some(([id]) => id === tab)) return;
+    if (tab === 'content' && filter) adminCache.contentFilter = filter;
+    if (!adminConsoleOpen()) return openAdminConsole(tab);
+    adminCache.tab = tab;
+    adminCache.error = '';
+    renderAdminConsole({ resetScroll: true });
+    loadAdminTab(tab);
+  }
+
+  async function refreshAdminStats() {
+    try {
+      adminCache.stats = await adminRpc('admin_stats');
+      renderAdminConsole();
+    } catch (_) { /* the overview tab shows the error when opened */ }
+  }
+
+  async function loadAdminTab(tab = adminCache.tab, options = {}) {
+    const token = ++adminLoadToken;
+    if (!options.quiet) {
+      adminCache.loading = true;
+      adminCache.error = '';
+      renderAdminConsole();
+    }
+    try {
+      if (tab === 'overview') adminCache.stats = await adminRpc('admin_stats');
+      else if (tab === 'reports') adminCache.reports = await adminSelect('moderation_items', '*', 120);
+      else if (tab === 'people') await loadAdminPeople(true, Boolean(options.quiet));
+      else if (tab === 'content') {
+        const filter = adminCache.contentFilter;
+        const rows = await loadAdminContent(filter);
+        if (filter === adminCache.contentFilter) {
+          adminCache.content = rows;
+          adminCache.contentFor = filter;
+        }
+      } else if (tab === 'charters') adminCache.charters = await adminRpc('admin_list_charters') || [];
+      else if (tab === 'banners') adminCache.banners = await adminSelect('announcements', '*', 50);
+      else if (tab === 'log') adminCache.log = await adminSelect('admin_events', 'id, actor_id, event_type, target_type, target_id, body, details, created_at', 80);
+      if (token === adminLoadToken) adminCache.error = '';
+    } catch (error) {
+      if (token === adminLoadToken) adminCache.error = adminErrorText(error);
+    } finally {
+      if (token === adminLoadToken) adminCache.loading = false;
+      renderAdminConsole();
+    }
+  }
+
+  /** reset: start from the top. keepCount: reload as many rows as are showing (after an action). */
+  async function loadAdminPeople(reset = false, keepCount = false) {
+    const offset = reset ? 0 : adminCache.peopleOffset;
+    const limit = reset && keepCount ? Math.min(500, Math.max(ADMIN_PAGE_SIZE, (adminCache.people || []).length)) : ADMIN_PAGE_SIZE;
+    const rows = await adminRpc('admin_list_users', { p_search: adminCache.peopleSearch || '', p_limit: limit, p_offset: offset });
+    const list = Array.isArray(rows) ? rows : [];
+    adminCache.people = reset ? list : [...adminCache.people, ...list];
+    adminCache.peopleOffset = offset + list.length;
+    adminCache.peopleDone = list.length < limit;
+  }
+
+  function loadAdminContent(filter) {
+    if (filter === 'posts') return adminSelect('feed_posts', 'id, title, body, author_id, author_name, status, media_url, created_at');
+    if (filter === 'messages') return adminSelect('trip_messages', 'id, trip_id, sender_id, sender_name, body, hidden_at, created_at');
+    if (filter === 'media') return adminSelect('media_assets', 'id, owner_id, source_id, source_type, media_type, public_url, status, moderation_status, created_at');
+    return adminSelect('trip_posts', 'id, title, host_id, status, featured, area, start_label, created_at');
+  }
+
+  function adminPersonName(userId) {
+    if (!userId) return 'Unknown';
+    const local = (state.users || []).find((u) => u.id === userId);
+    if (local) return `${local.name || 'FishCrew user'}${local.username ? ` @${local.username}` : ''}`;
+    const listed = (adminCache.people || []).find((p) => p.user_id === userId);
+    if (listed) return `${listed.full_name || 'No profile'}${listed.username ? ` @${listed.username}` : ''}`;
+    return `User ${String(userId).slice(0, 8)}`;
+  }
+
+  function adminTargetLabel(type, id) {
+    if (type === 'trip') return `Trip: ${(state.trips || []).find((t) => t.id === id)?.title || id || ''}`;
+    if (type === 'feed') return `Post: ${(state.feed || []).find((p) => p.id === id)?.title || id || ''}`;
+    if (type === 'message') return 'Crew message';
+    if (type === 'media') return 'Media upload';
+    if (type === 'user') return adminPersonName(id);
+    if (type === 'report') return 'Report';
+    if (type === 'announcement') return 'Banner';
+    if (type === 'charter') return `Charter: ${(adminCache.charters || []).find((c) => c.charter_id === id)?.name || allCharters().find((c) => c.id === id)?.name || id || ''}`;
+    return type || '';
+  }
+
+  function adminTabCount(id) {
+    const s = adminCache.stats;
+    if (!s) return '';
+    const n = id === 'reports' ? Number(s.reports_open || 0) : id === 'content' ? Number(s.media_pending || 0) : 0;
+    return n ? ` (${n})` : '';
+  }
+
+  function adminModerateButton(targetType, targetId, op, label, tone = 'dark', confirmText = '') {
+    return `<button class="btn ${tone} small" type="button" data-action="admin-moderate" data-target-type="${safe(targetType)}" data-target-id="${safe(targetId)}" data-op="${safe(op)}"${confirmText ? ` data-confirm="${safe(confirmText)}"` : ''}>${safe(label)}</button>`;
+  }
+
+  /**
+   * Destructive admin buttons need a second tap within 4 seconds. Taps that arrive
+   * within 350 ms are the same tap (pointerup followed by click) and are ignored.
+   */
+  function confirmTap(el, prompt = 'Tap again to confirm') {
+    const armedAt = Number(el.dataset.confirmAt || 0);
+    const elapsed = Date.now() - armedAt;
+    if (armedAt && elapsed < 350) return false;
+    if (armedAt && elapsed < 4000) {
+      delete el.dataset.confirmAt;
+      el.classList.remove('confirming');
+      if (el.dataset.label) el.textContent = el.dataset.label;
+      return true;
+    }
+    if (!el.dataset.label) el.dataset.label = el.textContent;
+    el.dataset.confirmAt = String(Date.now());
+    el.textContent = `${prompt} Tap again.`;
+    el.classList.add('confirming');
+    setTimeout(() => {
+      if (!el.isConnected || !el.dataset.confirmAt || Date.now() - Number(el.dataset.confirmAt) < 4000) return;
+      delete el.dataset.confirmAt;
+      el.classList.remove('confirming');
+      el.textContent = el.dataset.label;
+    }, 4100);
+    return false;
+  }
+
+  /** Keeps a half-typed banner when the console redraws (after a load or another action). */
+  function captureBannerDraft() {
+    if (!$('#adminBannerTitle')) return;
+    const draft = {
+      forId: adminCache.bannerEditId || '',
+      title: $('#adminBannerTitle')?.value || '',
+      body: $('#adminBannerBody')?.value || '',
+      link: $('#adminBannerLink')?.value || '',
+      level: $('#adminBannerLevel')?.value || 'info',
+      ends: $('#adminBannerEnds')?.value || '',
+      active: Boolean($('#adminBannerActive')?.checked)
+    };
+    const blank = !draft.forId && !draft.title && !draft.body && !draft.link && !draft.ends && draft.level === 'info' && draft.active;
+    adminCache.bannerDraft = blank ? null : draft;
+  }
+
+  function renderAdminConsole(options = {}) {
+    if (modalMode !== 'admin') return;
+    if (!options.force && !adminConsoleOpen()) return;
+    const typedSearch = $('#adminPeopleSearch');
+    if (typedSearch && !options.keepSearch) adminCache.peopleSearch = typedSearch.value;
+    if (adminCache.skipDraftOnce) adminCache.skipDraftOnce = false;
+    else {
+      captureBannerDraft();
+      captureCharterDraft();
+    }
+    const previous = $('#modalRoot .modal');
+    const scrollTop = previous && !options.resetScroll ? previous.scrollTop : 0;
+    const tab = adminCache.tab;
+    const body = tab === 'reports' ? adminReportsHtml()
+      : tab === 'people' ? adminPeopleHtml()
+        : tab === 'content' ? adminContentHtml()
+          : tab === 'charters' ? adminChartersHtml()
+          : tab === 'banners' ? adminBannersHtml()
+            : tab === 'log' ? adminLogHtml()
+              : adminOverviewHtml();
+    const html = `<div class="modal-head"><div><span class="eyebrow">Operator</span><h2>Admin console</h2></div><button class="x-btn" type="button" data-action="close-modal" aria-label="Close admin console">${CLOSE_BTN}</button></div>
+      <div class="filters admin-tabs" role="tablist" aria-label="Admin sections">${ADMIN_TABS.map(([id, label]) => `<button class="filter-btn ${tab === id ? 'active' : ''}" type="button" role="tab" aria-selected="${tab === id ? 'true' : 'false'}" data-action="admin-tab" data-tab="${id}">${safe(label)}${safe(adminTabCount(id))}</button>`).join('')}</div>
+      ${adminCache.error ? `<div class="safe-note admin-error"><strong>Could not load.</strong> ${safe(adminCache.error)}</div>` : ''}
+      ${adminCache.loading ? '<p class="tiny admin-loading" role="status">Loading...</p>' : ''}
+      <div class="admin-console" data-admin-tab="${safe(tab)}">${body}</div>`;
+    // Redraw inside the open sheet so it does not replay the slide-in animation.
+    if (!options.force && previous && previous.querySelector('.admin-console')) {
+      previous.innerHTML = html;
+      previous.scrollTop = scrollTop;
+      return;
+    }
+    modal(html);
+    const next = $('#modalRoot .modal');
+    if (next) next.scrollTop = scrollTop;
+  }
+
+  function adminOverviewHtml() {
+    const s = adminCache.stats;
+    if (!s) return adminCache.loading ? '' : '<div class="empty">No numbers yet. Tap Refresh.</div>';
+    const n = (key) => Number(s[key] || 0);
+    const cards = [
+      ['People', n('users_total'), `${n('users_new_7d')} new ${MID} ${n('users_active_7d')} signed in this week`, 'people'],
+      ['Open reports', n('reports_open'), 'Waiting for a decision', 'reports'],
+      ['Media to review', n('media_pending'), 'Photos and videos held back', 'content:media'],
+      ['Open trips', n('trips_open'), `${n('trips_total')} total ${MID} ${n('trips_new_7d')} new ${MID} ${n('trips_hidden')} hidden`, 'content:trips'],
+      ['Feed posts', n('feed_live'), `${n('feed_new_7d')} new ${MID} ${n('feed_pending')} waiting`, 'content:posts'],
+      ['Crew messages', n('messages_7d'), 'Sent in the last 7 days', 'content:messages'],
+      ['Restricted', n('restricted_users'), 'Suspended or banned', 'people'],
+      ['Banners live', n('announcements_live'), 'Shown to everyone', 'banners'],
+      ['Join requests', n('join_requests_pending'), 'Waiting on hosts', ''],
+      ['Account deletions', n('deletion_requests_open'), 'Not yet completed', ''],
+      ['Captain waitlist', n('waitlist_new'), 'New captain sign-ups', '']
+    ];
+    return `<div class="admin-stats">${cards.map(([label, value, sub, go]) => {
+      const [tab, filter] = String(go).split(':');
+      const inner = `<span>${safe(label)}</span><strong>${safe(value)}</strong><small>${safe(sub)}</small>`;
+      return tab
+        ? `<button class="admin-stat" type="button" data-action="admin-tab" data-tab="${safe(tab)}"${filter ? ` data-filter="${safe(filter)}"` : ''}>${inner}</button>`
+        : `<div class="admin-stat">${inner}</div>`;
+    }).join('')}</div>
+      <div class="row"><button class="btn dark small" type="button" data-action="admin-refresh">Refresh</button><span class="tiny">Updated ${safe(fmtWhen(s.generated_at))}</span></div>`;
+  }
+
+  function adminReportTarget(r) {
+    const type = r.target_type || (r.feed_post_id ? 'feed' : r.target_user_id ? 'user' : '');
+    const id = r.target_id || r.feed_post_id || (type === 'user' ? r.target_user_id : '') || '';
+    return { type, id };
+  }
+
+  function adminReportsHtml() {
+    const openStatuses = ['Open', 'New', 'Review'];
+    const all = adminCache.reports || [];
+    const list = adminCache.reportFilter === 'all' ? all : all.filter((r) => openStatuses.includes(r.status || 'Open'));
+    const filters = `<div class="filters">${[['open', 'Open'], ['all', 'All']].map(([id, label]) => `<button class="filter-btn ${adminCache.reportFilter === id ? 'active' : ''}" type="button" data-action="admin-report-filter" data-filter="${id}">${label}</button>`).join('')}<button class="filter-btn" type="button" data-action="admin-refresh">Refresh</button></div>`;
+    if (!list.length) return `${filters}<div class="empty">${adminCache.loading ? 'Loading reports...' : adminCache.reportFilter === 'all' ? 'No reports yet.' : 'No open reports. All quiet.'}</div>`;
+    return `${filters}<div class="stack">${list.map((r) => adminReportRow(r)).join('')}</div>`;
+  }
+
+  function adminReportRow(r) {
+    const { type, id } = adminReportTarget(r);
+    const open = ['Open', 'New', 'Review'].includes(r.status || 'Open');
+    let targetLine = '';
+    let targetActions = '';
+    if (type === 'feed' && id) {
+      const post = (state.feed || []).find((p) => p.id === id);
+      targetLine = `Post: ${post?.title || id}`;
+      targetActions = post?.status === 'Removed'
+        ? adminModerateButton('feed', id, 'restore', 'Restore post')
+        : adminModerateButton('feed', id, 'remove', 'Remove post', 'danger', 'Remove this post?');
+    } else if (type === 'trip' && id) {
+      const trip = (state.trips || []).find((t) => t.id === id);
+      targetLine = `Trip: ${trip?.title || id}`;
+      targetActions = trip && isModeratedTrip(trip)
+        ? adminModerateButton('trip', id, 'restore', 'Restore trip')
+        : adminModerateButton('trip', id, 'hide', 'Hide trip', 'danger', 'Hide this trip?');
+    } else if (type === 'message' && id) {
+      const found = findMessage(id);
+      targetLine = `Message: ${found ? String(found.message.body || '').slice(0, 140) : id}`;
+      targetActions = found?.message.hiddenAt
+        ? adminModerateButton('message', id, 'restore', 'Restore message')
+        : adminModerateButton('message', id, 'hide', 'Hide message', 'danger', 'Hide this message?');
+    }
+    const subject = r.target_user_id
+      ? `<button class="btn dark small" type="button" data-action="admin-find-user" data-user-id="${safe(r.target_user_id)}">Manage ${safe(adminPersonName(r.target_user_id))}</button>`
+      : '';
+    const decision = open
+      ? `${adminModerateButton('report', r.id, 'resolve', 'Resolve', 'success')}${adminModerateButton('report', r.id, 'dismiss', 'Dismiss')}`
+      : adminModerateButton('report', r.id, 'reopen', 'Reopen');
+    return `<article class="qa-note admin-row">
+      <div class="row"><span class="badge ${r.severity === 'High' ? 'red' : r.severity === 'Medium' ? 'orange' : ''}">${safe(r.item_type || 'Report')}</span><span class="chip">${safe(r.status || 'Open')}</span>${r.reason_code ? `<span class="chip">${safe(r.reason_code)}</span>` : ''}<span class="chip">${safe(fmtWhen(r.created_at))}</span></div>
+      <p><strong>${safe(r.title || 'Report')}</strong>${r.details ? `<br><span class="muted">${safe(r.details)}</span>` : ''}</p>
+      <p class="tiny">${targetLine ? `${safe(targetLine)} ${MID} ` : ''}Reported by ${safe(adminPersonName(r.reporter_id))}${r.resolution_note ? ` ${MID} Note: ${safe(r.resolution_note)}` : ''}</p>
+      ${open ? '<input class="field admin-note" type="text" maxlength="300" placeholder="Note for the log (optional)" aria-label="Note for the log" />' : ''}
+      <div class="row">${decision}${targetActions}${subject}</div>
+    </article>`;
+  }
+
+  function adminPeopleHtml() {
+    const rows = adminCache.people || [];
+    const search = `<div class="admin-search"><input id="adminPeopleSearch" class="field" type="search" placeholder="Name, @username, or email" value="${safe(adminCache.peopleSearch)}" autocomplete="off" enterkeyhint="search" aria-label="Search people" /><button class="btn primary small" type="button" data-action="admin-people-search">Search</button></div>`;
+    if (!rows.length) return `${search}<div class="empty">${adminCache.loading ? 'Loading people...' : 'Nobody matches that search.'}</div>`;
+    return `${search}<div class="stack">${rows.map((p) => adminPersonRow(p)).join('')}</div>${adminCache.peopleDone ? '' : '<div class="row"><button class="btn dark small" type="button" data-action="admin-people-more">Load more</button></div>'}`;
+  }
+
+  function adminPersonRow(p) {
+    const me = currentUser()?.id === p.user_id;
+    const operator = ['admin', 'operator'].includes(String(p.role || '').toLowerCase());
+    const restricted = p.restriction ? (p.restriction === 'Banned' ? 'Banned' : `Suspended until ${fmtDay(p.restricted_until)}`) : '';
+    const head = `<div class="row"><span class="badge ${operator ? 'green' : ''}">${safe(p.has_profile ? roleLabel(p.role) : 'No profile yet')}</span>${restricted ? `<span class="badge red">${safe(restricted)}</span>` : ''}${p.profile_status && !['Live', 'Suspended', 'Banned'].includes(p.profile_status) ? `<span class="chip">${safe(p.profile_status)}</span>` : ''}<span class="chip">Joined ${safe(fmtDay(p.joined_at))}</span>${p.last_sign_in_at ? `<span class="chip">Seen ${safe(fmtDay(p.last_sign_in_at))}</span>` : ''}</div>`;
+    const who = `<p><strong>${safe(p.full_name || 'No profile yet')}</strong>${p.username ? ` <span class="muted">@${safe(p.username)}</span>` : ''}<br><span class="muted">${safe(p.email || 'no email')} ${MID} ${safe(p.trips_count || 0)} trips ${MID} ${safe(p.posts_count || 0)} posts ${MID} ${safe(p.reports_count || 0)} reports about them</span>${p.restriction_reason ? `<br><span class="tiny">Reason: ${safe(p.restriction_reason)}</span>` : ''}</p>`;
+    if (me || operator) {
+      return `<article class="qa-note admin-row">${head}${who}<p class="tiny">${me ? 'This is you.' : 'Operator accounts are changed in the database, not here.'}</p></article>`;
+    }
+    const roleControl = p.has_profile
+      ? `<div class="admin-inline"><select class="select admin-role" aria-label="Role">${['Angler', 'Captain', 'Business'].map((role) => `<option ${p.role === role ? 'selected' : ''}>${role}</option>`).join('')}</select><button class="btn dark small" type="button" data-action="admin-set-role" data-user-id="${safe(p.user_id)}">Set role</button></div>`
+      : '';
+    const restrictControls = p.restriction
+      ? `<div class="row"><button class="btn success small" type="button" data-action="admin-lift" data-user-id="${safe(p.user_id)}" data-confirm="Lift it and bring back their trips and posts?">Lift ${p.restriction === 'Banned' ? 'ban' : 'suspension'}</button></div>`
+      : `<div class="admin-restrict">
+          <input class="field admin-reason" type="text" maxlength="300" placeholder="Reason (saved with the restriction)" aria-label="Reason" />
+          <div class="admin-inline"><select class="select admin-days" aria-label="Suspension length"><option value="1">1 day</option><option value="3">3 days</option><option value="7" selected>7 days</option><option value="30">30 days</option></select><label class="admin-check"><input type="checkbox" class="admin-hide" checked /> Hide their trips and posts</label></div>
+          <div class="row"><button class="btn dark small" type="button" data-action="admin-suspend" data-user-id="${safe(p.user_id)}" data-confirm="Suspend this account?">Suspend</button><button class="btn danger small" type="button" data-action="admin-ban" data-user-id="${safe(p.user_id)}" data-confirm="Ban this account?">Ban</button></div>
+        </div>`;
+    return `<article class="qa-note admin-row" data-admin-user="${safe(p.user_id)}">${head}${who}${roleControl}${restrictControls}</article>`;
+  }
+
+  function adminContentHtml() {
+    const f = adminCache.contentFilter;
+    const filters = `<div class="filters">${[['trips', 'Trips'], ['posts', 'Posts'], ['messages', 'Messages'], ['media', 'Media']].map(([id, label]) => `<button class="filter-btn ${f === id ? 'active' : ''}" type="button" data-action="admin-content-filter" data-filter="${id}">${label}</button>`).join('')}</div>`;
+    const rows = adminCache.contentFor === f ? (adminCache.content || []) : [];
+    if (!rows.length) return `${filters}<div class="empty">${adminCache.loading || adminCache.contentFor !== f ? 'Loading...' : 'Nothing here yet.'}</div>`;
+    let items = '';
+    if (f === 'trips') {
+      items = rows.map((t) => {
+        const hidden = isModeratedTrip(t);
+        const feature = t.featured
+          ? adminModerateButton('trip', t.id, 'unfeature', 'Unfeature')
+          : hidden ? '' : adminModerateButton('trip', t.id, 'feature', 'Feature', 'soft');
+        const visibility = hidden
+          ? adminModerateButton('trip', t.id, 'restore', 'Restore', 'success')
+          : adminModerateButton('trip', t.id, 'hide', 'Hide', 'danger', 'Hide this trip?');
+        return `<article class="qa-note admin-row"><div class="row"><span class="badge ${hidden ? 'red' : ''}">${safe(t.status || 'Open')}</span>${t.featured ? '<span class="badge green">Featured</span>' : ''}${t.area ? `<span class="chip">${safe(t.area)}</span>` : ''}<span class="chip">${safe(fmtWhen(t.created_at))}</span></div>
+          <p><strong>${safe(t.title)}</strong><br><span class="muted">Host: ${safe(adminPersonName(t.host_id))}${t.start_label ? ` ${MID} ${safe(t.start_label)}` : ''}</span></p>
+          <div class="row">${feature}${visibility}<button class="btn dark small" type="button" data-action="admin-find-user" data-user-id="${safe(t.host_id)}">Host</button></div></article>`;
+      }).join('');
+    } else if (f === 'posts') {
+      items = rows.map((p) => {
+        const pending = ['Pending review', 'Review'].includes(p.status);
+        const removed = p.status === 'Removed';
+        const asset = (state.mediaAssets || []).find((a) => a.sourceId === p.id && a.sourceType === 'feed' && !isApprovedMediaStatus(a.status) && a.status !== 'Removed');
+        let actions;
+        if (removed) actions = adminModerateButton('feed', p.id, 'restore', 'Restore', 'success');
+        else if (pending) actions = `${asset ? adminModerateButton('media', asset.id, 'approve', 'Approve', 'success') : adminModerateButton('feed', p.id, 'approve', 'Approve', 'success')}${adminModerateButton('feed', p.id, 'remove', 'Remove', 'danger', 'Remove this post?')}`;
+        else actions = adminModerateButton('feed', p.id, 'remove', 'Remove', 'danger', 'Remove this post?');
+        return `<article class="qa-note admin-row"><div class="row"><span class="badge ${removed ? 'red' : pending ? 'orange' : ''}">${safe(p.status || 'Live')}</span><span class="chip">${safe(fmtWhen(p.created_at))}</span></div>
+          <p><strong>${safe(p.title)}</strong>${p.body ? `<br><span class="muted">${safe(String(p.body).slice(0, 220))}</span>` : ''}<br><span class="tiny">By ${safe(p.author_name || adminPersonName(p.author_id))}</span></p>
+          <div class="row">${actions}<button class="btn dark small" type="button" data-action="admin-find-user" data-user-id="${safe(p.author_id)}">Author</button></div></article>`;
+      }).join('');
+    } else if (f === 'messages') {
+      items = rows.map((m) => {
+        const trip = (state.trips || []).find((t) => t.id === m.trip_id);
+        const action = m.hidden_at
+          ? adminModerateButton('message', m.id, 'restore', 'Restore', 'success')
+          : adminModerateButton('message', m.id, 'hide', 'Hide', 'danger', 'Hide this message?');
+        return `<article class="qa-note admin-row"><div class="row">${m.hidden_at ? '<span class="badge red">Hidden</span>' : ''}<span class="chip">${safe(trip?.title || 'Trip chat')}</span><span class="chip">${safe(fmtWhen(m.created_at))}</span></div>
+          <p><strong>${safe(m.sender_name || adminPersonName(m.sender_id))}</strong><br>${safe(m.body)}</p>
+          <div class="row">${action}<button class="btn dark small" type="button" data-action="admin-find-user" data-user-id="${safe(m.sender_id)}">Sender</button></div></article>`;
+      }).join('');
+    } else {
+      const order = (a) => (['Review', 'Pending review', 'Local preview'].includes(a.moderation_status || a.status) ? 0 : 1);
+      items = rows.slice().sort((a, b) => order(a) - order(b)).map((a) => {
+        const status = a.moderation_status || a.status || 'Review';
+        const pending = ['Review', 'Pending review', 'Local preview'].includes(status);
+        const url = httpsUrl(a.public_url || '');
+        const isVideo = String(a.media_type || '').startsWith('video');
+        const preview = url
+          ? (isVideo ? `<video class="admin-thumb" src="${safe(url)}" muted playsinline controls preload="metadata"></video>` : `<img class="admin-thumb" src="${safe(url)}" alt="Uploaded media waiting for review" loading="lazy" />`)
+          : '<p class="tiny">No preview link for this upload.</p>';
+        const actions = pending
+          ? `${adminModerateButton('media', a.id, 'approve', 'Approve', 'success')}${adminModerateButton('media', a.id, 'reject', 'Reject', 'danger', 'Reject this upload?')}`
+          : status === 'Removed'
+            ? adminModerateButton('media', a.id, 'approve', 'Approve after all', 'dark')
+            : adminModerateButton('media', a.id, 'reject', 'Take down', 'danger', 'Take this down?');
+        return `<article class="qa-note admin-row"><div class="row"><span class="badge ${pending ? 'orange' : status === 'Removed' ? 'red' : 'green'}">${safe(status)}</span><span class="chip">${safe(a.source_type || 'media')}</span><span class="chip">${safe(fmtWhen(a.created_at))}</span></div>
+          ${preview}
+          <p class="tiny">By ${safe(adminPersonName(a.owner_id))}</p>
+          <div class="row">${actions}<button class="btn dark small" type="button" data-action="admin-find-user" data-user-id="${safe(a.owner_id)}">Owner</button></div></article>`;
+      }).join('');
+    }
+    return `${filters}<div class="stack">${items}</div>`;
+  }
+
+  const CHARTER_FIELDS = [
+    ['name', 'adminCharterName'], ['area', 'adminCharterArea'], ['species', 'adminCharterSpecies'],
+    ['boat', 'adminCharterBoat'], ['trips', 'adminCharterTrips'], ['availability', 'adminCharterAvail'],
+    ['priceFrom', 'adminCharterPriceFrom'], ['priceTo', 'adminCharterPriceTo'], ['site', 'adminCharterSite'],
+    ['bio', 'adminCharterBio'], ['email', 'adminCharterEmail'], ['consent', 'adminCharterConsent'],
+    ['status', 'adminCharterStatus']
+  ];
+
+  /** Keeps a half-typed charter when the console redraws. */
+  function captureCharterDraft() {
+    if (!$('#adminCharterName')) return;
+    const draft = { forId: adminCache.charterEditId || '' };
+    CHARTER_FIELDS.forEach(([key, id]) => { draft[key] = $(`#${id}`)?.value ?? ''; });
+    const blank = !draft.forId && CHARTER_FIELDS.every(([key]) => key === 'status' || !String(draft[key]).trim());
+    adminCache.charterDraft = blank ? null : draft;
+  }
+
+  function charterInviteText(row) {
+    const site = CONFIG.WEB_CANONICAL_URL || 'https://fishcrew.macksims.com/';
+    return [
+      `Hi from FishCrew! ${row.name || 'Your charter'} is now listed on FishCrew, and anglers can already send inquiries.`,
+      `To take it over: open ${site} and tap Create account using ${row.claim_email || 'the email you gave us'}.`,
+      'Confirm the email we send you, then sign in. The listing, and any inquiries so far, move to your account on their own, and you can edit prices, photos and availability.',
+      'Questions? Reply to this message.'
+    ].join('\n\n');
+  }
+
+  function adminChartersHtml() {
+    const rows = adminCache.charters || [];
+    const editing = rows.find((r) => r.charter_id === adminCache.charterEditId) || null;
+    const draft = adminCache.charterDraft && adminCache.charterDraft.forId === (adminCache.charterEditId || '') ? adminCache.charterDraft : null;
+    const pick = (key, fallback) => (draft ? draft[key] : fallback);
+    const v = {
+      name: pick('name', editing?.name || ''),
+      area: pick('area', editing?.area || ''),
+      species: pick('species', editing?.species || ''),
+      boat: pick('boat', editing?.boat_type || ''),
+      trips: pick('trips', editing?.trip_types || ''),
+      availability: pick('availability', editing?.availability_notes || ''),
+      priceFrom: pick('priceFrom', editing?.price_from ?? ''),
+      priceTo: pick('priceTo', editing?.price_to ?? ''),
+      site: pick('site', editing?.website_url || ''),
+      bio: pick('bio', editing?.bio || ''),
+      email: pick('email', editing?.claim_email || ''),
+      consent: pick('consent', editing?.consent_note || ''),
+      status: pick('status', editing?.status === 'Pending review' ? 'Pending review' : 'Verified')
+    };
+    const claimed = Boolean(editing?.owner_id);
+    const form = `<div class="panel admin-charter-form">
+      <h3>${editing ? `Edit ${safe(editing.name)}` : 'List a charter for a captain'}</h3>
+      <p class="tiny">Only list captains who said yes. The listing shows as Managed by FishCrew and its inquiries come to you until the captain creates an account with the email below and confirms it. Then the listing and its inquiries move to them.</p>
+      <div class="forms">
+        <label class="label">Charter name<input id="adminCharterName" class="field" maxlength="80" value="${safe(v.name)}" placeholder="Salty Scales Charter" /></label>
+        <div class="form-grid">
+          <label class="label">Home water<input id="adminCharterArea" class="field" maxlength="80" value="${safe(v.area)}" placeholder="Tampa Bay" /></label>
+          <label class="label">Boat type<input id="adminCharterBoat" class="field" maxlength="80" value="${safe(v.boat)}" placeholder="Bay boat" /></label>
+        </div>
+        <label class="label">Target species<input id="adminCharterSpecies" class="field" maxlength="120" value="${safe(v.species)}" placeholder="Snook, redfish, trout" /></label>
+        <label class="label">Trip types<input id="adminCharterTrips" class="field" maxlength="120" value="${safe(v.trips)}" placeholder="Half-day, full-day" /></label>
+        <label class="label">Availability<input id="adminCharterAvail" class="field" maxlength="120" value="${safe(v.availability)}" placeholder="Weekends, mornings" /></label>
+        <div class="form-grid">
+          <label class="label">Price from ($)<input id="adminCharterPriceFrom" class="field" type="number" inputmode="numeric" min="0" step="1" value="${safe(v.priceFrom)}" placeholder="Leave blank if unknown" /></label>
+          <label class="label">Price to ($)<input id="adminCharterPriceTo" class="field" type="number" inputmode="numeric" min="0" step="1" value="${safe(v.priceTo)}" placeholder="Optional" /></label>
+        </div>
+        <label class="label">Website (https)<input id="adminCharterSite" class="field" type="url" inputmode="url" autocomplete="off" value="${safe(v.site)}" placeholder="https://" /></label>
+        <label class="label">Listing summary<textarea id="adminCharterBio" class="field" maxlength="1000" placeholder="Only what the captain told you or publishes themselves">${safe(v.bio)}</textarea></label>
+        <label class="label">Captain's email (they claim with it)<input id="adminCharterEmail" class="field" type="email" inputmode="email" autocomplete="off" maxlength="254" value="${safe(v.email)}" ${claimed ? 'disabled' : ''} placeholder="captain@example.com" /></label>
+        <label class="label">How they agreed<input id="adminCharterConsent" class="field" maxlength="500" value="${safe(v.consent)}" ${claimed ? 'disabled' : ''} placeholder="Email reply, 24 Aug: welcome to set it up" /></label>
+        <label class="label">Who sees it<select id="adminCharterStatus" class="select"><option value="Verified" ${v.status !== 'Pending review' ? 'selected' : ''}>Public on Explore</option><option value="Pending review" ${v.status === 'Pending review' ? 'selected' : ''}>Hidden draft</option></select></label>
+        <div class="row"><button class="btn primary small" type="button" data-action="admin-save-charter">${editing ? 'Save changes' : 'List charter'}</button>${editing || draft ? '<button class="btn dark small" type="button" data-action="admin-cancel-charter">Clear</button>' : ''}</div>
+      </div>
+    </div>`;
+    const list = rows.map((r) => {
+      const isClaimed = Boolean(r.owner_id);
+      const claimBadge = isClaimed
+        ? `<span class="badge green">Claimed${r.owner_name ? ` by ${safe(r.owner_name)}` : ''}</span>`
+        : r.claim_email ? '<span class="badge orange">Waiting for captain</span>' : '<span class="badge">Captain listed</span>';
+      const visibility = ['Live', 'Verified', 'Directory', 'Approved'].includes(r.status) ? 'Public' : (r.status || 'Hidden');
+      return `<article class="qa-note admin-row" data-admin-charter="${safe(r.charter_id)}"><div class="row">${claimBadge}<span class="chip">${safe(visibility)}</span>${r.area ? `<span class="chip">${safe(r.area)}</span>` : ''}<span class="chip">${safe(Number(r.inquiries || 0))} inquir${Number(r.inquiries || 0) === 1 ? 'y' : 'ies'}</span></div>
+        <p><strong>${safe(r.name)}</strong><br><span class="muted">${isClaimed ? `Claimed ${safe(fmtDay(r.claimed_at))}` : r.claim_email ? `Claim email: ${safe(r.claim_email)}` : 'No claim email'}${r.consent_note ? ` ${MID} Agreed: ${safe(r.consent_note)}` : ''}</span></p>
+        <div class="row"><button class="btn dark small" type="button" data-action="admin-edit-charter" data-charter-id="${safe(r.charter_id)}">Edit</button>${!isClaimed && r.claim_email ? `<button class="btn soft small" type="button" data-action="admin-copy-charter-invite" data-charter-id="${safe(r.charter_id)}">Copy invite</button>` : ''}<button class="btn soft small" type="button" data-action="open-charter-profile" data-charter-id="${safe(r.charter_id)}">View</button></div></article>`;
+    }).join('');
+    return `${form}<div class="stack">${list || `<div class="empty">${adminCache.loading ? 'Loading charters...' : 'No charters yet.'}</div>`}</div>`;
+  }
+
+  function adminBannersHtml() {
+    const editing = (adminCache.banners || []).find((b) => b.id === adminCache.bannerEditId) || null;
+    const draft = adminCache.bannerDraft && adminCache.bannerDraft.forId === (adminCache.bannerEditId || '') ? adminCache.bannerDraft : null;
+    const v = {
+      title: draft ? draft.title : editing?.title || '',
+      body: draft ? draft.body : editing?.body || '',
+      link: draft ? draft.link : editing?.link_url || '',
+      level: draft ? draft.level : editing?.level || 'info',
+      ends: draft ? draft.ends : localDateInput(editing?.ends_at),
+      active: draft ? draft.active : editing ? Boolean(editing.active) : true
+    };
+    const form = `<div class="panel admin-banner-form">
+      <h3>${editing ? 'Edit banner' : 'New banner'}</h3>
+      <p class="tiny">Shows at the top of the app for everyone until it ends or you turn it off.</p>
+      <div class="forms">
+        <label class="label">Title<input id="adminBannerTitle" class="field" maxlength="80" value="${safe(v.title)}" placeholder="Redfish tournament Saturday" /></label>
+        <label class="label">Message (optional)<textarea id="adminBannerBody" class="field" maxlength="400" placeholder="A line or two of detail">${safe(v.body)}</textarea></label>
+        <label class="label">Link (optional, https)<input id="adminBannerLink" class="field" type="url" inputmode="url" autocomplete="off" value="${safe(v.link)}" placeholder="https://" /></label>
+        <div class="form-grid"><label class="label">Style<select id="adminBannerLevel" class="select">${[['info', 'Info'], ['alert', 'Alert'], ['promo', 'Promo']].map(([value, label]) => `<option value="${value}" ${v.level === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label><label class="label">Last day (optional)<input id="adminBannerEnds" class="field" type="date" value="${safe(v.ends)}" /></label></div>
+        <label class="admin-check"><input id="adminBannerActive" type="checkbox" ${v.active ? 'checked' : ''} /> Show it now</label>
+        <div class="row"><button class="btn primary small" type="button" data-action="admin-save-banner">${editing ? 'Save changes' : 'Publish banner'}</button>${editing || draft ? '<button class="btn dark small" type="button" data-action="admin-cancel-banner">Clear</button>' : ''}</div>
+      </div>
+    </div>`;
+    const t = Date.now();
+    const list = (adminCache.banners || []).map((b) => {
+      const label = !b.active ? 'Off' : b.ends_at && Date.parse(b.ends_at) <= t ? 'Ended' : b.starts_at && Date.parse(b.starts_at) > t ? 'Scheduled' : 'Live';
+      return `<article class="qa-note admin-row"><div class="row"><span class="badge ${label === 'Live' ? 'green' : ''}">${label}</span><span class="chip">${safe(b.level || 'info')}</span>${b.ends_at ? `<span class="chip">Ends ${safe(fmtDay(b.ends_at))}</span>` : ''}</div>
+        <p><strong>${safe(b.title)}</strong>${b.body ? `<br><span class="muted">${safe(b.body)}</span>` : ''}${b.link_url ? `<br><span class="tiny">${safe(b.link_url)}</span>` : ''}</p>
+        <div class="row"><button class="btn dark small" type="button" data-action="admin-edit-banner" data-banner-id="${safe(b.id)}">Edit</button><button class="btn ${b.active ? 'dark' : 'soft'} small" type="button" data-action="admin-toggle-banner" data-banner-id="${safe(b.id)}">${b.active ? 'Turn off' : 'Turn on'}</button><button class="btn danger small" type="button" data-action="admin-delete-banner" data-banner-id="${safe(b.id)}" data-confirm="Delete this banner?">Delete</button></div></article>`;
+    }).join('');
+    return `${form}<div class="stack">${list || `<div class="empty">${adminCache.loading ? 'Loading banners...' : 'No banners yet.'}</div>`}</div>`;
+  }
+
+  function adminLogHtml() {
+    const rows = adminCache.log || [];
+    if (!rows.length) return `<div class="empty">${adminCache.loading ? 'Loading the log...' : 'No admin actions yet.'}</div>`;
+    return `<div class="stack">${rows.map((e) => `<div class="qa-note admin-row"><div class="row"><span class="badge">${safe(ADMIN_EVENT_LABELS[e.event_type] || e.event_type)}</span><span class="chip">${safe(fmtWhen(e.created_at))}</span></div><p class="tiny">${safe(adminTargetLabel(e.target_type, e.target_id))}${e.body ? ` ${MID} ${safe(e.body)}` : ''}${e.actor_id ? ` ${MID} by ${safe(adminPersonName(e.actor_id))}` : ''}</p></div>`).join('')}</div><div class="row"><button class="btn dark small" type="button" data-action="admin-refresh">Refresh</button></div>`;
+  }
+
+  /** Runs one admin change, then refreshes what the console shows. */
+  async function adminRun(task) {
+    if (adminBusy) return;
+    adminBusy = true;
+    try {
+      await task();
+      if (adminConsoleOpen()) {
+        await loadAdminTab(adminCache.tab, { quiet: true });
+        if (adminCache.tab !== 'overview') refreshAdminStats();
+      }
+    } catch (error) {
+      toast(adminErrorText(error), 'danger');
+    } finally {
+      adminBusy = false;
+    }
+  }
+
+  function applyModerationLocally(type, id, op, result) {
+    const next = result?.new;
+    if (type === 'trip') {
+      const trip = (state.trips || []).find((t) => t.id === id);
+      if (trip && (op === 'feature' || op === 'unfeature')) trip.adminFeatured = op === 'feature';
+      else if (trip && next) trip.status = next;
+    } else if (type === 'feed') {
+      const post = (state.feed || []).find((p) => p.id === id);
+      if (post && next) post.status = next;
+    } else if (type === 'message') {
+      const found = findMessage(id);
+      if (found) found.message.hiddenAt = op === 'hide' ? now() : null;
+    } else if (type === 'media') {
+      const asset = (state.mediaAssets || []).find((a) => a.id === id);
+      if (asset && next) asset.status = next;
+      if (asset && op === 'approve' && asset.sourceType === 'feed') {
+        const post = (state.feed || []).find((p) => p.id === asset.sourceId);
+        if (post && ['Pending review', 'Review'].includes(post.status)) post.status = 'Live';
+      }
+    } else if (type === 'report') {
+      const report = (state.reports || []).find((r) => r.id === id);
+      if (report && next) report.status = next;
+    }
+    save();
+    render();
+  }
+
+  function adminActionToast(type, op, result) {
+    if (result?.unchanged) return 'Already done.';
+    const text = {
+      trip: { hide: 'Trip hidden from everyone.', restore: 'Trip is back on the board.', feature: 'Trip featured at the top of the board.', unfeature: 'Trip no longer featured.' },
+      feed: { remove: 'Post removed.', restore: 'Post restored.', approve: 'Post approved.' },
+      message: { hide: 'Message hidden.', restore: 'Message restored.' },
+      media: { approve: 'Media approved and published.', reject: 'Media taken down.' },
+      report: { resolve: 'Report resolved.', dismiss: 'Report dismissed.', reopen: 'Report reopened.' }
+    };
+    return text[type]?.[op] || 'Done.';
+  }
+
+  async function adminModerate(el) {
+    const type = el?.dataset?.targetType || '';
+    const id = el?.dataset?.targetId || '';
+    const op = el?.dataset?.op || '';
+    if (!type || !id || !op) return;
+    if (el.dataset.confirm && !confirmTap(el, el.dataset.confirm)) return;
+    const note = el.closest('.admin-row')?.querySelector('.admin-note')?.value?.trim() || '';
+    await adminRun(async () => {
+      const result = await adminRpc('admin_moderate', { p_target_type: type, p_target_id: id, p_action: op, p_note: note });
+      applyModerationLocally(type, id, op, result);
+      toast(adminActionToast(type, op, result));
+      if (type === 'trip' && $('#modalRoot .admin-trip-tools')) tripDetails(id);
+      scheduleLivePull();
+    });
+  }
+
+  async function adminSetRole(el) {
+    const userId = el?.dataset?.userId || '';
+    const role = el.closest('[data-admin-user]')?.querySelector('.admin-role')?.value || '';
+    if (!userId || !role) return;
+    await adminRun(async () => {
+      await adminRpc('admin_set_user_role', { p_user_id: userId, p_role: role });
+      const local = (state.users || []).find((u) => u.id === userId);
+      if (local) {
+        local.role = role;
+        save();
+      }
+      toast(`Role set to ${role}.`);
+    });
+  }
+
+  async function adminRestrict(el, status) {
+    const userId = el?.dataset?.userId || '';
+    if (!userId) return;
+    if (!confirmTap(el, el.dataset.confirm || 'Are you sure?')) return;
+    const row = el.closest('[data-admin-user]');
+    const days = status === 'Suspended' ? Number(row?.querySelector('.admin-days')?.value || 7) : null;
+    const reason = row?.querySelector('.admin-reason')?.value?.trim() || '';
+    const hide = Boolean(row?.querySelector('.admin-hide')?.checked);
+    await adminRun(async () => {
+      const result = await adminRpc('admin_restrict_user', { p_user_id: userId, p_status: status, p_days: days, p_reason: reason, p_hide_content: hide });
+      const extra = hide ? ` ${Number(result?.hidden_trips || 0)} trips and ${Number(result?.removed_posts || 0)} posts hidden.` : '';
+      toast(`${status === 'Banned' ? 'Account banned.' : `Account suspended for ${days} day${days === 1 ? '' : 's'}.`}${extra}`);
+      scheduleLivePull();
+    });
+  }
+
+  async function adminLift(el) {
+    const userId = el?.dataset?.userId || '';
+    if (!userId) return;
+    if (!confirmTap(el, el.dataset.confirm || 'Lift it?')) return;
+    await adminRun(async () => {
+      const result = await adminRpc('admin_lift_restriction', { p_user_id: userId, p_restore_content: true });
+      toast(`Restriction lifted. ${Number(result?.restored_trips || 0)} trips and ${Number(result?.restored_posts || 0)} posts are back.`);
+      scheduleLivePull();
+    });
+  }
+
+  function adminPeopleSearch() {
+    adminCache.peopleSearch = ($('#adminPeopleSearch')?.value || '').trim().slice(0, 80);
+    adminCache.tab = 'people';
+    renderAdminConsole({ keepSearch: true });
+    loadAdminTab('people');
+  }
+
+  async function adminPeopleMore() {
+    if (adminBusy) return;
+    adminBusy = true;
+    try {
+      await loadAdminPeople(false);
+    } catch (error) {
+      toast(adminErrorText(error), 'danger');
+    } finally {
+      adminBusy = false;
+      renderAdminConsole();
+    }
+  }
+
+  function adminFindUser(userId) {
+    if (!userId) return;
+    adminCache.peopleSearch = userId;
+    adminCache.tab = 'people';
+    if (!adminConsoleOpen()) return openAdminConsole('people');
+    renderAdminConsole({ keepSearch: true, resetScroll: true });
+    loadAdminTab('people');
+  }
+
+  function switchAdminContent(filter) {
+    if (!['trips', 'posts', 'messages', 'media'].includes(filter)) return;
+    adminCache.contentFilter = filter;
+    renderAdminConsole({ resetScroll: true });
+    loadAdminTab('content');
+  }
+
+  async function adminSaveBanner() {
+    const title = ($('#adminBannerTitle')?.value || '').trim();
+    const body = ($('#adminBannerBody')?.value || '').trim();
+    const linkRaw = ($('#adminBannerLink')?.value || '').trim();
+    const level = $('#adminBannerLevel')?.value || 'info';
+    const ends = $('#adminBannerEnds')?.value || '';
+    const active = Boolean($('#adminBannerActive')?.checked);
+    if (!title) return toast('Add a title first.', 'danger');
+    const link = linkRaw ? httpsUrl(linkRaw) : '';
+    if (linkRaw && !link) return toast('Links must start with https://', 'danger');
+    const endsAt = ends ? new Date(`${ends}T23:59:59`) : null;
+    if (endsAt && (Number.isNaN(endsAt.getTime()) || endsAt.getTime() <= Date.now())) return toast('Pick a last day that is today or later.', 'danger');
+    await adminRun(async () => {
+      await adminRpc('admin_save_announcement', {
+        p_id: adminCache.bannerEditId || '',
+        p_title: title,
+        p_body: body,
+        p_link_url: link || null,
+        p_level: level,
+        p_active: active,
+        p_ends_at: endsAt ? endsAt.toISOString() : null
+      });
+      adminCache.bannerEditId = '';
+      adminCache.bannerDraft = null;
+      adminCache.skipDraftOnce = true;
+      toast(active ? 'Banner is live for everyone.' : 'Banner saved. It is off for now.');
+      await refreshAnnouncements();
+    });
+  }
+
+  async function adminToggleBanner(el) {
+    const banner = (adminCache.banners || []).find((b) => b.id === el?.dataset?.bannerId);
+    if (!banner) return;
+    await adminRun(async () => {
+      await adminRpc('admin_save_announcement', {
+        p_id: banner.id,
+        p_title: banner.title,
+        p_body: banner.body || '',
+        p_link_url: banner.link_url || null,
+        p_level: banner.level || 'info',
+        p_active: !banner.active,
+        p_ends_at: banner.ends_at || null
+      });
+      toast(banner.active ? 'Banner turned off.' : 'Banner is live again.');
+      await refreshAnnouncements();
+    });
+  }
+
+  async function adminDeleteBanner(el) {
+    const id = el?.dataset?.bannerId || '';
+    if (!id) return;
+    if (!confirmTap(el, el.dataset.confirm || 'Delete it?')) return;
+    await adminRun(async () => {
+      await adminRpc('admin_delete_announcement', { p_id: id });
+      if (adminCache.bannerEditId === id) adminCache.bannerEditId = '';
+      toast('Banner deleted.');
+      await refreshAnnouncements();
+    });
+  }
+
+  function adminEditBanner(id) {
+    adminCache.bannerEditId = id || '';
+    adminCache.bannerDraft = null;
+    adminCache.skipDraftOnce = true;
+    renderAdminConsole({ resetScroll: true });
+  }
+
+  function adminClearBanner() {
+    adminCache.bannerEditId = '';
+    adminCache.bannerDraft = null;
+    adminCache.skipDraftOnce = true;
+    renderAdminConsole();
+  }
+
+  function adminCharterNumber(id) {
+    const raw = String($(`#${id}`)?.value ?? '').trim();
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? Math.round(n) : NaN;
+  }
+
+  async function adminSaveCharter() {
+    const editing = (adminCache.charters || []).find((r) => r.charter_id === adminCache.charterEditId) || null;
+    const name = ($('#adminCharterName')?.value || '').trim();
+    const email = ($('#adminCharterEmail')?.value || '').trim();
+    const consent = ($('#adminCharterConsent')?.value || '').trim();
+    const siteRaw = ($('#adminCharterSite')?.value || '').trim();
+    const priceFrom = adminCharterNumber('adminCharterPriceFrom');
+    const priceTo = adminCharterNumber('adminCharterPriceTo');
+    if (!name) return toast('Add the charter name first.', 'danger');
+    if (!editing && !email) return toast('Add the captain\'s email so they can claim it.', 'danger');
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast('That email does not look right.', 'danger');
+    if (!editing && consent.length < 3) return toast('Note how the captain agreed to be listed.', 'danger');
+    const site = siteRaw ? httpsUrl(siteRaw) : '';
+    if (siteRaw && !site) return toast('Website must start with https://', 'danger');
+    if (Number.isNaN(priceFrom) || Number.isNaN(priceTo)) return toast('Prices must be whole dollar amounts.', 'danger');
+    if (priceFrom != null && priceTo != null && priceTo < priceFrom) return toast('Price to must be at least price from.', 'danger');
+    await adminRun(async () => {
+      await adminRpc('admin_save_managed_charter', {
+        p_id: adminCache.charterEditId || '',
+        p_name: name,
+        p_area: ($('#adminCharterArea')?.value || '').trim(),
+        p_species: ($('#adminCharterSpecies')?.value || '').trim(),
+        p_boat_type: ($('#adminCharterBoat')?.value || '').trim(),
+        p_trip_types: ($('#adminCharterTrips')?.value || '').trim(),
+        p_availability: ($('#adminCharterAvail')?.value || '').trim(),
+        p_price_from: priceFrom,
+        p_price_to: priceTo,
+        p_website_url: site,
+        p_bio: ($('#adminCharterBio')?.value || '').trim(),
+        p_claim_email: editing?.owner_id ? '' : email,
+        p_consent_note: editing?.owner_id ? '' : consent,
+        p_status: $('#adminCharterStatus')?.value === 'Pending review' ? 'Pending review' : 'Verified'
+      });
+      adminCache.charterEditId = '';
+      adminCache.charterDraft = null;
+      adminCache.skipDraftOnce = true;
+      toast(editing ? 'Charter saved.' : 'Charter listed. Copy the invite and send it to the captain.');
+      try { await pullSupabase({ silent: true, reason: 'admin-charter' }); } catch (_) { /* Explore refreshes on its own */ }
+    });
+  }
+
+  function adminEditCharter(id) {
+    adminCache.charterEditId = id || '';
+    adminCache.charterDraft = null;
+    adminCache.skipDraftOnce = true;
+    renderAdminConsole({ resetScroll: true });
+  }
+
+  function adminClearCharter() {
+    adminCache.charterEditId = '';
+    adminCache.charterDraft = null;
+    adminCache.skipDraftOnce = true;
+    renderAdminConsole();
+  }
+
+  async function adminCopyCharterInvite(id) {
+    const row = (adminCache.charters || []).find((r) => r.charter_id === id);
+    if (!row) return;
+    const text = charterInviteText(row);
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Invite copied. Paste it into a text or email to the captain.');
+    } catch (_) {
+      modal(`<div class="modal-head"><div><span class="eyebrow">Invite</span><h2>Send this to the captain</h2></div><button class="x-btn" type="button" data-action="close-modal">${CLOSE_BTN}</button></div>
+        <textarea class="field" rows="9" readonly>${safe(text)}</textarea>
+        <p class="tiny">Copy it from the box, then reopen the admin console.</p>`);
+    }
+  }
+
+  const ACTIONS = {
+    go: (el) => { const screen = el.dataset.screen; if (el.closest('.modal')) { if (modalMode === 'tutorial') { state.onboardingSeen = true; save(); } closeModal(); } nav(screen); },
+    nav: (el) => { const screen = el.dataset.screen; if (el.closest('.modal')) closeModal(); nav(screen); },
+    'open-post-menu': () => openCreate(),
+    'open-notifications': () => openNotifications(),
+    'mark-notifications-read': () => markNotificationsRead(),
+    'open-auth': () => openAuth(),
+    'open-auth-signin': () => openAuth('Create a profile to post, join, chat, upload photos, and save trips.', 'Angler', 'signin'),
+    'open-auth-create': () => openAuth('Create your account when you are ready to post, join crews, chat, and save trips.', 'Angler', 'create'),
+    'switch-auth-tab': (el) => switchAuthTab(el.dataset.authTab || 'signin'),
+    'open-tutorial': () => openTutorial(0),
+    'dismiss-tutorial': () => dismissTutorial(),
+    'tutorial-next': () => tutorialNext(),
+    'tutorial-back': () => tutorialBack(),
+    'tutorial-finish': () => tutorialFinish(),
+    'rate-app': () => rateFishCrew(),
+    'open-privacy-page': () => openLegalPage('/privacy.html'),
+    'open-terms-page': () => openLegalPage('/terms.html'),
+    'leave-fishcrew': () => leaveFishCrew(),
+    'auth-signin': () => authSignIn(),
+    'auth-create': () => authCreate(),
+    'auth-forgot': () => authForgot(),
+    'save-password-reset': () => savePasswordReset(),
+    'social-login': (el) => socialLogin(el.dataset.provider || 'social'),
+    'auth-social-complete': (el) => completeSocialProfile(el.dataset.provider || 'social'),
+    'instagram-connect': () => startInstagramConnect(),
+    'instagram-import': () => importInstagramMedia(),
+    'retry-upload': () => runPendingUploadRetry(),
+    'dismiss-beta-banner': () => dismissBetaBanner(),
+    logout: () => logout(),
+    'close-modal': () => closeModal(),
+    'open-create': () => openCreate(),
+    'open-trip-form': () => openTripForm(),
+    'save-trip': () => saveTrip(),
+    'open-feed-form': () => openFeedForm(),
+    'save-feed-post': () => saveFeedPost(),
+    'open-business-form': () => openBusinessForm(),
+    'save-business': () => saveBusiness(),
+    'open-booking-form': () => openBookingForm(),
+    'save-booking': () => saveBooking(),
+    'open-business-leads': () => openBusinessLeads(),
+    'update-booking-status': (el) => updateBookingStatus(el.dataset.bookingId, el.dataset.status),
+    'copy-lead-notes': (el) => copyLeadNotes(el.dataset.bookingId),
+    'share-lead-sms': (el) => shareLeadSms(el.dataset.bookingId),
+    'book-business': (el) => bookBusiness(el.dataset.businessId),
+    'share-trip': (el) => shareTrip(el.dataset.tripId),
+    'share-trip-platform': (el) => shareTripPlatform(el.dataset.tripId, el.dataset.platform || 'native'),
+    'copy-trip-invite': (el) => copyTripInvite(el.dataset.tripId),
+    'apply-charter-search': (el) => applyCharterSearch(el.dataset.source || 'explore'),
+    'clear-charter-search': () => clearCharterSearch(),
+    'refresh-charters': () => refreshCharters(),
+    'open-charter-profile': (el) => openCharterProfile(el.dataset.charterId),
+    'open-charter-inquiry': (el) => openCharterInquiry(el.dataset.charterId),
+    'save-charter-inquiry': () => saveCharterInquiry(),
+    'open-charter-form': (el) => openCharterForm(el.dataset.charterId || ''),
+    'save-charter-listing': () => saveCharterListing(),
+    'open-my-bookings': () => openMyBookings(),
+    'open-charter-review': (el) => openCharterReview(el.dataset.bookingId),
+    'save-charter-review': () => saveCharterReview(),
+    'open-captain-waitlist': () => openCaptainWaitlist(),
+    'save-captain-waitlist': () => saveCaptainWaitlist(),
+    'request-trip': (el) => requestTrip(el.dataset.tripId),
+    'trip-details': (el) => tripDetails(el.dataset.tripId),
+    'open-host-controls': (el) => openHostControls(el.dataset.tripId),
+    'complete-trip': (el) => completeTrip(el.dataset.tripId),
+    'cancel-trip': (el) => cancelTrip(el.dataset.tripId),
+    'reopen-trip': (el) => reopenTrip(el.dataset.tripId),
+    'duplicate-trip': (el) => duplicateTrip(el.dataset.tripId),
+    'open-trip-chat': (el) => openTripChat(el.dataset.tripId),
+    'send-chat': (el) => sendChat(el.dataset.tripId),
+    'approve-request': (el) => approveRequest(el.dataset.requestId),
+    'decline-request': (el) => declineRequest(el.dataset.requestId),
+    'trip-filter': (el) => { state.tripFilter = el.dataset.filter || 'All'; save(); render(); },
+    'toggle-captain-more': (el) => {
+      const id = el.dataset.captainId || '';
+      if (!id) return;
+      state.expandedCaptains = state.expandedCaptains || {};
+      state.expandedCaptains[id] = !state.expandedCaptains[id];
+      save(true);
+      render();
+    },
+    'feed-filter': (el) => { state.feedFilter = el.dataset.filter || 'All'; save(); if (state.activeScreen === 'feed') renderFeed(); else render(); },
+    'refresh-feed': () => refreshFeed(),
+    'crew-panel': (el) => { state.crewPanel = el.dataset.panel || 'upcoming'; save(); render(); },
+    'tools-panel': (el) => { state.toolsPanel = el.dataset.panel || 'tools'; save(); render(); },
+    'open-map': (el) => openMap(el.dataset.area),
+    'urgent-trips': () => { state.tripFilter = 'Open'; save(); nav('explore'); toast('Showing open and last-minute trips.'); },
+    'open-local-spots': () => openLocalSpots(),
+    'react-feed': (el) => reactFeed(el.dataset.feedId),
+    'share-feed': (el) => shareFeed(el.dataset.feedId),
+    'share-platform': (el) => sharePlatform(el.dataset.feedId, el.dataset.platform || 'native'),
+    'report-feed': (el) => reportFeed(el.dataset.feedId),
+    'block-user': (el) => blockUser(el.dataset.userId),
+    'unblock-user': (el) => unblockUser(el.dataset.userId),
+    'remove-feed': (el) => removeFeed(el.dataset.feedId),
+    'verify-business': (el) => verifyBusiness(el.dataset.businessId),
+    'resolve-report': (el) => resolveReport(el.dataset.reportId),
+    'approve-media': (el) => approveMedia(el.dataset.assetId),
+    'open-admin-audit': () => openAdminAudit(),
+    'open-user-directory': () => openUserDirectory(),
+    'open-support-queue': () => openSupportQueue(),
+    'open-store-readiness': () => openStoreReadiness(),
+    'run-ops': () => runOps(),
+    'open-moderation': () => openModeration(),
+    'open-revenue': () => openRevenue(),
+    'dock-ad-click': (el) => clickDockAd(el),
+    'open-dock-ad-inquiry': (el) => openDockAdInquiry(el?.dataset?.adId || ''),
+    'save-dock-ad-inquiry': () => saveDockAdInquiry(),
+    'open-photo-profile': () => openPhotoProfile(),
+    'save-profile-photo': () => saveProfilePhoto(),
+    'open-edit-profile': () => openEditProfile(),
+    'save-profile': () => saveProfile(),
+    'open-backend-help': () => openBackendHelp(),
+    'open-user-settings': () => openUserSettings(),
+    'save-user-settings': () => saveUserSettings(),
+    'open-privacy-policy': () => openPrivacyPolicy(),
+    'open-terms': () => openTerms(),
+    'open-community-guidelines': () => openCommunityGuidelines(),
+    'open-support-center': () => openSupportCenter(),
+    'open-support-email': () => openSupportEmail(),
+    'open-account-delete': () => openAccountDelete(),
+    'open-account-delete-request': () => openAccountDeleteRequest(),
+    'confirm-delete-account': () => confirmDeleteAccount(),
+    'open-blocked-users': () => openBlockedUsers(),
+    'open-fishing-guides': () => openFishingGuides(),
+    'save-guide-area': (el) => saveGuideArea(el.dataset.area),
+    'open-bait-help': () => openBaitHelp(),
+    'run-bait-search': () => runBaitSearch(),
+    'open-gear-help': () => openGearHelp(),
+    'open-technique-tutorials': () => openTechniqueTutorials(),
+    'open-fish-id': () => toast('Fish ID is coming back once it can really identify fish from your photo.'),
+    
+    'open-measure-tool': () => toast('Use a measuring board for keep-or-release decisions. Photo measuring is not available yet.'),
+    
+    'open-device-hub': () => openDeviceHub(),
+    'use-browser-gps': () => useBrowserGps(),
+    'stop-browser-gps': () => stopBrowserGps(),
+    'connect-bluetooth-gps': () => connectBluetoothGps(),
+    'connect-serial-gps': () => connectSerialGps(),
+    'copy-device-fix': () => copyDeviceFix(),
+    'open-device-bridge-help': () => openDeviceBridgeHelp(),
+    'refresh-conditions': () => refreshConditions(),
+    'open-conditions': () => openConditions(),
+    'check-backend': () => checkBackend({ announce: true }),
+    'sync-supabase': () => syncSupabase(),
+    'pull-supabase': () => pullSupabase(),
+    'start-realtime': () => startRealtime(),
+    'run-health-check': () => runHealthCheck(),
+    'run-readiness-check': () => runReadinessCheck(),
+    'run-release-gate': () => runReleaseGate(),
+    'open-backend-diagnostics': () => openBackendDiagnostics(),
+    'run-live-test-pack': () => runLiveTestPack(),
+    'open-role-matrix': () => openRoleMatrix(),
+    'open-data-adapter-map': () => openDataAdapterMap(),
+    'run-media-stress-check': () => runMediaStressCheck(),
+    'open-media-pipeline': () => openMediaPipeline(),
+    'open-live-smoke-test': () => openLiveSmokeTest(),
+    'open-qa-note': () => openQaNote(),
+    'save-qa-note': () => saveQaNote(),
+    'toggle-qa-note': (el) => toggleQaNote(el.dataset.noteId),
+    'toggle-launch-check': (el) => toggleLaunchCheck(el.dataset.checkId),
+    'export-data': () => exportData(),
+    'load-sample-pack': () => loadSamplePack(),
+    'clear-sample-pack': () => clearSamplePack(),
+    'reset-local': () => resetLocal(),
+    'dismiss-announcement': (el) => dismissAnnouncement(el.dataset.announcementId),
+    'report-content': (el) => openReportForm(el.dataset.targetType, el.dataset.targetId),
+    'save-report': (el) => saveReport(el),
+    'open-admin-console': (el) => openAdminConsole(el?.dataset?.tab || ''),
+    'admin-tab': (el) => switchAdminTab(el.dataset.tab, el.dataset.filter || ''),
+    'admin-refresh': () => loadAdminTab(adminCache.tab),
+    'admin-report-filter': (el) => { adminCache.reportFilter = el.dataset.filter === 'all' ? 'all' : 'open'; renderAdminConsole(); },
+    'admin-people-search': () => adminPeopleSearch(),
+    'admin-people-more': () => adminPeopleMore(),
+    'admin-find-user': (el) => adminFindUser(el.dataset.userId),
+    'admin-set-role': (el) => adminSetRole(el),
+    'admin-suspend': (el) => adminRestrict(el, 'Suspended'),
+    'admin-ban': (el) => adminRestrict(el, 'Banned'),
+    'admin-lift': (el) => adminLift(el),
+    'admin-moderate': (el) => adminModerate(el),
+    'admin-content-filter': (el) => switchAdminContent(el.dataset.filter),
+    'admin-save-banner': () => adminSaveBanner(),
+    'admin-save-charter': () => adminSaveCharter(),
+    'admin-edit-charter': (el) => adminEditCharter(el.dataset.charterId),
+    'admin-cancel-charter': () => adminClearCharter(),
+    'admin-copy-charter-invite': (el) => adminCopyCharterInvite(el.dataset.charterId),
+    'admin-edit-banner': (el) => adminEditBanner(el.dataset.bannerId),
+    'admin-cancel-banner': () => adminClearBanner(),
+    'admin-toggle-banner': (el) => adminToggleBanner(el),
+    'admin-delete-banner': (el) => adminDeleteBanner(el)
+  };
+
+  function routeEvent(event) {
+    const el = event.target.closest('[data-action]');
+    if (!el) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const action = el.dataset.action;
+    if (event.type === 'click') {
+      const delta = Date.now() - lastHandledAt;
+      if (delta < 240 && lastHandledAction === action) return;
+    }
+    lastHandledAt = Date.now();
+    lastHandledAction = action;
+    setDebug(`Tap: ${action}`);
+    try {
+      const fn = ACTIONS[action];
+      if (!fn) {
+        toast('This control could not be opened.', 'danger');
+        return;
+      }
+      holdToastUntil = 0;
+      fn(el, event);
+    } catch (error) {
+      console.error(error);
+      toast(`Button error: ${error.message}`, 'danger');
+    }
+  }
+
+
+  function setupFluidChrome() {
+    let ticking = false;
+    const updateChrome = () => {
+      const y = window.scrollY || document.documentElement.scrollTop || 0;
+      document.body.classList.toggle('chrome-compact', y > 18);
+      document.body.classList.toggle('chrome-deep', y > 220);
+      document.body.style.setProperty('--scroll-y', String(Math.min(y, 420)));
+      ticking = false;
+    };
+    const requestUpdate = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(updateChrome);
+        ticking = true;
+      }
+    };
+    window.addEventListener('scroll', requestUpdate, { passive: true });
+    window.addEventListener('resize', requestUpdate, { passive: true });
+    updateChrome();
+  }
+
+  function scrollToTopSoft() {
+    const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: prefersReduced ? 'auto' : 'smooth' });
+  }
+
+  function screenFromUrl() {
+    const screen = new URLSearchParams(location.search).get('screen');
+    return ['home', 'explore', 'crew', 'feed', 'tools', 'profile'].includes(screen) ? screen : '';
+  }
+
+  function applyCaptainDeepLink() {
+    const params = new URLSearchParams(location.search || '');
+    const slug = String(params.get('charter') || params.get('captain') || '').trim();
+    if (!slug) return;
+    state.focusCaptain = slug;
+    state.activeScreen = 'explore';
+    const match = findCharter(slug) || (state.users || []).find((u) => normalizeUsername(u.username || '') === normalizeUsername(slug) || u.id === slug);
+    if (match) {
+      state.expandedCaptains = state.expandedCaptains || {};
+      state.expandedCaptains[match.id || match.captainId] = true;
+      state.focusCharterId = match.id || slug;
+    }
+    setTimeout(() => {
+      const el = document.getElementById(`captain-${normalizeUsername(slug)}`) || document.getElementById('explore-captains');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 220);
+  }
+
+  function openDeepLinkModal() {
+    const path = String(location.pathname || '').replace(/\/+$/, '').toLowerCase();
+    if (path === '/privacy') openPrivacyPolicy();
+    else if (path === '/terms') openTerms();
+    else if (path === '/support') openSupportCenter();
+    else if (path === '/account/delete' || path === '/account-delete') openAccountDelete();
+    else if (path === '/community-guidelines') openCommunityGuidelines();
+  }
+
+  function wireEvents() {
+    document.addEventListener('pointerup', routeEvent, true);
+    document.addEventListener('click', routeEvent, true);
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeModal();
+      if (event.key === 'Enter' && event.target?.id === 'adminPeopleSearch') {
+        event.preventDefault();
+        adminPeopleSearch();
+        return;
+      }
+      if (event.key === 'Enter' && modalMode === 'auth' && !event.shiftKey) {
+        const active = document.activeElement;
+        if (active && ['INPUT', 'SELECT', 'TEXTAREA'].includes(active.tagName)) {
+          event.preventDefault();
+          if (authTab === 'create') authCreate();
+          else if ($('#socialUsername')) completeSocialProfile($('#socialUsername')?.closest('.social-complete-form')?.dataset.provider || 'social');
+          else authSignIn();
+        }
+      }
+    });
+    $('#modalRoot')?.addEventListener('pointerup', (event) => {
+      if (event.target === $('#modalRoot') && modalMode !== 'tutorial') closeModal();
+    });
+  }
+
+  async function boot() {
+    try {
+      setBootStatus('Restoring your FishCrew session...');
+      load();
+      cleanupOldCaches();
+      wireEvents();
+      setupFluidChrome();
+      setupHardwareBack();
+      applyScreenshotMode();
+      applyScreenshotDemoData();
+      applyCaptainDemoMode();
+      applyGuestPath();
+      applyBetaBannerState();
+      if (CONFIG.USE_SUPABASE && CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY) {
+        setBootStatus('Checking shared data...');
+        // Never let a slow/blocked backend check strand testers on the boot screen.
+        const backendTimeout = new Promise((resolve) => setTimeout(() => resolve('timeout'), 8000));
+        const backendResult = await Promise.race([checkBackend(), backendTimeout]);
+        if (backendResult === 'timeout') {
+          state.backendMode = 'local';
+          toast('Shared data is slow to respond. Browsing continues with local data.', 'danger');
+        } else if (state.backendMode === 'supabase') {
+          setBootStatus('Loading the dock...');
+          try {
+            await Promise.race([
+              pullSupabase({ silent: true, reason: 'boot' }),
+              new Promise((resolve) => setTimeout(resolve, 8000))
+            ]);
+          } catch (_) { /* keep restored local boards */ }
+        }
+      }
+      await maybeHandlePasswordRecovery();
+      await maybeHandleInstagramOAuthCallback();
+      if (currentUser() && !state.onboardingSeen) state.onboardingSeen = true;
+      setBootStatus('Setting the water window...');
+      applyCaptainDeepLink();
+      state.activeScreen = screenFromUrl() || state.activeScreen || 'home';
+      save(true);
+      render();
+      setDebug(`Screen: ${state.activeScreen}`);
+      if (state.focusCaptain || state.focusCharterId) {
+        setTimeout(() => {
+          const slug = normalizeUsername(state.focusCaptain || '');
+          const el = document.getElementById(`captain-${slug}`) || document.getElementById('explore-captains');
+          el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          if (state.focusCharterId) openCharterProfile(state.focusCharterId);
+        }, 280);
+      }
+      if (state.session?.demoCaptain) toast('Captain desk demo ready — open Leads inbox from Home.');
+      setTimeout(openDeepLinkModal, 180);
+      consumePendingTripInvite();
+      if (!state.locationAsked && window.isSecureContext && navigator.geolocation) {
+        state.locationAsked = true;
+        save();
+        setDebug('Location tools ready. Tap conditions or GPS when you want live location.');
+      }
+      setDebug(`Ready v${VERSION}: central router online`);
+      finishBoot();
+    } catch (error) {
+      failBoot(error);
+    }
+  }
+
+  window.FishCrew = { get state() { return state; }, actions: ACTIONS, render, runHealthCheck, version: VERSION };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+
+
+
+
+

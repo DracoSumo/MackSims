@@ -1,0 +1,26 @@
+# Repo files that ship inside the publish dir but must not be downloadable.
+# The trailing ! forces the rule ahead of static-file serving.
+/supabase/*  /index.html  404!
+/package.json  /index.html  404!
+/README.md  /index.html  404!
+/crew-chat-membership.test.mjs  /index.html  404!
+/profiles-hide-email.test.mjs  /index.html  404!
+/trip-invite-share.test.mjs  /index.html  404!
+/trip-members-host-gated-insert.test.mjs  /index.html  404!
+/admin-console.test.mjs  /index.html  404!
+/qa-hardening.test.mjs  /index.html  404!
+/scripts/*  /index.html  404!
+/outreach/*  /index.html  404!
+
+/guest    /index.html    200
+/captain  /index.html    200
+/early-access /early-access.html  200
+/captains /early-access.html  200
+/charters /index.html    200
+/account-delete /account-delete.html    200
+/support  /support.html  200
+/privacy  /privacy.html  200
+/terms    /terms.html    200
+/account-delete  /index.html  200
+/account/delete  /index.html  200
+/account-delete.html  /account-delete.html  200
